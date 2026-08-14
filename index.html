@@ -411,6 +411,11 @@ body.imopen{overflow:hidden}
 #antbl .gap.ret{background:var(--neg-bg);border-color:#E3B5AA;color:var(--neg)}
 
 .field.f-item{min-width:220px;flex:1.2}
+
+#antbl td.a-stock,#antbl th.a-stock{white-space:nowrap}
+@media (max-width:760px){
+  #antbl th.a-stock,#antbl td.a-stock{font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -568,6 +573,10 @@ body.imopen{overflow:hidden}
         <option value="4">4 months or more</option>
         <option value="5">5 months or more</option>
         <option value="6">More than 6 months</option>
+        <option value="9">More than 9 months</option>
+        <option value="12">More than 12 months</option>
+        <option value="18">More than 18 months</option>
+        <option value="24">More than 24 months</option>
       </select>
     </div>
     <div class="field f-search">
@@ -602,6 +611,7 @@ body.imopen{overflow:hidden}
           <th class="r a-vb" id="anYrB"></th>
           <th class="r a-diff">Difference</th>
           <th class="a-last">Last Supplied</th>
+          <th class="r a-stock">Stock</th>
         </tr></thead>
         <tbody id="anBody"></tbody>
       </table>
@@ -657,7 +667,7 @@ var SITES = [], CUSTOMERS = [], sitesByCust = {};
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
 var loadedAt = null;
-var DATA_VERSION = 6;
+var DATA_VERSION = 7;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -740,6 +750,7 @@ function applySnapshot(snap){
   SITES.forEach(function(r, i){
     if (seen[r[0]] === undefined){ seen[r[0]] = CUSTOMERS.length; CUSTOMERS.push(r[0]); }
     r[4] = seen[r[0]];
+    if (r[5] === undefined) r[5] = '';
     (sitesByCust[r[4]] = sitesByCust[r[4]] || []).push(i);
   });
   LASTM = 0;
@@ -762,7 +773,8 @@ function csvUrl(){
 
 /* column positions in the sheet */
 var C_DEP = 0, C_ITEM = 3, C_CUST = 6, C_CODE = 10, C_SITE = 11, C_CHAN = 13,
-    C_YR = 14, C_MNTH = 15, C_SALES = 16, C_CASES = 17, C_STOCK = 18;   /* S = stock */
+    C_YR = 14, C_MNTH = 15, C_SALES = 16, C_CASES = 17, C_STOCK = 18,   /* S = stock */
+    C_COLL = 8;                                                          /* I = collector */
 
 /* Warehouse stock, looked up VLOOKUP-style: the same figure repeats on every row
    of an item, so it is ASSIGNED per item code, never summed. */
@@ -862,7 +874,7 @@ function splitCsv(line){
 }
 
 function loadAll(progress, ok, fail){
-  var sites = [], codeIdx = {}, siteLastP = [], yearSeen = {}, B = new Buckets();
+  var sites = [], codeIdx = {}, siteLastP = [], sitePosP = [], yearSeen = {}, B = new Buckets();
   var STOCK_FIRST = 18, STOCK_LAST = 25, stockMaps = [], stockHits = [];
   for (var sc=STOCK_FIRST; sc<=STOCK_LAST; sc++){ stockMaps[sc] = {}; stockHits[sc] = 0; }
   var headers = [], namedCol = -1, widest = 0;
@@ -906,7 +918,7 @@ function loadAll(progress, ok, fail){
     if (si === undefined){
       si = sites.length;
       codeIdx[code] = si;
-      sites.push([f[C_CUST].trim(), f[C_SITE].trim(), code, f[C_CHAN].trim(), 0]);
+      sites.push([f[C_CUST].trim(), f[C_SITE].trim(), code, f[C_CHAN].trim(), 0, '']);
       siteLastP[si] = abs;
     } else if (abs > siteLastP[si]){
       /* an outlet keeps one identity across renames — show its most recent name */
@@ -924,6 +936,13 @@ function loadAll(progress, ok, fail){
     if (abs < 0) return;
     var m = mm, y = yy;
     var v = cnum(f[C_SALES]), q = cnum(f[C_CASES]);
+    /* last active salesman = whoever serviced the outlet on its most recent
+       shipping month; returns alone do not count as activity */
+    if (q > 0 && abs >= (sitePosP[si] === undefined ? -1 : sitePosP[si])){
+      sitePosP[si] = abs;
+      var coll = (f[C_COLL] || '').trim();
+      if (coll) sites[si][5] = coll;
+    }
     if (!v && !q) return;
     yearSeen[y] = 1;
     rows++;
@@ -2208,7 +2227,8 @@ function analysisScan(){
 
   var NS = SITES.length, n = NS * NI;
   var lastP = new Int32Array(n), lastAny = new Int32Array(n),
-      vA = new Float64Array(n), vB = new Float64Array(n);
+      vA = new Float64Array(n), vB = new Float64Array(n),
+      qA = new Float64Array(n), qB = new Float64Array(n);
   lastP.fill(-1); lastAny.fill(-1);
   if (!siteCust || siteCust.length !== NS){
     siteCust = new Int32Array(NS);
@@ -2231,12 +2251,12 @@ function analysisScan(){
     if (fq[k] > 0 || fv[k] !== 0) siteLive[s] = 1;
     var m = p % 12, yi = (p/12)|0;
     if (m >= m1 && m <= m2){
-      if (yi === ia){ vA[idx] += fv[k]; custA[siteCust[s]] += fv[k]; }
-      else if (yi === ib){ vB[idx] += fv[k]; custB[siteCust[s]] += fv[k]; }
+      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; }
+      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; }
     }
   }
-  AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, custA:custA, custB:custB,
-        siteLive:siteLive, ref:(NY-1)*12 + LASTM};
+  AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, qA:qA, qB:qB,
+        custA:custA, custB:custB, siteLive:siteLive, ref:(NY-1)*12 + LASTM};
   return AN;
 }
 
@@ -2278,7 +2298,7 @@ function buildAnalysisRows(){
       out.push({
         s:s, i:i, cid:cid, never:never, lp:lp, la:la,
         gap: gapMonths(lp, la, ref),
-        vA: A2.vA[idx], vB: A2.vB[idx],
+        vA: A2.vA[idx], vB: A2.vB[idx], qA: A2.qA[idx], qB: A2.qB[idx],
         rank: A2.custB[cid] + A2.custA[cid]
       });
     }
@@ -2343,12 +2363,12 @@ function renderAnalysis(){
               '<td class="num">' + fmtS(A2.custB[d.cid]) + '</td>' +
               '<td class="num"><span class="' + (cDiff>0?'up':(cDiff<0?'down':'flat')) + '">' +
                 (cDiff>=0?'+':'−') + nf0.format(Math.abs(Math.round(cDiff))) + '</span></td>' +
-              '<td></td></tr>';
+              '<td></td><td></td></tr>';
     }
     inCust++;
     if (inCust > AN_PER_CUST){
       if (inCust === AN_PER_CUST + 1){
-        html += '<tr class="more"><td colspan="9">' + (perCust[d.cid] - AN_PER_CUST) +
+        html += '<tr class="more"><td colspan="10">' + (perCust[d.cid] - AN_PER_CUST) +
                 ' more gaps for ' + esc(CUSTOMERS[d.cid]) + ' — filter to this customer, or export the CSV, to see them all</td></tr>';
       }
       continue;
@@ -2365,14 +2385,15 @@ function renderAnalysis(){
       '<td class="num a-vb">' + fmt(d.vB) + '</td>' +
       '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
         (d.vA || d.vB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
-      '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td></tr>';
+      '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td>' +
+      '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td></tr>';
   }
   if (html) html += '</tbody>';
   var tbl = document.getElementById('antbl');
   var olds = tbl.querySelectorAll('tbody');
   for (var ob=0; ob<olds.length; ob++) olds[ob].parentNode.removeChild(olds[ob]);
   tbl.insertAdjacentHTML('beforeend', html ||
-    '<tbody id="anBody"><tr><td colspan="9" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
+    '<tbody id="anBody"><tr><td colspan="10" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
   document.getElementById('anCount').textContent =
     nf0.format(anRows.length) + ' opportunities · ' + Object.keys(perCust).length + ' customers' +
     (anRows.length > printed ? ' · showing the worst ' + AN_PER_CUST + ' per customer' : '');
@@ -2502,7 +2523,9 @@ document.getElementById('anReset').addEventListener('click', function(){
 document.getElementById('anCsv').addEventListener('click', function(){
   var A2 = analysisScan();
   var head = ['Customer','Customer Site','Category','Item Code','Item Description',
-              state.yrA+' Value', state.yrB+' Value','Difference','Last Supplied','Months Since'];
+              state.yrA+' QTY', state.yrB+' QTY',
+              state.yrA+' Value', state.yrB+' Value','Difference',
+              'Warehouse Stock','Last Supplied','Months Since','Last Active Salesman'];
   var lines = [head.join(',')];
   anRows.forEach(function(d){
     var e = effLast(d.lp, d.la);
@@ -2514,8 +2537,11 @@ document.getElementById('anCsv').addEventListener('click', function(){
       '"'+ITEMS[d.i][2].replace(/"/g,'""')+'"',
       ITEMS[d.i][0],
       '"'+ITEMS[d.i][1].replace(/"/g,'""')+'"',
+      d.qA.toFixed(2), d.qB.toFixed(2),
       d.vA.toFixed(2), d.vB.toFixed(2), (d.vB-d.vA).toFixed(2),
-      lt, d.never ? '' : (A2.ref - e)
+      STOCK ? Math.round(stockOf(d.i)) : '',
+      lt, d.never ? '' : (A2.ref - e),
+      '"'+String(SITES[d.s][5] || '').replace(/"/g,'""')+'"'
     ].join(','));
   });
   var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
