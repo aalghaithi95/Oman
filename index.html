@@ -354,6 +354,45 @@ body.imopen{overflow:hidden}
   .imtbl tbody th{padding:5px 6px;font-size:10.5px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 15px;
+  font-family:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;
+  letter-spacing:.01em;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink);border-bottom-color:var(--accent)}
+/* ---------- analysis table ---------- */
+#antbl{width:100%;border-collapse:collapse}
+#antbl th{position:sticky;top:0;z-index:3;background:var(--ink);color:#EAF2F0;text-align:left;
+  padding:9px 8px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+#antbl th.r{text-align:right}
+#antbl td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:middle}
+#antbl td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11.5px}
+#antbl tbody tr:hover td{background:#FAFAF8}
+#antbl tr.cat td{background:var(--paper-2);font-weight:600;font-size:11.5px;border-bottom:1px solid var(--line)}
+#antbl tr.cat td.catname{color:var(--ink)}
+#antbl tr.nsup td.a-last{white-space:nowrap}
+#antbl td.a-cust,#antbl td.a-site{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#antbl tbody tr:not(.cat) td.a-cust{color:var(--muted);font-size:11px}
+#antbl td.desc{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  cursor:pointer;text-decoration:underline;text-decoration-color:rgba(19,76,140,.28);text-underline-offset:2px}
+#antbl td.desc:hover{color:var(--accent-2)}
+#antbl .gap{display:inline-block;margin-left:6px;font-size:10px;color:var(--muted);
+  background:var(--paper-2);border:1px solid var(--line);border-radius:20px;padding:1px 6px}
+#antbl .empty{padding:26px;text-align:center;color:var(--muted)}
+@media (max-width:760px){
+  .tabs{position:sticky;top:0;z-index:20;background:var(--paper);margin-bottom:10px}
+  .tab{flex:1;text-align:center;padding:10px 6px;font-size:12px}
+  #antbl th.a-cat,#antbl td.a-cat,#antbl th.a-code,#antbl td.a-code,
+  #antbl th.a-va,#antbl td.a-va{display:none}
+  #antbl td.a-cust,#antbl td.a-site{max-width:120px}
+  #antbl td.desc{max-width:150px}
+  #antbl th,#antbl td{padding:6px 5px;font-size:11.5px}
+}
+
+#antbl tr.more td{background:#FBF3E1;color:var(--accent-2);font-size:11px;padding:6px 10px;
+  border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -386,6 +425,12 @@ body.imopen{overflow:hidden}
 
 <div class="wrap">
 
+  <div class="tabs" id="tabs">
+    <button class="tab on" type="button" data-t="visit">Market Visit</button>
+    <button class="tab" type="button" data-t="analysis">Analysis</button>
+  </div>
+
+<div id="paneVisit">
   <div class="filters">
     <div class="field f-cust">
       <span>Customer</span>
@@ -467,6 +512,77 @@ body.imopen{overflow:hidden}
       </table>
     </div>
   </div>
+
+</div><!-- /paneVisit -->
+
+<div id="paneAnalysis" style="display:none">
+  <div class="filters">
+    <div class="field f-cust">
+      <span>Customer</span>
+      <div class="ms" id="msACust">
+        <button class="ms-btn" type="button" data-role="btn"><b>All customers</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search customer…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="field f-search">
+      <span>Category</span>
+      <select id="anCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+    </div>
+    <div class="field f-search">
+      <span>Item Description</span>
+      <input type="text" id="anQ" placeholder="Code or description…">
+    </div>
+    <div class="field f-search">
+      <span>No supply for</span>
+      <select id="anGap" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%">
+        <option value="3">3 months or more</option>
+        <option value="4">4 months or more</option>
+        <option value="5">5 months or more</option>
+        <option value="6">More than 6 months</option>
+      </select>
+    </div>
+    <div class="field f-search">
+      <span>Never supplied</span>
+      <select id="anNever" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%">
+        <option value="exclude">Exclude</option>
+        <option value="include">Include</option>
+        <option value="only">Only never supplied</option>
+      </select>
+    </div>
+    <button class="btn ghost" id="anReset">Reset filters</button>
+    <button class="btn" id="anCsv">Export CSV</button>
+  </div>
+
+  <div class="kpis" id="anKpis"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Missing opportunities</h2>
+      <span class="count" id="anCount"></span>
+      <div class="right"><span class="eyebrow" id="anScope"></span></div>
+    </div>
+    <div class="tscroll" id="anScroll">
+      <table id="antbl">
+        <thead><tr>
+          <th class="a-cust">Customer</th>
+          <th class="a-site">Customer Site</th>
+          <th class="a-cat">Category</th>
+          <th class="a-code">Item Code</th>
+          <th>Item Description</th>
+          <th class="r a-va" id="anYrA"></th>
+          <th class="r a-vb" id="anYrB"></th>
+          <th class="r a-diff">Difference</th>
+          <th class="a-last">Last Supplied</th>
+        </tr></thead>
+        <tbody id="anBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div><!-- /paneAnalysis -->
 
   <div class="foot">
     <span id="footMeta"></span>
@@ -1233,6 +1349,7 @@ var state = {
   yrA: 0, yrB: 0, m1: 0, m2: 11,
   cust: new Set(), site: new Set(),
   cat: null, q: '',
+  aCust: new Set(), aCat: null, aQ: '', aGap: 3, aNever: 'exclude',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
@@ -1461,6 +1578,10 @@ function render(){
   document.getElementById('lostCount').textContent = lost.length + ' items';
   var lv = lost.reduce(function(s,r){ return s+r.v; }, 0);
   document.getElementById('lostNote').textContent = lost.length ? nf0.format(Math.round(lv))+' of '+state.yrA+' value at risk' : '';
+
+  document.getElementById('anYrA').textContent = state.yrA + ' Value';
+  document.getElementById('anYrB').textContent = state.yrB + ' Value';
+  if (TAB === 'analysis') renderAnalysis();
 }
 
 /* ================= store check ================= */
@@ -1935,6 +2056,257 @@ document.getElementById('tbody').addEventListener('click', function(e){
   openItem(+cell.dataset.i);
 });
 
+/* ================= Analysis tab — missing opportunities =================
+   One pass over the whole dataset gives, for every site x item: the last month
+   supplied and the value in each compared year. Everything else is filtering. */
+var TAB = 'visit';
+var AN = null;                       /* cached scan, keyed on the compare settings */
+var siteCust = null;
+var anRows = [];
+
+function analysisScan(){
+  var key = state.yrA + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' + SITES.length;
+  if (AN && AN.key === key) return AN;
+
+  var NS = SITES.length, n = NS * NI;
+  var lastP = new Int32Array(n), vA = new Float64Array(n), vB = new Float64Array(n);
+  lastP.fill(-1);
+  if (!siteCust || siteCust.length !== NS){
+    siteCust = new Int32Array(NS);
+    for (var si=0; si<NS; si++) siteCust[si] = SITES[si][4];
+  }
+  var custA = new Float64Array(CUSTOMERS.length), custB = new Float64Array(CUSTOMERS.length);
+  var siteLive = new Uint8Array(NS);
+  var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
+  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, N = fs.length;
+
+  for (var k=0;k<N;k++){
+    var s = fs[k], i = fi[k], p = fp[k], idx = s*NI + i;
+    if (fq[k] > 0 || fv[k] > 0){ if (p > lastP[idx]) lastP[idx] = p; }
+    var m = p % 12, yi = (p/12)|0;
+    if (m >= m1 && m <= m2){
+      if (yi === ia){ vA[idx] += fv[k]; custA[siteCust[s]] += fv[k]; if (fv[k]) siteLive[s] = 1; }
+      else if (yi === ib){ vB[idx] += fv[k]; custB[siteCust[s]] += fv[k]; if (fv[k]) siteLive[s] = 1; }
+    }
+  }
+  AN = {key:key, lastP:lastP, vA:vA, vB:vB, custA:custA, custB:custB, siteLive:siteLive,
+        ref:(NY-1)*12 + LASTM};
+  return AN;
+}
+
+function gapMonths(lastPeriod, ref){ return lastPeriod < 0 ? 999 : (ref - lastPeriod); }
+function gapLabel(lastPeriod, ref){
+  if (lastPeriod < 0) return '<span class="never">NEVER SUPPLIED</span>';
+  var g = ref - lastPeriod, o = periodOf(lastPeriod);
+  var txt = MONTHS[o.month] + " '" + String(o.year).slice(2);
+  return '<span class="mono" style="font-size:11px">' + txt + '</span>' +
+         '<span class="gap">' + (g === 0 ? 'this month' : g + ' mo') + '</span>';
+}
+
+function buildAnalysisRows(){
+  var A2 = analysisScan(), out = [], ref = A2.ref;
+  var q = state.aQ.trim().toLowerCase();
+  var wantNever = state.aNever;                 /* exclude | include | only */
+  var minGap = state.aGap;
+
+  for (var s=0; s<SITES.length; s++){
+    var cid = siteCust[s];
+    if (state.aCust.size && !state.aCust.has(cid)) continue;
+    if (!A2.siteLive[s]) continue;              /* dormant outlet — not an opportunity */
+    for (var i=0; i<NI; i++){
+      if (ITEMS[i][3] === 'Promotion') continue;          /* promo packs aren't distribution */
+      if (state.aCat !== null && catOf[i] !== state.aCat) continue;
+      if (q && String(ITEMS[i][0]).indexOf(q) < 0 && ITEMS[i][1].toLowerCase().indexOf(q) < 0) continue;
+      var idx = s*NI + i, lp = A2.lastP[idx], never = lp < 0;
+      if (never){
+        if (wantNever === 'exclude') continue;
+      } else {
+        if (wantNever === 'only') continue;
+        if ((ref - lp) < minGap) continue;                /* still being supplied */
+      }
+      out.push({
+        s:s, i:i, cid:cid, never:never, lp:lp,
+        gap: gapMonths(lp, ref),
+        vA: A2.vA[idx], vB: A2.vB[idx],
+        rank: A2.custB[cid] + A2.custA[cid]
+      });
+    }
+  }
+  /* biggest customers first, and inside a customer the biggest loss first */
+  out.sort(function(a,b){
+    if (b.rank !== a.rank) return b.rank - a.rank;
+    if (a.cid !== b.cid) return a.cid - b.cid;
+    var la = a.vA - a.vB, lb = b.vA - b.vB;
+    if (lb !== la) return lb - la;
+    return a.never === b.never ? (b.gap - a.gap) : (a.never ? 1 : -1);
+  });
+  return out;
+}
+
+var AN_CAP = 600, AN_PER_CUST = 12;
+function renderAnalysis(){
+  if (!F) return;
+  var A2 = analysisScan();
+  anRows = buildAnalysisRows();
+
+  var lostVal = 0, custSet = {}, siteSet = {}, neverN = 0;
+  for (var r=0;r<anRows.length;r++){
+    var row = anRows[r];
+    lostVal += Math.max(0, row.vA - row.vB);
+    custSet[row.cid] = 1; siteSet[row.s] = 1;
+    if (row.never) neverN++;
+  }
+  function kpi(lab, val, sub, cls){
+    return '<div class="kpi"><div class="eyebrow">'+lab+'</div><div class="v">'+val+'</div><div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
+  }
+  document.getElementById('anKpis').innerHTML =
+    kpi('Opportunities', nf0.format(anRows.length), Object.keys(siteSet).length + ' sites affected', anRows.length?'down':'flat') +
+    kpi(state.yrA + ' value at risk', nf0.format(Math.round(lostVal)), 'sold in '+state.yrA+', not now', lostVal?'down':'flat') +
+    kpi('Customers', String(Object.keys(custSet).length), 'with at least one gap', 'flat') +
+    kpi('Never supplied', state.aNever === 'exclude' ? '—' : nf0.format(neverN),
+        state.aNever === 'exclude' ? 'excluded by the filter' : 'no invoice at that site ever',
+        (state.aNever !== 'exclude' && neverN) ? 'down' : 'flat');
+
+  /* count per customer up front so each group can show its own total */
+  var perCust = {}, lossCust = {};
+  for (var c=0;c<anRows.length;c++){
+    var cd = anRows[c];
+    perCust[cd.cid] = (perCust[cd.cid] || 0) + 1;
+    lossCust[cd.cid] = (lossCust[cd.cid] || 0) + Math.max(0, cd.vA - cd.vB);
+  }
+  /* the biggest customer can have hundreds of gaps — show its worst dozen, then
+     move on, so the page covers many customers instead of one */
+  var html = '', lastCust = -1, inCust = 0, printed = 0;
+  for (var j=0;j<anRows.length && printed < AN_CAP;j++){
+    var d = anRows[j];
+    if (d.cid !== lastCust){
+      lastCust = d.cid; inCust = 0;
+      var cnt = perCust[d.cid], cl = lossCust[d.cid];
+      var cDiff = A2.custB[d.cid] - A2.custA[d.cid];
+      html += '<tr class="cat"><td class="catname" colspan="5">' + esc(CUSTOMERS[d.cid]) +
+              ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' + cnt + ' gaps' +
+              (cl ? ' · ' + nf0.format(Math.round(cl)) + ' at risk' : '') + '</span></td>' +
+              '<td class="num">' + fmtS(A2.custA[d.cid]) + '</td>' +
+              '<td class="num">' + fmtS(A2.custB[d.cid]) + '</td>' +
+              '<td class="num"><span class="' + (cDiff>0?'up':(cDiff<0?'down':'flat')) + '">' +
+                (cDiff>=0?'+':'−') + nf0.format(Math.abs(Math.round(cDiff))) + '</span></td>' +
+              '<td></td></tr>';
+    }
+    inCust++;
+    if (inCust > AN_PER_CUST){
+      if (inCust === AN_PER_CUST + 1){
+        html += '<tr class="more"><td colspan="9">' + (perCust[d.cid] - AN_PER_CUST) +
+                ' more gaps for ' + esc(CUSTOMERS[d.cid]) + ' — filter to this customer, or export the CSV, to see them all</td></tr>';
+      }
+      continue;
+    }
+    printed++;
+    var diff = d.vB - d.vA;
+    html += '<tr' + (d.never ? ' class="nsup"' : '') + '>' +
+      '<td class="a-cust">' + esc(CUSTOMERS[d.cid]) + '</td>' +
+      '<td class="a-site">' + esc(SITES[d.s][1]) + '</td>' +
+      '<td class="a-cat">' + esc(ITEMS[d.i][2]) + '</td>' +
+      '<td class="a-code mono" style="font-size:11px">' + ITEMS[d.i][0] + '</td>' +
+      '<td class="desc" data-i="' + d.i + '" role="button" tabindex="0" title="Tap for the monthly breakdown">' + esc(ITEMS[d.i][1]) + '</td>' +
+      '<td class="num a-va">' + fmt(d.vA) + '</td>' +
+      '<td class="num a-vb">' + fmt(d.vB) + '</td>' +
+      '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
+        (d.vA || d.vB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
+      '<td class="a-last">' + gapLabel(d.lp, A2.ref) + '</td></tr>';
+  }
+  document.getElementById('anBody').innerHTML = html ||
+    '<tr><td colspan="9" class="empty">No gaps match these filters — every item is being supplied.</td></tr>';
+  document.getElementById('anCount').textContent =
+    nf0.format(anRows.length) + ' opportunities · ' + Object.keys(perCust).length + ' customers' +
+    (anRows.length > printed ? ' · showing the worst ' + AN_PER_CUST + ' per customer' : '');
+  document.getElementById('anScope').textContent =
+    periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · gap of ' + state.aGap + '+ months' +
+    (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
+}
+
+function initAnalysis(){
+  msACust = MultiSelect('msACust', {
+    allLabel: 'All customers',
+    options: function(){
+      return CUSTOMERS.map(function(n,i){ return {id:i, label:n}; })
+                      .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+    },
+    sel: function(){ return state.aCust; },
+    changed: function(){ renderAnalysis(); }
+  });
+  var sel = document.getElementById('anCat');
+  var order = CATS.map(function(n,i){ return {i:i, n:n}; }).sort(function(a,b){ return a.n<b.n?-1:1; });
+  sel.innerHTML = '<option value="">All categories</option>' +
+    order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
+}
+
+var msACust = null, anQT;
+document.getElementById('anCat').addEventListener('change', function(){
+  state.aCat = this.value === '' ? null : +this.value;
+  renderAnalysis();
+});
+document.getElementById('anQ').addEventListener('input', function(){
+  var v = this.value;
+  clearTimeout(anQT);
+  anQT = setTimeout(function(){ state.aQ = v; renderAnalysis(); }, 180);
+});
+document.getElementById('anGap').addEventListener('change', function(){
+  state.aGap = +this.value; renderAnalysis();
+});
+document.getElementById('anNever').addEventListener('change', function(){
+  state.aNever = this.value; renderAnalysis();
+});
+document.getElementById('anReset').addEventListener('click', function(){
+  state.aCust.clear(); state.aCat = null; state.aQ = ''; state.aGap = 3; state.aNever = 'exclude';
+  document.getElementById('anCat').value = '';
+  document.getElementById('anQ').value = '';
+  document.getElementById('anGap').value = '3';
+  document.getElementById('anNever').value = 'exclude';
+  if (msACust) msACust.refresh();
+  renderAnalysis();
+});
+document.getElementById('anBody').addEventListener('click', function(e){
+  var cell = e.target.closest('td.desc');
+  if (!cell || cell.dataset.i === undefined) return;
+  openItem(+cell.dataset.i);
+});
+document.getElementById('anCsv').addEventListener('click', function(){
+  var A2 = analysisScan();
+  var head = ['Customer','Customer Site','Category','Item Code','Item Description',
+              state.yrA+' Value', state.yrB+' Value','Difference','Last Supplied','Months Since'];
+  var lines = [head.join(',')];
+  anRows.forEach(function(d){
+    var lt = d.never ? 'NEVER SUPPLIED' : (function(){ var o = periodOf(d.lp); return MONTHS[o.month]+' '+o.year; })();
+    lines.push([
+      '"'+CUSTOMERS[d.cid].replace(/"/g,'""')+'"',
+      '"'+SITES[d.s][1].replace(/"/g,'""')+'"',
+      '"'+ITEMS[d.i][2].replace(/"/g,'""')+'"',
+      ITEMS[d.i][0],
+      '"'+ITEMS[d.i][1].replace(/"/g,'""')+'"',
+      d.vA.toFixed(2), d.vB.toFixed(2), (d.vB-d.vA).toFixed(2),
+      lt, d.never ? '' : (A2.ref - d.lp)
+    ].join(','));
+  });
+  var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'delicio_oman_missing_opportunities_' + periodLabel() + '.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  TAB = t;
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
+  document.getElementById('paneVisit').style.display = (t === 'visit') ? '' : 'none';
+  document.getElementById('paneAnalysis').style.display = (t === 'analysis') ? '' : 'none';
+  if (t === 'analysis') renderAnalysis();
+}
+document.getElementById('tabs').addEventListener('click', function(e){
+  var b = e.target.closest('.tab'); if (!b) return;
+  showTab(b.dataset.t);
+});
+
 /* ================= boot ================= */
 function showLoader(msg){
   var el = document.getElementById('loading');
@@ -1962,6 +2334,7 @@ function afterLoad(rebuild){
   if (!built){
     buildSelectors();
     buildCatFilter();
+    initAnalysis();
     built = true;
   } else if (rebuild){
     msCust.refresh(); msSite.refresh();
