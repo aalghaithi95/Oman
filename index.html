@@ -373,14 +373,25 @@ body.imopen{overflow:hidden}
 #antbl td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:middle}
 #antbl td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11.5px}
 #antbl tbody tr:hover td{background:#FAFAF8}
-#antbl tr.cat td{background:var(--paper-2);font-weight:600;font-size:11.5px;border-bottom:1px solid var(--line)}
+/* the customer row freezes under the table header — measured at render time so it
+   never overlaps it, and its background is fully opaque so the next customer's row
+   covers the previous one cleanly instead of both showing through */
+#antbl th{z-index:6}
+/* Chrome ignores sticky on table cells and anchors a sticky ROW to the whole
+   table rather than its own tbody, so every customer row would pile up at the
+   top. Only the customer currently in view is given sticky — handoff is driven
+   by the scroll handler below. */
+#antbl tr.cat{position:static}
+#antbl tr.cat.stuck{position:sticky;top:var(--anth,34px);z-index:4}
+#antbl tr.cat td{background:#EEF1EF;font-weight:600;font-size:11.5px;
+  border-bottom:1px solid var(--line);border-top:1px solid var(--line);
+  box-shadow:0 1px 0 var(--line)}
+#antbl tr.cat:hover td{background:#EEF1EF}
 #antbl tr.cat td.catname{color:var(--ink)}
 #antbl tr.nsup td.a-last{white-space:nowrap}
 #antbl td.a-cust,#antbl td.a-site{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #antbl tbody tr:not(.cat) td.a-cust{color:var(--muted);font-size:11px}
-#antbl td.desc{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  cursor:pointer;text-decoration:underline;text-decoration-color:rgba(19,76,140,.28);text-underline-offset:2px}
-#antbl td.desc:hover{color:var(--accent-2)}
+#antbl td.desc{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #antbl .gap{display:inline-block;margin-left:6px;font-size:10px;color:var(--muted);
   background:var(--paper-2);border:1px solid var(--line);border-radius:20px;padding:1px 6px}
 #antbl .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -2320,9 +2331,11 @@ function renderAnalysis(){
   for (var j=0;j<anRows.length && printed < AN_CAP;j++){
     var d = anRows[j];
     if (d.cid !== lastCust){
+      if (lastCust !== -1) html += '</tbody>';
       lastCust = d.cid; inCust = 0;
       var cnt = perCust[d.cid], cl = lossCust[d.cid];
       var cDiff = A2.custB[d.cid] - A2.custA[d.cid];
+      html += '<tbody class="grp">';
       html += '<tr class="cat"><td class="catname" colspan="5">' + esc(CUSTOMERS[d.cid]) +
               ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' + cnt + ' gaps' +
               (cl ? ' · ' + nf0.format(Math.round(cl)) + ' at risk' : '') + '</span></td>' +
@@ -2347,18 +2360,25 @@ function renderAnalysis(){
       '<td class="a-site">' + esc(SITES[d.s][1]) + '</td>' +
       '<td class="a-cat">' + esc(ITEMS[d.i][2]) + '</td>' +
       '<td class="a-code mono" style="font-size:11px">' + ITEMS[d.i][0] + '</td>' +
-      '<td class="desc" data-i="' + d.i + '" role="button" tabindex="0" title="Tap for the monthly breakdown">' + esc(ITEMS[d.i][1]) + '</td>' +
+      '<td class="desc" title="' + esc(ITEMS[d.i][1]) + '">' + esc(ITEMS[d.i][1]) + '</td>' +
       '<td class="num a-va">' + fmt(d.vA) + '</td>' +
       '<td class="num a-vb">' + fmt(d.vB) + '</td>' +
       '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
         (d.vA || d.vB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
       '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td></tr>';
   }
-  document.getElementById('anBody').innerHTML = html ||
-    '<tr><td colspan="9" class="empty">No gaps match these filters — every item is being supplied.</td></tr>';
+  if (html) html += '</tbody>';
+  var tbl = document.getElementById('antbl');
+  var olds = tbl.querySelectorAll('tbody');
+  for (var ob=0; ob<olds.length; ob++) olds[ob].parentNode.removeChild(olds[ob]);
+  tbl.insertAdjacentHTML('beforeend', html ||
+    '<tbody id="anBody"><tr><td colspan="9" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
   document.getElementById('anCount').textContent =
     nf0.format(anRows.length) + ' opportunities · ' + Object.keys(perCust).length + ' customers' +
     (anRows.length > printed ? ' · showing the worst ' + AN_PER_CUST + ' per customer' : '');
+  syncAnHeadHeight();
+  anStuck = null;
+  measureGroups();
   document.getElementById('anScope').textContent =
     periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · gap of ' + state.aGap + '+ months' +
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
@@ -2376,6 +2396,56 @@ function analysisItemOptions(){
   out.sort(function(a,b){ return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0); });
   return out;
 }
+var anGroups = [], anStuck = null, anTick = false;
+function measureGroups(){
+  anGroups = [];
+  var wrap = document.getElementById('anScroll');
+  if (!wrap) return;
+  var base = wrap.getBoundingClientRect().top - wrap.scrollTop;
+  var bodies = document.querySelectorAll('#antbl tbody.grp');
+  for (var i=0;i<bodies.length;i++){
+    var row = bodies[i].querySelector('tr.cat');
+    if (!row) continue;
+    anGroups.push({row:row, top: bodies[i].getBoundingClientRect().top - base,
+                   bottom: bodies[i].getBoundingClientRect().bottom - base});
+  }
+  updateStuck();
+}
+function updateStuck(){
+  var wrap = document.getElementById('anScroll');
+  if (!wrap || !anGroups.length) return;
+  var headH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--anth'), 10) || 34;
+  var y = wrap.scrollTop + headH;
+  var active = null;
+  for (var i=0;i<anGroups.length;i++){
+    if (anGroups[i].top <= y && anGroups[i].bottom > y){ active = anGroups[i]; break; }
+    if (anGroups[i].top > y) break;
+  }
+  if (anStuck && (!active || anStuck !== active.row)){
+    anStuck.classList.remove('stuck');
+    anStuck = null;
+  }
+  if (active && anStuck !== active.row){
+    active.row.classList.add('stuck');
+    anStuck = active.row;
+  }
+}
+function onAnScroll(){
+  if (anTick) return;
+  anTick = true;
+  window.requestAnimationFrame(function(){ anTick = false; updateStuck(); });
+}
+function syncAnHeadHeight(){
+  var head = document.querySelector('#antbl thead');
+  if (!head) return;
+  var hgt = head.getBoundingClientRect().height;
+  if (hgt > 0) document.documentElement.style.setProperty('--anth', Math.round(hgt) + 'px');
+}
+window.addEventListener('resize', function(){
+  if (TAB !== 'analysis') return;
+  syncAnHeadHeight(); measureGroups();
+});
+document.getElementById('anScroll').addEventListener('scroll', onAnScroll, {passive:true});
 function initAnalysis(){
   msAItem = MultiSelect('msAItem', {
     allLabel: 'All items',
@@ -2429,11 +2499,6 @@ document.getElementById('anReset').addEventListener('click', function(){
   if (msAItem) msAItem.refresh();
   renderAnalysis();
 });
-document.getElementById('anBody').addEventListener('click', function(e){
-  var cell = e.target.closest('td.desc');
-  if (!cell || cell.dataset.i === undefined) return;
-  openItem(+cell.dataset.i);
-});
 document.getElementById('anCsv').addEventListener('click', function(){
   var A2 = analysisScan();
   var head = ['Customer','Customer Site','Category','Item Code','Item Description',
@@ -2466,7 +2531,10 @@ function showTab(t){
   document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
   document.getElementById('paneVisit').style.display = (t === 'visit') ? '' : 'none';
   document.getElementById('paneAnalysis').style.display = (t === 'analysis') ? '' : 'none';
-  if (t === 'analysis') renderAnalysis();
+  if (t === 'analysis'){
+    renderAnalysis();
+    setTimeout(function(){ syncAnHeadHeight(); measureGroups(); }, 0);
+  }
 }
 document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
