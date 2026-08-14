@@ -28,7 +28,7 @@ body{
 }
 .mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 .num{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-td.d-avgq,th.d-avgq{display:none}
+.nostock{color:var(--neg);font-weight:600}
 .eyebrow{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
 button,select,input{font-family:inherit;font-size:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -1354,13 +1354,15 @@ var BLUE = [0.075, 0.298, 0.549], GREY = [0.42,0.45,0.44], BLACK = [0,0,0], RULE
 var NEVBG = [0.984, 0.925, 0.910], NEVFG = [0.549, 0.184, 0.118];
 function reportPdf(info, rows){
   var doc = new PdfDoc(), M = doc.M, RIGHT = doc.PW - M, W = RIGHT - M;
+  var sa = String(info.yrA || '').slice(2), sb = String(info.yrB || '').slice(2);
   var cols = [
-    {t:'CATEGORY',        w:70},
-    {t:'ITEM CODE',       w:54},
-    {t:'ITEM DESCRIPTION',w:194},
-    {t:'LAST SUPPLIED',   w:80, sm:1},
-    {t:'2026 VALUE',      w:57, a:'r'},
-    {t:'2025 VALUE',      w:57, a:'r'}
+    {t:'CATEGORY',        w:74},
+    {t:'ITEM CODE',       w:52},
+    {t:'ITEM DESCRIPTION',w:186},
+    {t:sa + "' QTY",      w:45, a:'r'},
+    {t:sb + "' QTY",      w:45, a:'r'},
+    {t:'STOCK',           w:46, a:'r'},
+    {t:'LAST SUPPLIED',   w:74}
   ];
   var xs = [], acc = M;
   cols.forEach(function(c){ xs.push(acc); acc += c.w; });
@@ -1785,11 +1787,12 @@ document.getElementById('pdf').addEventListener('click', function(){
     return MONTHS[o.month] + ' ' + o.year;
   }
   var rowsHtml = missing.map(function(i){
-    var it = ITEMS[i], lt = lastTxt(A.last[i]);
+    var it = ITEMS[i], lt = lastTxt(A.last[i]), st = stockOf(i);
     return '<tr'+(lt?'':' class="nev"')+'><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
-      '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td>'+
-      '<td class="n">'+(A.vB[i]?nf0.format(Math.round(A.vB[i])):'—')+'</td>'+
-      '<td class="n">'+(A.vA[i]?nf0.format(Math.round(A.vA[i])):'—')+'</td></tr>';
+      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
+      '<td class="n">'+(A.qB[i]?nf0.format(Math.round(A.qB[i])):'—')+'</td>'+
+      '<td class="n">'+(STOCK ? (st>0 ? nf0.format(Math.round(st)) : '<b>0</b>') : '—')+'</td>'+
+      '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td></tr>';
   }).join('');
   document.getElementById('report').innerHTML =
     '<div class="rep-tools">'+
@@ -1807,15 +1810,19 @@ document.getElementById('pdf').addEventListener('click', function(){
       '<div><span>On shelf</span>'+found+'</div>'+
       '<div><span>Missing</span>'+missing.length+'</div>'+
       '<div><span>Never supplied</span>'+neverN+'</div>'+
+      '<div><span>Warehouse stock</span>'+(STOCK ? 'from column S' : 'not available')+'</div>'+
     '</div>'+
     '<h2>Missing items and last supply</h2>'+
     (missing.length
-      ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th><th>Last supplied</th>'+
-        '<th style="text-align:right">'+state.yrB+' Value</th><th style="text-align:right">'+state.yrA+' Value</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+      ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th>'+
+        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">'+String(state.yrB).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">Stock</th><th>Last Supplied</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
       : '<p>Every regular item in this assortment was found on shelf.</p>')+
     '<div class="note">Missing = a regular item on the checklist that was not ticked during the visit. '+
     'NEVER SUPPLIED = this customer / site has never been invoiced for the item at all \u2014 a distribution gap rather than an out-of-stock. '+
     'Last supplied is the most recent month with a positive shipment anywhere in the data, whatever period is selected on screen. '+
+    'Stock is cases on hand at the main warehouse \u2014 a missing item with stock can be ordered today. '+
     'Promotional packs are excluded from the check, and the data covers CPD only \u2014 Food Service (FSD) is out of scope. '+
     'Values cover '+yearsLabel()+'.</div>';
 
@@ -1828,14 +1835,18 @@ document.getElementById('pdf').addEventListener('click', function(){
   document.getElementById('repPdf').addEventListener('click', function(){
     var rows = missing.map(function(i){
       var it = ITEMS[i], lt = lastTxt(A.last[i]);
-      var row = [it[2], String(it[0]), it[1], lt ? lt : 'NEVER SUPPLIED',
-                 A.vB[i] ? nf0.format(Math.round(A.vB[i])) : '-',
-                 A.vA[i] ? nf0.format(Math.round(A.vA[i])) : '-'];
+      var st = stockOf(i);
+      var row = [it[2], String(it[0]), it[1],
+                 A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
+                 A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
+                 STOCK ? nf0.format(Math.round(st)) : '-',
+                 lt ? lt : 'NEVER SUPPLIED'];
       row.never = !lt;
       return row;
     });
     var bytes = reportPdf({
       period: yearsLabel(),
+      yrA: state.yrA, yrB: state.yrB,
       yrA: state.yrA, yrB: state.yrB,
       meta: [
         ['Customer / site', scopeNames()],
@@ -1845,7 +1856,8 @@ document.getElementById('pdf').addEventListener('click', function(){
         ['Assortment checked', auditRows.length + ' regular items'],
         ['On shelf', String(found)],
         ['Missing', String(missing.length)],
-        ['Never supplied', String(neverN)]
+        ['Never supplied', String(neverN)],
+        ['Warehouse stock', STOCK ? 'from column S' : 'not available']
       ]
     }, rows);
     var blob = new Blob([bytes], {type:'application/pdf'});
