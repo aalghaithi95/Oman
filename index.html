@@ -2235,6 +2235,7 @@ function analysisScan(){
     for (var si=0; si<NS; si++) siteCust[si] = SITES[si][4];
   }
   var custA = new Float64Array(CUSTOMERS.length), custB = new Float64Array(CUSTOMERS.length);
+  var custLive = new Uint8Array(CUSTOMERS.length);
   var siteLive = new Uint8Array(NS);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, N = fs.length;
@@ -2248,15 +2249,23 @@ function analysisScan(){
        a positive shipment month. */
     if (p > lastAny[idx]) lastAny[idx] = p;
     if (fq[k] > 0 || fv[k] > 0){ if (p > lastP[idx]) lastP[idx] = p; }
-    if (fq[k] > 0 || fv[k] !== 0) siteLive[s] = 1;
     var m = p % 12, yi = (p/12)|0;
+    /* An outlet with no positive shipment anywhere in the current year is closed
+       or dormant — every one of its items would read as a gap, which is noise
+       rather than opportunity. A customer stays in only if at least one of its
+       outlets is still shipping. Judged on the whole year, not the month range. */
+    if (yi === ib && fq[k] > 0){ siteLive[s] = 1; custLive[siteCust[s]] = 1; }
     if (m >= m1 && m <= m2){
       if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; }
       else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; }
     }
   }
+  var dormant = 0, closedSites = 0;
+  for (var ci=0; ci<CUSTOMERS.length; ci++) if (!custLive[ci]) dormant++;
+  for (var sj=0; sj<NS; sj++) if (!siteLive[sj]) closedSites++;
   AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, qA:qA, qB:qB,
-        custA:custA, custB:custB, siteLive:siteLive, ref:(NY-1)*12 + LASTM};
+        custA:custA, custB:custB, custLive:custLive, dormant:dormant,
+        siteLive:siteLive, closedSites:closedSites, ref:(NY-1)*12 + LASTM};
   return AN;
 }
 
@@ -2282,7 +2291,8 @@ function buildAnalysisRows(){
   for (var s=0; s<SITES.length; s++){
     var cid = siteCust[s];
     if (state.aCust.size && !state.aCust.has(cid)) continue;
-    if (!A2.siteLive[s]) continue;              /* dormant outlet — not an opportunity */
+    if (!A2.custLive[cid]) continue;            /* no sales at all in the current year */
+    if (!A2.siteLive[s]) continue;              /* closed outlet — not an opportunity */
     for (var i=0; i<NI; i++){
       if (ITEMS[i][3] === 'Promotion') continue;          /* promo packs aren't distribution */
       if (state.aCat !== null && catOf[i] !== state.aCat) continue;
@@ -2402,6 +2412,8 @@ function renderAnalysis(){
   measureGroups();
   document.getElementById('anScope').textContent =
     periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · gap of ' + state.aGap + '+ months' +
+    (A2.dormant ? ' · ' + A2.dormant + ' inactive customers' : '') +
+    (A2.closedSites ? ' + ' + A2.closedSites + ' closed sites excluded' : '') +
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
 }
 
@@ -2475,9 +2487,11 @@ function initAnalysis(){
     changed: function(){ renderAnalysis(); }
   });
   msACust = MultiSelect('msACust', {
-    allLabel: 'All customers',
+    allLabel: 'Active customers',
     options: function(){
+      var live = (F && state.yrB) ? analysisScan().custLive : null;
       return CUSTOMERS.map(function(n,i){ return {id:i, label:n}; })
+                      .filter(function(o){ return !live || live[o.id]; })
                       .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
     },
     sel: function(){ return state.aCust; },
@@ -2606,6 +2620,8 @@ function afterLoad(rebuild){
   }
   buildPeriod();
   if (!wired){ wirePeriod(); wired = true; }
+  if (msACust) msACust.refresh();
+  if (msAItem) msAItem.refresh();
   loadChecks();
   renderHead(); syncPresets(); render();
   setStatus('ok', '');
