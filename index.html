@@ -305,6 +305,55 @@ tr.ok td.desc{color:var(--pos)}
 .loading{padding:20px;gap:12px}
 .loading .bar2{width:min(240px,70vw)}
 
+
+/* ---------- item detail popup ---------- */
+#tbl tbody td.desc{cursor:pointer;text-decoration:underline;text-decoration-color:rgba(19,76,140,.28);
+  text-underline-offset:2px}
+#tbl tbody td.desc:hover{color:var(--accent-2);text-decoration-color:var(--accent-2)}
+#imWrap{position:fixed;inset:0;background:rgba(18,36,44,.55);backdrop-filter:blur(2px);
+  z-index:80;display:none;overflow:auto;padding:24px 16px}
+body.imopen #imWrap{display:block}
+body.imopen{overflow:hidden}
+.imcard{max-width:1120px;margin:0 auto;background:#fff;border-radius:10px;border:1px solid var(--line);
+  box-shadow:0 24px 60px rgba(18,36,44,.28);overflow:hidden}
+.imhead{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;background:var(--ink);color:#fff}
+.imhead .imt{font-size:15px;font-weight:600;line-height:1.25}
+.imhead .imt .code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8FB2AE;margin-left:6px}
+.imhead .ims{font-size:11.5px;color:#9DBDB8;margin-top:3px}
+.imx{margin-left:auto;background:none;border:1px solid rgba(255,255,255,.25);color:#fff;
+  width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:13px;flex:none}
+.imx:hover{background:rgba(255,255,255,.12)}
+.imbody{padding:14px 16px 18px;overflow-x:auto}
+.imtbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:16px;
+  min-width:880px;table-layout:fixed}
+.imtbl .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:12px;
+  text-align:center;padding:6px;border:1px solid #E4CDBE;letter-spacing:.02em}
+.imtbl thead tr:last-child th{background:var(--paper-2);border:1px solid var(--line);
+  padding:5px 6px;font-size:10.5px;text-align:right;color:var(--muted);font-weight:600}
+.imtbl thead tr:last-child th:first-child{width:86px}
+.imtbl thead tr:last-child th.tot{width:72px}
+.imtbl tbody th{background:#FFF9D6;border:1px solid var(--line);padding:5px 8px;text-align:left;
+  font-weight:600;font-size:11px;white-space:nowrap}
+.imtbl tbody th i{font-style:normal;color:var(--muted);font-size:9.5px;font-weight:500}
+.imtbl td{border:1px solid var(--line);padding:5px 6px;text-align:right;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap}
+.imtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
+.imtbl td.tot,.imtbl th.tot{background:var(--paper-2);font-weight:600}
+.imtbl tr.imvs td,.imtbl tr.imvs th{background:#F4F7F6}
+.imtbl .z{color:var(--muted)}
+.imnote{font-size:11px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:10px}
+@media (max-width:760px){
+  #imWrap{padding:10px 8px}
+  .imhead{padding:11px 12px}
+  .imhead .imt{font-size:13.5px}
+  .imbody{padding:10px 10px 14px}
+  .imtbl{font-size:10.5px;min-width:820px}
+  .imbody{-webkit-overflow-scrolling:touch}
+  .imtbl thead tr:last-child th:first-child{width:60px}
+  .imtbl thead tr:last-child th.tot{width:62px}
+  .imtbl tbody th{padding:5px 6px;font-size:10.5px}
+  #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
+}
 </style>
 </head>
 <body>
@@ -423,6 +472,19 @@ tr.ok td.desc{color:var(--pos)}
     <span id="footMeta"></span>
     <span>Change % compares the two selected years over the same months. “New” = sales this year with no base last year.</span>
     <span>Last Supplied always looks across all the data, whatever period is selected, and skips months that net out as returns.</span>
+  </div>
+</div>
+
+<div id="imWrap">
+  <div class="imcard" role="dialog" aria-modal="true" aria-labelledby="imTitle">
+    <div class="imhead">
+      <div>
+        <div class="imt" id="imTitle"></div>
+        <div class="ims" id="imSub"></div>
+      </div>
+      <button class="imx" id="imClose" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="imbody" id="imBody"></div>
   </div>
 </div>
 
@@ -1350,7 +1412,7 @@ function render(){
       '<td class="c-code mono" style="font-size:11px">'+r.code+'</td>'+
       '<td class="chkc">'+(r.promo ? '<span class="dash">–</span>' :
         '<button class="chk" data-i="'+r.i+'" aria-pressed="'+(hit?'true':'false')+'" aria-label="'+esc(r.desc)+' on shelf" title="'+(hit?'On shelf — tap to mark missing':'Not marked — tap when found on shelf')+'">✓</button>')+'</td>'+
-      '<td class="desc" title="'+esc(r.desc)+'">'+esc(r.desc)+'</td>'+
+      '<td class="desc" data-i="'+r.i+'" role="button" tabindex="0" title="Tap for the monthly breakdown">'+esc(r.desc)+'</td>'+
       '<td class="num d-q25" data-l="'+state.yrA+' QTY">'+fmt(r.qA)+'</td>'+
       '<td class="num d-q26" data-l="'+state.yrB+' QTY">'+fmt(r.qB)+'</td>'+
       '<td class="num d-dq" data-l="QTY change">'+pctCell(r.qB,r.qA)+'</td>'+
@@ -1787,6 +1849,90 @@ document.getElementById('csv').addEventListener('click', function(){
   a.href = URL.createObjectURL(blob);
   a.download = 'delicio_oman_' + siteScopeLabel().replace(/\W+/g,'_') + '_' + periodLabel() + '.csv';
   a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ================= item detail popup =================
+   Monthly volume and value for one item, under the customer / site selection
+   currently on screen. Earlier years show all twelve months; the newest year
+   stops at the last month with data, so a part-year is never read as a decline. */
+function shortYr(y){ return "'" + String(y).slice(2); }
+
+function monthCells(i, arr, yi, upto, isValue){
+  var out = '', span = NY*12, base = i*span + yi*12, total = 0;
+  for (var m=0;m<12;m++){
+    if (m > upto){ out += '<td class="off"></td>'; continue; }
+    var v = arr[base+m];
+    total += v;
+    out += '<td>' + (v ? nf0.format(Math.round(v)) : '<span class="z">–</span>') + '</td>';
+  }
+  return {cells:out, total:total};
+}
+function pctVs(cur, prev){
+  if (!prev) return cur ? '<span class="up">NEW</span>' : '<span class="z">–</span>';
+  if (!cur) return '<span class="down">−100%</span>';
+  var p = cur/prev - 1;
+  var cls = p > 0.0005 ? 'up' : (p < -0.0005 ? 'down' : 'flat');
+  return '<span class="' + cls + '">' + (p>0?'+':'') + nf1.format(p*100) + '%</span>';
+}
+function pctRow(i, arr, yLatest, yPrev, upto){
+  if (yPrev < 0) return '';
+  var span = NY*12, bL = i*span + yLatest*12, bP = i*span + yPrev*12;
+  var out = '<tr class="imvs"><th>% Vs ' + String(YEARS[yPrev]).slice(2) + '</th>', cur = 0, prev = 0;
+  for (var m=0;m<12;m++){
+    if (m > upto){ out += '<td class="off"></td>'; continue; }
+    cur += arr[bL+m]; prev += arr[bP+m];
+    out += '<td>' + pctVs(arr[bL+m], arr[bP+m]) + '</td>';
+  }
+  /* like-for-like: the total compares the same months on both sides */
+  out += '<td class="tot">' + pctVs(cur, prev) + '</td></tr>';
+  return out;
+}
+function yearTable(i, arr, title, isValue){
+  var latest = NY - 1, upToLatest = LASTM;
+  var h = '<table class="imtbl"><thead>' +
+          '<tr class="cap"><th colspan="14">' + title + '</th></tr>' +
+          '<tr><th></th>';
+  for (var m=0;m<12;m++) h += '<th>' + MONTHS[m] + '</th>';
+  h += '<th class="tot">Total</th></tr></thead><tbody>';
+  for (var y=0;y<NY;y++){
+    var upto = (y === latest) ? upToLatest : 11;
+    var r = monthCells(i, arr, y, upto, isValue);
+    h += '<tr><th>' + YEARS[y] + (y === latest ? ' <i>YTD</i>' : '') + '</th>' + r.cells +
+         '<td class="tot">' + (r.total ? nf0.format(Math.round(r.total)) : '<span class="z">–</span>') + '</td></tr>';
+  }
+  h += pctRow(i, arr, latest, NY - 2, upToLatest);
+  h += '</tbody></table>';
+  return h;
+}
+function openItem(i){
+  aggregate();                                   /* make sure the grid matches the filters */
+  var it = ITEMS[i];
+  document.getElementById('imTitle').innerHTML =
+    esc(it[1]) + ' <span class="code">' + it[0] + '</span>';
+  document.getElementById('imSub').textContent =
+    it[2] + ' · ' + (it[3] === 'Promotion' ? 'Promo pack' : 'Regular') + ' · ' + scopeNames();
+  document.getElementById('imBody').innerHTML =
+    yearTable(i, A.mq, 'Sales in Volume (cases)', false) +
+    yearTable(i, A.mv, 'Sales in Value', true) +
+    '<div class="imnote">' + YEARS[NY-1] + ' runs to ' + MONTHS[LASTM] +
+    ', so its total is year-to-date and the % row compares the same months of ' +
+    (NY > 1 ? YEARS[NY-2] : '') + '. Figures follow the customer and site selection above, ' +
+    'not the month range.</div>';
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop = 0;
+}
+function closeItem(){ document.body.classList.remove('imopen'); }
+document.getElementById('imClose').addEventListener('click', closeItem);
+document.getElementById('imWrap').addEventListener('click', function(e){
+  if (e.target === this) closeItem();
+});
+window.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && document.body.classList.contains('imopen')) closeItem();
+});
+document.getElementById('tbody').addEventListener('click', function(e){
+  var cell = e.target.closest('td.desc');
+  if (!cell || cell.dataset.i === undefined) return;
+  openItem(+cell.dataset.i);
 });
 
 /* ================= boot ================= */
