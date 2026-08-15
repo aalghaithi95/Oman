@@ -1,0 +1,16 @@
+{
+  "name": "delicio-oman",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "delicio",
+      "database_id": "8d2c9073-87b7-434b-82d1-eb1d1413b188"
+    }
+  ]
+}
