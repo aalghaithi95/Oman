@@ -416,6 +416,19 @@ body.imopen{overflow:hidden}
 @media (max-width:760px){
   #antbl th.a-stock,#antbl td.a-stock{font-size:11px}
 }
+
+/* ---------- save visit ---------- */
+.audit .vwrap{flex-basis:100%;display:flex;gap:10px;align-items:center;min-height:0}
+.audit .vmsg{font-size:11.5px;color:var(--muted)}
+.audit .vmsg.ok{color:var(--pos)}
+.audit .vmsg.warn{color:var(--accent-2)}
+.audit .vq{font-size:11px;color:var(--accent-2);margin-left:auto}
+#cloudCfg{padding:8px 10px;line-height:1}
+@media (max-width:760px){
+  .audit .vwrap{flex-direction:column;align-items:flex-start;gap:2px}
+  .audit .vq{margin-left:0}
+  #saveVisit{flex:1}
+}
 </style>
 </head>
 <body>
@@ -508,7 +521,10 @@ body.imopen{overflow:hidden}
       <div class="track"><i id="auditBar"></i></div>
       <div class="by"><label for="checker">Checked by</label><input type="text" id="checker" placeholder="Your name"></div>
       <button class="btn ghost" id="clearChk">Clear checks</button>
+      <button class="btn ghost" id="cloudCfg" title="Set the Google Sheet web app link">⚙</button>
+      <button class="btn" id="saveVisit">Save visit</button>
       <button class="btn" id="pdf">Generate PDF report</button>
+      <div class="vwrap"><span class="vmsg" id="visitMsg"></span><span class="vq" id="visitQueue"></span></div>
     </div>
     <div class="tscroll" id="mainScroll">
       <table id="tbl">
@@ -2581,6 +2597,176 @@ document.getElementById('tabs').addEventListener('click', function(e){
   showTab(b.dataset.t);
 });
 
+/* ================= Save visit to the Google Sheet =================
+   A store visit is posted to a Google Apps Script web app, which appends it to
+   the same spreadsheet. Nothing is lost if the shop has no signal: a failed save
+   is queued on the device and retried on the next save or the next time the
+   dashboard opens. */
+var CLOUD_KEY = 'delicio.cloud.url', QUEUE_KEY = 'delicio.cloud.queue';
+
+function cloudUrl(v){
+  try {
+    if (v === undefined) return window.localStorage.getItem(CLOUD_KEY) || '';
+    if (v === null) window.localStorage.removeItem(CLOUD_KEY);
+    else window.localStorage.setItem(CLOUD_KEY, v);
+  } catch(e){}
+  return v || '';
+}
+function queueGet(){
+  try { return JSON.parse(window.localStorage.getItem(QUEUE_KEY) || '[]'); } catch(e){ return []; }
+}
+function queueSet(a){
+  try { window.localStorage.setItem(QUEUE_KEY, JSON.stringify(a)); } catch(e){}
+  var n = a.length, el = document.getElementById('visitQueue');
+  if (el) el.textContent = n ? (n + ' visit' + (n>1?'s':'') + ' waiting to send') : '';
+}
+function cloudSay(msg, kind){
+  var el = document.getElementById('visitMsg');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'vmsg ' + (kind || '');
+}
+
+/* JSONP: a plain script-tag request is the one transport a static page can always
+   use cross-origin, whatever the browser's CORS mood. Used as the fallback when a
+   direct POST is refused. */
+var jpSeq = 0;
+function jsonpPost(base, payload, ok, fail){
+  var name = '__cv' + (++jpSeq), done = false, s;
+  function cleanup(){
+    try { delete window[name]; } catch(e){ window[name] = undefined; }
+    if (s && s.parentNode) s.parentNode.removeChild(s);
+  }
+  var timer = setTimeout(function(){
+    if (done) return; done = true; cleanup(); fail('timeout');
+  }, 20000);
+  window[name] = function(resp){
+    if (done) return; done = true; clearTimeout(timer); cleanup();
+    if (resp && resp.ok) ok(resp); else fail((resp && resp.error) || 'rejected');
+  };
+  /* compact form — descriptions are left out to keep the URL short */
+  var compact = {
+    v: payload.v, visitDate: payload.visitDate, customer: payload.customer,
+    siteCode: payload.siteCode, siteName: payload.siteName, channel: payload.channel,
+    checker: payload.checker, period: payload.period, totals: payload.totals,
+    slim: payload.items.map(function(it){ return it.code + ':' + it.status.charAt(0); }).join(',')
+  };
+  var url = base + (base.indexOf('?') < 0 ? '?' : '&') +
+            'callback=' + name + '&p=' + encodeURIComponent(JSON.stringify(compact));
+  if (url.length > 7500) return fail('too large for the fallback route');
+  s = document.createElement('script');
+  s.src = url;
+  s.onerror = function(){
+    if (done) return; done = true; clearTimeout(timer); cleanup(); fail('network');
+  };
+  document.head.appendChild(s);
+}
+
+function sendVisit(payload, ok, fail){
+  var url = cloudUrl();
+  if (!url) return fail('no web app URL set');
+  /* text/plain keeps this a "simple" request, so the browser sends it without a
+     preflight — Apps Script cannot answer a preflight. */
+  if (window.fetch){
+    fetch(url, {method:'POST', body: JSON.stringify(payload),
+                headers:{'Content-Type':'text/plain;charset=utf-8'},
+                redirect:'follow'})
+      .then(function(r){ return r.text(); })
+      .then(function(t){
+        var j = null;
+        try { j = JSON.parse(t); } catch(e){}
+        if (j && j.ok) ok(j); else jsonpPost(url, payload, ok, fail);
+      })
+      .catch(function(){ jsonpPost(url, payload, ok, fail); });
+  } else jsonpPost(url, payload, ok, fail);
+}
+
+function flushQueue(silent){
+  var q = queueGet();
+  if (!q.length || !cloudUrl()) return;
+  var item = q[0];
+  sendVisit(item, function(){
+    var rest = queueGet();
+    rest.shift();
+    queueSet(rest);
+    if (rest.length) flushQueue(silent);
+    else if (!silent) cloudSay('Queued visits sent.', 'ok');
+  }, function(){ /* still offline — leave it queued */ });
+}
+
+function buildVisit(){
+  aggregate(); renderAudit();
+  var d = new Date();
+  var iso = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  var siteIdx = null;
+  state.site.forEach(function(i){ if (siteIdx === null) siteIdx = i; });
+  var items = [], onShelf = 0, missing = 0, never = 0;
+  for (var j=0;j<auditRows.length;j++){
+    var i = auditRows[j], hit = state.checked.has(i), nsup = A.last[i] < 0;
+    var status = hit ? 'On shelf' : (nsup ? 'Never supplied' : 'Missing');
+    if (hit) onShelf++; else if (nsup){ never++; missing++; } else missing++;
+    var lt = '';
+    if (A.last[i] >= 0){ var o = periodOf(A.last[i]); lt = MONTHS[o.month] + ' ' + o.year; }
+    items.push({
+      code: ITEMS[i][0], desc: ITEMS[i][1], cat: ITEMS[i][2], status: status,
+      last: lt, stock: STOCK ? Math.round(stockOf(i)) : '',
+      qA: Math.round(A.qA[i]), qB: Math.round(A.qB[i])
+    });
+  }
+  return {
+    v: 1,
+    visitDate: iso,
+    customer: siteIdx === null ? scopeNames() : SITES[siteIdx][0],
+    siteCode: siteIdx === null ? '' : SITES[siteIdx][2],
+    siteName: siteIdx === null ? scopeNames() : SITES[siteIdx][1],
+    channel:  siteIdx === null ? '' : SITES[siteIdx][3],
+    checker: (document.getElementById('checker').value || '').trim(),
+    period: yearsLabel(),
+    totals: {assortment: auditRows.length, onShelf: onShelf, missing: missing, never: never},
+    items: items
+  };
+}
+
+document.getElementById('saveVisit').addEventListener('click', function(){
+  if (state.site.size !== 1){
+    window.alert('Pick one customer site first — a visit is saved against a single store.');
+    return;
+  }
+  if (!cloudUrl()){
+    window.alert('Set the Google Sheet web app link first (the ⚙ button next to Save visit).');
+    return;
+  }
+  var payload = buildVisit();
+  if (!payload.checker && !window.confirm('No name in "Checked by". Save the visit anyway?')) return;
+  cloudSay('Saving…', '');
+  sendVisit(payload, function(r){
+    cloudSay('Saved to the sheet' + (r && r.rows ? ' — ' + r.rows + ' rows' : '') + '.', 'ok');
+    flushQueue(true);
+  }, function(msg){
+    var q = queueGet();
+    q.push(payload);
+    queueSet(q);
+    cloudSay('No connection — visit saved on this device and will send later. (' + msg + ')', 'warn');
+  });
+});
+
+document.getElementById('cloudCfg').addEventListener('click', function(){
+  var cur = cloudUrl();
+  var v = window.prompt(
+    'Paste the Google Apps Script web app link (ends in /exec).\n\n' +
+    'Leave empty and press OK to remove it.', cur);
+  if (v === null) return;
+  v = v.trim();
+  if (!v){ cloudUrl(null); cloudSay('Cloud saving turned off.', ''); return; }
+  if (v.indexOf('http') !== 0 || v.indexOf('/exec') < 0){
+    window.alert('That does not look like a web app link. It should start with https:// and end with /exec');
+    return;
+  }
+  cloudUrl(v);
+  cloudSay('Cloud saving is on.', 'ok');
+  flushQueue(true);
+});
+
 /* ================= boot ================= */
 function showLoader(msg){
   var el = document.getElementById('loading');
@@ -2624,6 +2810,8 @@ function afterLoad(rebuild){
   if (msAItem) msAItem.refresh();
   loadChecks();
   renderHead(); syncPresets(); render();
+  queueSet(queueGet());          /* show the pending count */
+  flushQueue(true);
   setStatus('ok', '');
 }
 var wired = false;
