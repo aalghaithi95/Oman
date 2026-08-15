@@ -416,6 +416,25 @@ body.imopen{overflow:hidden}
 @media (max-width:760px){
   #antbl th.a-stock,#antbl td.a-stock{font-size:11px}
 }
+
+/* ---------- save visit ---------- */
+.audit .vwrap{flex-basis:100%;display:flex;gap:10px;align-items:center}
+.audit .vmsg{font-size:11.5px;color:var(--muted)}
+.audit .vmsg.ok{color:var(--pos)}
+.audit .vmsg.warn{color:var(--accent-2)}
+.audit .vq{font-size:11px;color:var(--accent-2);margin-left:auto}
+.imtbl.vhist{min-width:0}
+.imtbl.vhist th,.imtbl.vhist td{text-align:left}
+.imtbl.vhist th.n,.imtbl.vhist td.n{text-align:right}
+.imtbl.vhist tbody tr:hover td{background:var(--paper-2)}
+.imtbl.vhist .btn{padding:3px 9px;font-size:10.5px}
+#vdetail{border-top:1px solid var(--line);padding-top:10px}
+@media (max-width:760px){
+  .audit .vwrap{flex-direction:column;align-items:flex-start;gap:2px}
+  .audit .vq{margin-left:0}
+  #saveVisit{flex:1}
+  .imtbl.vhist{font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -508,7 +527,10 @@ body.imopen{overflow:hidden}
       <div class="track"><i id="auditBar"></i></div>
       <div class="by"><label for="checker">Checked by</label><input type="text" id="checker" placeholder="Your name"></div>
       <button class="btn ghost" id="clearChk">Clear checks</button>
+      <button class="btn ghost" id="visitHist">Visit history</button>
+      <button class="btn" id="saveVisit">Save visit</button>
       <button class="btn" id="pdf">Generate PDF report</button>
+      <div class="vwrap"><span class="vmsg" id="visitMsg"></span><span class="vq" id="visitQueue"></span></div>
     </div>
     <div class="tscroll" id="mainScroll">
       <table id="tbl">
@@ -2581,6 +2603,185 @@ document.getElementById('tabs').addEventListener('click', function(e){
   showTab(b.dataset.t);
 });
 
+/* ================= store visits, saved to Cloudflare =================
+   The backend sits on the same domain (/api/visits), so the browser sends the
+   Access session with it and the server knows who is logged in. A save that
+   fails is queued on the device and retried; every visit carries its own id, so
+   a retry can never create a duplicate. */
+var VQ_KEY = 'delicio.visitq';
+
+function vqGet(){ try { return JSON.parse(window.localStorage.getItem(VQ_KEY) || '[]'); } catch(e){ return []; } }
+function vqSet(a){
+  try { window.localStorage.setItem(VQ_KEY, JSON.stringify(a)); } catch(e){}
+  var el = document.getElementById('visitQueue');
+  if (el) el.textContent = a.length ? (a.length + ' visit' + (a.length>1?'s':'') + ' waiting to send') : '';
+}
+function vSay(msg, kind){
+  var el = document.getElementById('visitMsg');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'vmsg ' + (kind || '');
+}
+
+function postVisit(payload){
+  return fetch('/api/visits', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    credentials: 'same-origin',
+    body: JSON.stringify(payload)
+  }).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(j){
+    if (!j || !j.ok) throw new Error((j && j.error) || 'rejected');
+    return j;
+  });
+}
+
+function vqFlush(announce){
+  var q = vqGet();
+  if (!q.length) return Promise.resolve(0);
+  return postVisit(q[0]).then(function(){
+    var rest = vqGet();
+    rest.shift();
+    vqSet(rest);
+    return vqFlush(announce).then(function(n){ return n + 1; });
+  }).catch(function(){ return 0; })
+    .then(function(n){
+      if (n && announce) vSay(n + ' queued visit' + (n>1?'s':'') + ' sent.', 'ok');
+      return n;
+    });
+}
+
+function currentSite(){
+  var idx = null;
+  state.site.forEach(function(i){ if (idx === null) idx = i; });
+  return idx;
+}
+
+function buildVisit(){
+  aggregate(); renderAudit();
+  var d = new Date();
+  var iso = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  var si = currentSite();
+  var items = [], onShelf = 0, missing = 0, never = 0;
+  for (var j=0;j<auditRows.length;j++){
+    var i = auditRows[j], hit = state.checked.has(i), nsup = A.last[i] < 0;
+    if (hit) onShelf++; else { missing++; if (nsup) never++; }
+    var lt = '';
+    if (A.last[i] >= 0){ var o = periodOf(A.last[i]); lt = MONTHS[o.month] + ' ' + o.year; }
+    items.push({
+      code: ITEMS[i][0], desc: ITEMS[i][1], cat: ITEMS[i][2],
+      status: hit ? 'On shelf' : (nsup ? 'Never supplied' : 'Missing'),
+      last: lt, stock: STOCK ? Math.round(stockOf(i)) : '',
+      qA: Math.round(A.qA[i]), qB: Math.round(A.qB[i])
+    });
+  }
+  return {
+    id: SITES[si][2] + '-' + iso + '-' + Date.now().toString(36),
+    visitDate: iso,
+    customer: SITES[si][0], siteCode: SITES[si][2], siteName: SITES[si][1], channel: SITES[si][3],
+    checker: (document.getElementById('checker').value || '').trim(),
+    period: yearsLabel(),
+    totals: {assortment: auditRows.length, onShelf: onShelf, missing: missing, never: never},
+    items: items
+  };
+}
+
+document.getElementById('saveVisit').addEventListener('click', function(){
+  if (state.site.size !== 1){
+    window.alert('Pick one customer site first — a visit is saved against a single store.');
+    return;
+  }
+  var payload = buildVisit();
+  vSay('Saving…', '');
+  postVisit(payload).then(function(j){
+    vSay('Saved' + (j.email ? ' as ' + j.email : '') + ' · ' + j.saved + ' items.', 'ok');
+    if (!payload.checker && j.email){
+      document.getElementById('checker').value = j.email.split('@')[0];
+    }
+    vqFlush(false);
+  }).catch(function(err){
+    var q = vqGet();
+    q.push(payload);
+    vqSet(q);
+    vSay('No connection — saved on this device, will send when you are back online.', 'warn');
+  });
+});
+
+/* ---------- history ---------- */
+function fmtVisitDate(s){
+  if (!s) return '';
+  var p = String(s).split('-');
+  if (p.length !== 3) return s;
+  return p[2] + ' ' + MONTHS[(+p[1])-1] + " '" + p[0].slice(2);
+}
+function openHistory(){
+  var si = currentSite();
+  if (si === null){ window.alert('Pick one customer site first.'); return; }
+  document.getElementById('imTitle').textContent = 'Visit history';
+  document.getElementById('imSub').textContent = SITES[si][1] + ' · ' + SITES[si][0];
+  document.getElementById('imBody').innerHTML = '<div class="imnote">Loading…</div>';
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop = 0;
+
+  fetch('/api/visits?site=' + encodeURIComponent(SITES[si][2]), {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error || 'failed');
+      if (!j.visits.length){
+        document.getElementById('imBody').innerHTML =
+          '<div class="imnote">No visits saved for this store yet. Tick the shelf and press ' +
+          '<b>Save visit</b> — from then on every visit is kept here.</div>';
+        return;
+      }
+      var rows = j.visits.map(function(v){
+        var pct = v.assortment ? Math.round(v.on_shelf / v.assortment * 100) : 0;
+        return '<tr data-id="' + esc(v.id) + '">' +
+          '<td>' + fmtVisitDate(v.visit_date) + '</td>' +
+          '<td>' + esc(v.checker || (v.checker_email || '').split('@')[0] || '—') + '</td>' +
+          '<td class="n">' + v.on_shelf + ' / ' + v.assortment + '</td>' +
+          '<td class="n"><span class="' + (pct >= 80 ? 'up' : (pct >= 50 ? 'flat' : 'down')) + '">' + pct + '%</span></td>' +
+          '<td class="n">' + v.missing + '</td>' +
+          '<td class="n">' + v.never_supplied + '</td>' +
+          '<td><button class="btn ghost vdet" type="button" data-id="' + esc(v.id) + '">Items</button></td></tr>';
+      }).join('');
+      document.getElementById('imBody').innerHTML =
+        '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="7">Saved visits</th></tr>' +
+        '<tr><th>Date</th><th>Checked by</th><th class="n">On shelf</th><th class="n">Availability</th>' +
+        '<th class="n">Missing</th><th class="n">Never</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<div class="imnote" id="vdetail">Press <b>Items</b> on any visit to see exactly what was missing that day.</div>';
+    })
+    .catch(function(err){
+      document.getElementById('imBody').innerHTML =
+        '<div class="imnote">Could not load the history (' + esc(String(err.message || err)) + ').</div>';
+    });
+}
+document.getElementById('imBody').addEventListener('click', function(e){
+  var b = e.target.closest('.vdet');
+  if (!b) return;
+  var box = document.getElementById('vdetail');
+  box.innerHTML = 'Loading items…';
+  fetch('/api/visits?id=' + encodeURIComponent(b.dataset.id), {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error || 'failed');
+      var miss = j.items.filter(function(i){ return i.status !== 'On shelf'; });
+      box.innerHTML = miss.length
+        ? '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="4">' + miss.length +
+          ' not on shelf that day</th></tr><tr><th>Category</th><th>Item</th><th>Status</th>' +
+          '<th>Last supplied</th></tr></thead><tbody>' +
+          miss.map(function(i){
+            return '<tr><td>' + esc(i.category || '') + '</td><td>' + esc(i.item_desc || i.item_code) + '</td>' +
+              '<td>' + (i.status === 'Never supplied' ? '<span class="never">NEVER SUPPLIED</span>' : esc(i.status)) + '</td>' +
+              '<td>' + esc(i.last_supplied || '—') + '</td></tr>';
+          }).join('') + '</tbody></table>'
+        : '<div class="imnote">Everything was on shelf that day.</div>';
+    })
+    .catch(function(err){ box.textContent = 'Could not load the items.'; });
+});
+document.getElementById('visitHist').addEventListener('click', openHistory);
+
 /* ================= boot ================= */
 function showLoader(msg){
   var el = document.getElementById('loading');
@@ -2624,6 +2825,8 @@ function afterLoad(rebuild){
   if (msAItem) msAItem.refresh();
   loadChecks();
   renderHead(); syncPresets(); render();
+  vqSet(vqGet());                /* show anything still waiting */
+  vqFlush(true);
   setStatus('ok', '');
 }
 var wired = false;
