@@ -443,6 +443,32 @@ body.imopen{overflow:hidden}
 
 .imtbl.vhist tbody tr{cursor:pointer}
 .imtbl.vhist .vpdf{padding:3px 9px;font-size:10.5px}
+
+@media (max-width:760px){
+  /* the visit log keeps only what a phone can read: when, where, how good, and the two actions */
+  .imtbl.vhist{table-layout:auto;min-width:0;width:100%;font-size:11.5px}
+  .imtbl.vhist th.h-by,.imtbl.vhist td.h-by,
+  .imtbl.vhist th.h-shelf,.imtbl.vhist td.h-shelf,
+  .imtbl.vhist th.h-miss,.imtbl.vhist td.h-miss,
+  .imtbl.vhist th.h-never,.imtbl.vhist td.h-never,
+  .imtbl.vhist th.h-items,.imtbl.vhist td.h-items{display:none}
+  .imtbl.vhist th,.imtbl.vhist td{padding:7px 5px;white-space:nowrap}
+  .imtbl.vhist td.h-date{font-size:11px;line-height:1.15}
+  .imtbl.vhist td.vstore{max-width:none;white-space:normal;font-size:11px;line-height:1.2;
+    word-break:break-word}
+  .imtbl.vhist th.h-avail,.imtbl.vhist td.h-avail{text-align:right}
+  .imtbl.vhist .vpdf{padding:5px 10px;font-size:11px}
+  .imtbl.vhist .vdel{padding:5px 8px;font-size:11px}
+  .imtbl.vhist th.h-pdf,.imtbl.vhist td.h-pdf,
+  .imtbl.vhist th.h-del,.imtbl.vhist td.h-del{width:1%}
+  .imbody{padding:10px 8px 14px}
+}
+
+.m-only{display:none}
+@media (max-width:760px){
+  .d-only{display:none}
+  .m-only{display:inline}
+}
 </style>
 </head>
 <body>
@@ -2819,28 +2845,31 @@ function openHistory(){
       var rows = j.visits.map(function(v){
         var pct = v.assortment ? Math.round(v.on_shelf / v.assortment * 100) : 0;
         return '<tr data-id="' + esc(v.id) + '">' +
-          '<td>' + fmtVisitDate(v.visit_date) + '</td>' +
-          (everywhere ? '<td class="vstore" title="' + esc((v.customer||'') + ' · ' + (v.site_name||'')) + '">' +
+          '<td class="h-date">' + fmtVisitDate(v.visit_date) + '</td>' +
+          (everywhere ? '<td class="h-store vstore" title="' + esc((v.customer||'') + ' · ' + (v.site_name||'')) + '">' +
                         esc(v.site_name || v.site_code || '') + '</td>' : '') +
-          '<td>' + esc(v.checker || (v.checker_email || '').split('@')[0] || '—') + '</td>' +
-          '<td class="n">' + v.on_shelf + ' / ' + v.assortment + '</td>' +
-          '<td class="n"><span class="' + (pct >= 80 ? 'up' : (pct >= 50 ? 'flat' : 'down')) + '">' + pct + '%</span></td>' +
-          '<td class="n">' + v.missing + '</td>' +
-          '<td class="n">' + v.never_supplied + '</td>' +
-          '<td><button class="btn ghost vdet" type="button" data-id="' + esc(v.id) + '">Items</button></td>' +
-          '<td><button class="btn vpdf" type="button" data-id="' + esc(v.id) + '">PDF</button></td>' +
-          '<td><button class="btn ghost vdel" type="button" title="Delete this visit" ' +
+          '<td class="h-by">' + esc(v.checker || (v.checker_email || '').split('@')[0] || '—') + '</td>' +
+          '<td class="n h-shelf">' + v.on_shelf + ' / ' + v.assortment + '</td>' +
+          '<td class="n h-avail"><span class="' + (pct >= 80 ? 'up' : (pct >= 50 ? 'flat' : 'down')) + '">' + pct + '%</span></td>' +
+          '<td class="n h-miss">' + v.missing + '</td>' +
+          '<td class="n h-never">' + v.never_supplied + '</td>' +
+          '<td class="h-items"><button class="btn ghost vdet" type="button" data-id="' + esc(v.id) + '">Items</button></td>' +
+          '<td class="h-pdf"><button class="btn vpdf" type="button" data-id="' + esc(v.id) + '">PDF</button></td>' +
+          '<td class="h-del"><button class="btn ghost vdel" type="button" title="Delete this visit" ' +
               'data-id="' + esc(v.id) + '" data-label="' + esc(fmtVisitDate(v.visit_date) + ' · ' + (v.site_name || '')) + '">✕</button></td>' +
           '</tr>';
       }).join('');
       document.getElementById('imBody').innerHTML =
         '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="' + cols + '">' +
         (everywhere ? j.visits.length + ' saved visits — all stores' : 'Saved visits') + '</th></tr>' +
-        '<tr><th>Date</th>' + (everywhere ? '<th>Store</th>' : '') +
-        '<th>Checked by</th><th class="n">On shelf</th><th class="n">Availability</th>' +
-        '<th class="n">Missing</th><th class="n">Never</th><th></th><th></th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
-        '<div class="imnote" id="vdetail">Tap any row (or <b>PDF</b>) for the report of that visit, ' +
-        '<b>Items</b> to see what was missing on screen, or <b>✕</b> to delete a visit saved by mistake.</div>';
+        '<tr><th class="h-date">Date</th>' + (everywhere ? '<th class="h-store">Store</th>' : '') +
+        '<th class="h-by">Checked by</th><th class="n h-shelf">On shelf</th>' +
+        '<th class="n h-avail"><span class="d-only">Availability</span><span class="m-only">Avail</span></th>' +
+        '<th class="n h-miss">Missing</th><th class="n h-never">Never</th>' +
+        '<th class="h-items"></th><th class="h-pdf"></th><th class="h-del"></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<div class="imnote" id="vdetail">Tap any row (or <b>PDF</b>) for the report of that visit' +
+        '<span class="d-only">, <b>Items</b> to see what was missing on screen</span>' +
+        ', or <b>✕</b> to delete a visit saved by mistake.</div>';
     })
     .catch(function(err){
       document.getElementById('imBody').innerHTML =
