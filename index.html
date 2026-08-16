@@ -358,6 +358,50 @@ body.imopen{overflow:hidden}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
+/* ---------- ALL / CPD / FSD ---------- */
+function syncDepButtons(){
+  document.querySelectorAll('.deps .dep').forEach(function(b){
+    b.classList.toggle('on', b.dataset.d === state.dep);
+  });
+  var hint = state.dep === 'FSD'
+      ? 'Food Service (HOR) — market visit checks the catering active list'
+      : (state.dep === 'CPD' ? 'Retail business only' : 'Retail and Food Service together');
+  var h1 = document.getElementById('depHint1'), h2 = document.getElementById('depHint2');
+  if (h1) h1.textContent = hint;
+  if (h2) h2.textContent = state.dep === 'FSD'
+      ? 'Food Service — gaps measured on the catering active list only'
+      : hint;
+}
+function setDep(d){
+  if (state.dep === d) return;
+  state.dep = d;
+  LIVE = null; AN = null;                       /* both scans depend on the department */
+  /* selections that no longer exist in this department have to go */
+  var liveSet = new Set(baseSites());
+  Array.from(state.site).forEach(function(s){ if (!liveSet.has(s)) state.site.delete(s); });
+  var liveC = new Set(liveCustomers());
+  Array.from(state.cust).forEach(function(c){ if (!liveC.has(c)) state.cust.delete(c); });
+  Array.from(state.aItems).forEach(function(i){ if (!analysisItemInDep(i)) state.aItems.delete(i); });
+  state.aCust.clear();
+  syncDepButtons();
+  if (msArea) msArea.refresh();
+  if (msCust) msCust.refresh();
+  if (msSite) msSite.refresh();
+  if (msAArea) msAArea.refresh();
+  if (msACust) msACust.refresh();
+  if (msAItem) msAItem.refresh();
+  buildCatFilter();
+  loadChecks();
+  renderHead(); render();
+  if (TAB === 'analysis') renderAnalysis();
+}
+document.querySelectorAll('.deps').forEach(function(box){
+  box.addEventListener('click', function(e){
+    var b = e.target.closest('.dep');
+    if (b) setDep(b.dataset.d);
+  });
+});
+
 /* ---------- tabs ---------- */
 .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}
 .tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 15px;
@@ -477,6 +521,23 @@ body.imopen{overflow:hidden}
   .filters .fbtns{width:100%;margin-left:0}
   .filters .fbtns .btn{flex:1}
 }
+
+/* ---------- department switch ---------- */
+.deps{display:flex;align-items:center;gap:0;margin:0 0 12px}
+.dep{background:#fff;border:1px solid var(--line);border-right:none;padding:7px 18px;
+  font-family:inherit;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;
+  letter-spacing:.04em}
+.dep:first-of-type{border-radius:var(--r) 0 0 var(--r)}
+.dep:last-of-type{border-right:1px solid var(--line);border-radius:0 var(--r) var(--r) 0}
+.dep:hover{color:var(--ink)}
+.dep.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.dep.on + .dep{border-left-color:var(--ink)}
+.dephint{margin-left:12px;font-size:11px;color:var(--muted)}
+@media (max-width:760px){
+  .deps{margin-bottom:10px;flex-wrap:wrap}
+  .dep{flex:1;padding:8px 6px;text-align:center}
+  .dephint{width:100%;margin:5px 0 0;font-size:10.5px}
+}
 </style>
 </head>
 <body>
@@ -515,6 +576,12 @@ body.imopen{overflow:hidden}
   </div>
 
 <div id="paneVisit">
+  <div class="deps" data-pane="visit">
+    <button class="dep on" type="button" data-d="ALL">All</button>
+    <button class="dep" type="button" data-d="CPD">CPD</button>
+    <button class="dep" type="button" data-d="FSD">FSD</button>
+    <span class="dephint" id="depHint1"></span>
+  </div>
   <div class="filters">
     <div class="field f-area">
       <span>Area</span>
@@ -610,6 +677,12 @@ body.imopen{overflow:hidden}
 </div><!-- /paneVisit -->
 
 <div id="paneAnalysis" style="display:none">
+  <div class="deps" data-pane="analysis">
+    <button class="dep on" type="button" data-d="ALL">All</button>
+    <button class="dep" type="button" data-d="CPD">CPD</button>
+    <button class="dep" type="button" data-d="FSD">FSD</button>
+    <span class="dephint" id="depHint2"></span>
+  </div>
   <div class="filters">
     <div class="field f-area">
       <span>Area</span>
@@ -725,7 +798,7 @@ body.imopen{overflow:hidden}
 
 <div id="reportWrap"><div class="rep" id="report"></div></div>
 
-<script id="items" type="application/json">[[35590028,"DELICIO SALAD DRESSING TWIN PACK SPCL OFF [6x(2x532ml)]","Salad Dressing","Promotion"],[35590030,"DELICIO SALAD DRESSING 15% ASSTD [2x267ml]","Salad Dressing","Promotion"],[35511140,"DELICIO FRENCH DRESSING [12x532ml]","Salad Dressing","Regular"],[35511020,"DELICIO FRENCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35511160,"DELICIO RANCH DRESSING [12x532ml]","Salad Dressing","Regular"],[35511040,"DELICIO RANCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35511130,"DELICIO 1000 ISLAND DRESSING [12x532ml]","Salad Dressing","Regular"],[35511045,"DELICIO SPICY RANCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35511010,"DELICIO 1000 ISLAND DRESSING [12x267ml]","Salad Dressing","Regular"],[35511080,"DELICIO CAESAR DRESSING [12x267ml]","Salad Dressing","Regular"],[35511085,"DELICIO PEPPER GARLIC DRESSING [12x267ml]","Salad Dressing","Regular"],[35511023,"DELICIO LIGHT FRENCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35511043,"DELICIO LIGHT RANCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35511035,"DELICIO HABANERO RANCH SALAD DRESSING [12x267ML]","Salad Dressing","Regular"],[35511017,"DELICIO CHIPOTLE RANCH DRESSING [12x267 ml]","Salad Dressing","Regular"],[35511150,"DELICIO ITALIAN DRESSING [12x532ml]","Salad Dressing","Regular"],[35511065,"DELICIO CHILI LIME DRESSING [12x267ml]","Salad Dressing","Regular"],[35511050,"DELICIO BLUE CHEESE DRESSING [12x267ml]","Salad Dressing","Regular"],[35511030,"DELICIO ITALIAN DRESSING [12x267ml]","Salad Dressing","Regular"],[35511075,"DELICIO SIRACHA RANCH DRESSING [12x267ml]","Salad Dressing","Regular"],[35591092,"DELICIO HABANERO RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion"],[35591094,"DELICIO CHIPOTLE RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion"],[35591055,"DELICIO FRENCH DRESSING 267ML+CHILLY MAYO 300ML[6x(267+300)]SPL OFFER","Salad Dressing","Promotion"],[35591053,"DELICIO SALAD FRENCH/RANCH  DRESSING [4x3x267ML]SPL PRICE","Salad Dressing","Promotion"],[35591057,"DELICIO CHIPOTLE RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion"],[35591058,"DELICIO HABANERO RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion"],[35591054,"DELICIO SALAD DRESSING FRENCH 267ML + CHILLI LIME 267ML 6x(2x267ML)]","Salad Dressing","Promotion"],[35511005,"Butter Milk Ranch 12x267ml","Salad Dressing","Regular"],[35511000,"Smoky French 12x257ml","Salad Dressing","Regular"],[35591051,"DELICIO RANCH + FRENCH DRESSING [6x(2x267Ml)]\u00a0 VALUE PACK","Salad Dressing","Promotion"],[35590163,"DELICIO MAYONNAISE ASST TWIN PACK [2x300gm]","Mayonnaise","Promotion"],[35590115,"DELICIO REAL MAYONNAISE 300ML TWIN PACK [6x(2x300ml)]","Mayonnaise","Promotion"],[35590103,"DELICIO 2 CHILLY MAYO+ 1 BLACK TRUFFLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion"],[35510180,"DELICIO MAYONNAISE REAL PET [12x300ml]","Mayonnaise","Regular"],[35510193,"DELICIO MAYONNAISE CHILI PET [12x300ml]","Mayonnaise","Regular"],[35510183,"DELICIO MAYONNAISE REAL PET [12x500ml]","Mayonnaise","Regular"],[35510197,"DELICIO MAYONNAISE LITE PET [12x500ml]","Mayonnaise","Regular"],[35590104,"DELICIO 2 CHILLY MAYO+ 1 CHIPOTLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion"],[35510145,"DELICIO MAYONNAISE GARLIC PET [12x300ml]","Mayonnaise","Regular"],[35510132,"DELICIO REAL MAYONNAISE PET [6x946ML]","Mayonnaise","Regular"],[35510194,"DELICIO CHILLI MAYONNAISE - 12 X 500 ML","Mayonnaise","Regular"],[35510101,"DELICIO CHIPOTLE MAYONNAISE 12 X 300 ML","Mayonnaise","Regular"],[35510175,"DELICIO MAYOCHUP PET [12x300ml]","Mayonnaise","Regular"],[35590185,"DELICIO Real MAYO 500G [12x1x500GM] SPECIAL PRICE","Mayonnaise","Promotion"],[35510185,"DELICIO BLACK TRUFFLE MAYONNAISE [12x300ML]","Mayonnaise","Regular"],[35590132,"DELICIO REAL  MAYO  PET [(1X6)x946ml]SPL PRICE","Mayonnaise","Promotion"],[35510105,"DELICIO SIRACHA MAYONNAISE [12x300ml]","Mayonnaise","Regular"],[35590184,"DELICIO CHILLI MAYONNAISE PET [12x500ml] SPL PRICE","Mayonnaise","Promotion"],[35590175,"DELICIO BLACK TRUFFLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion"],[35590177,"DELICIO CHIPOTLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion"],[35590118,"DELICIO REAL MAYONNAISE 300 ML TWIN PACK [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion"],[35590143,"DELICIO  MAYONNAISE CHILLI TWIN PACK  [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion"],[35590144,"DELICIO CHILLY MAYO+ GARLIC MAYO [(2x300ml)X6] SPL PRICE","Mayonnaise","Promotion"],[35591033,"DELICIO MAYOCHUP 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion"],[35590142,"DELICIO CHILLI MAYONNAISE 300ML 20% OFF [12x300ml]","Mayonnaise","Promotion"],[35590167,"DELICIO MAYONNAISE ASST 2+1 [(3x300ml)]","Mayonnaise","Promotion"],[35590148,"DELICIO GARLIC MAYONNAISE 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion"],[35590119,"DELICIO MAYONNAISE ASST 3X300 ML\u00a0 [4x(3x300Ml)]VALUE PACK","Mayonnaise","Promotion"],[35511175,"DELICIO SMOKY BBQ SAUCE WITH SWEETENED DATES [12x532ml]","Sauces","Regular"],[35511110,"DELICIO MUSTARD SAUCE [12x325ml]","Sauces","Regular"],[35513010,"DELICIO CHEESE SAUCE [12x300ml]","Sauces","Regular"],[35510360,"DELICIO DYNAMITE SAUCE [12x300ml]","Sauces","Regular"],[35591115,"DELICIO SMOKY BBQ SAUCE 532ml SPL OFFER [12x532ml]","Sauces","Promotion"],[35511185,"DELICIO SPICY BBQ SAUCE [12x532ml]","Sauces","Regular"],[35511180,"DELICIO HONEY BBQ SAUCE [12x532ml]","Sauces","Regular"],[35511125,"DELICIO SWEET THAI CHILLI SAUCE [12x267ml]","Sauces","Regular"],[35591118,"DELICIO BBQ SAUCE TWIN PACK [2x532ml]","Sauces","Promotion"],[35510370,"Burger Sauce 12x200ml","Sauces","Regular"],[35590031,"DELICIO TOMATO KETCHUP [2x500gm]","Ketchup","Promotion"],[35510030,"DELICIO TOMATO KETCHUP [12x500gm]","Ketchup","Regular"],[35521127,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 910 GM","Ketchup","Regular"],[35521125,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 340 GM","Ketchup","Regular"],[35590032,"DELICIO TOMATO KETCHUP [6x(2x500 ML)]+GIFT","Ketchup","Promotion"],[35590010,"Ketchup 910 G @ 25% OFF","Ketchup","Promotion"],[35590017,"DELICIO TOMATO KETCHUP 3X340 Gm\u00a0 [4x(3x340Gm)]VALUE PACK","Ketchup","Promotion"],[35510282,"DELICIO LEMON PICKLE  SAUCE [24x175ml]","Hot Sauce","Regular"],[35510292,"DELICIO CHILLI GARLIC  SAUCE [24x175ml]","Hot Sauce","Regular"],[35510252,"DELICIO SWEET JALAPENO SAUCE [24x175ml]","Hot Sauce","Regular"],[35510258,"DELICIO JALAPENO HOT SAUCE [24x175ml]","Hot Sauce","Regular"],[35510272,"DELICIO CHIPOTLE SAUCE [24x175ml]","Hot Sauce","Regular"],[35512110,"DELICIO VANILLA ESSENCE [12x28ml]","C&E","Regular"],[35512150,"DELICIO YELLO FOOD COLOR [12x28ml]","C&E","Regular"],[35512130,"DELICIO GREEN FOOD COLOR [12x28ml]","C&E","Regular"],[35512140,"DELICIO RED FOOD COLOR [12x28ml]","C&E","Regular"],[35512020,"DELICIO PINEAPPL ESSENCE [12x28ml]","C&E","Regular"],[35512120,"DELICIO BR BLUE FOOD COLOR [12x28ml]","C&E","Regular"],[35591381,"DELICIO PIZZA SAUCE [12X500GM] SPL PRICE","Pasta","Promotion"],[35591375,"DELICIO PASTA SAUCE ARBTA/BLGNS/MRNA- SPL PRICE ASST- [12X500GM]","Pasta","Promotion"],[35511400,"DELICIO PIZZA SAUCE  - 12 X 500 GM","Pasta","Regular"],[35511370,"DELICIO MARINARA PASTA SAUCE - 12 X 500 GM","Pasta","Regular"],[35511320,"DELICIO PASTA S ARRABBIATA [12x500gm]","Pasta","Regular"],[35511340,"DELICIO PASTA S BOLOGNESE [12x500gm]","Pasta","Regular"],[35531128,"Strawberry Jam 12 x 360g","Jam","Regular"],[35531132,"Apricot Jam 12 x 360g","Jam","Regular"],[35531129,"Fig Jam 12 x 360g","Jam","Regular"],[35531131,"Mix Fruit Jam 12 x 360g","Jam","Regular"],[35531130,"Orange Jam 12 x 360g","Jam","Regular"],[35591098,"Two French 267 + Ketchup 340 Free","Dressing + Ketchup","Promotion"],[35591097,"French 532 + Chili 500","Dressing + Mayo","Promotion"],[35591095,"French 267 + Cheese 300 @ 25% OFF","Dressing + Sauce","Promotion"],[35591096,"French 267 + Dynamite 300 @ 25% OFF","Dressing + Sauce","Promotion"]]</script>
+<script id="items" type="application/json">[[35590028,"DELICIO SALAD DRESSING TWIN PACK SPCL OFF [6x(2x532ml)]","Salad Dressing","Promotion",0],[35590030,"DELICIO SALAD DRESSING 15% ASSTD [2x267ml]","Salad Dressing","Promotion",0],[35511140,"DELICIO FRENCH DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511020,"DELICIO FRENCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511160,"DELICIO RANCH DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511040,"DELICIO RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511130,"DELICIO 1000 ISLAND DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511045,"DELICIO SPICY RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511010,"DELICIO 1000 ISLAND DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511080,"DELICIO CAESAR DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511085,"DELICIO PEPPER GARLIC DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511023,"DELICIO LIGHT FRENCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511043,"DELICIO LIGHT RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511035,"DELICIO HABANERO RANCH SALAD DRESSING [12x267ML]","Salad Dressing","Regular",0],[35511017,"DELICIO CHIPOTLE RANCH DRESSING [12x267 ml]","Salad Dressing","Regular",0],[35511150,"DELICIO ITALIAN DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511065,"DELICIO CHILI LIME DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511050,"DELICIO BLUE CHEESE DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511030,"DELICIO ITALIAN DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511075,"DELICIO SIRACHA RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35591092,"DELICIO HABANERO RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion",0],[35591094,"DELICIO CHIPOTLE RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion",0],[35591055,"DELICIO FRENCH DRESSING 267ML+CHILLY MAYO 300ML[6x(267+300)]SPL OFFER","Salad Dressing","Promotion",0],[35591053,"DELICIO SALAD FRENCH/RANCH  DRESSING [4x3x267ML]SPL PRICE","Salad Dressing","Promotion",0],[35591057,"DELICIO CHIPOTLE RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion",0],[35591058,"DELICIO HABANERO RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion",0],[35591054,"DELICIO SALAD DRESSING FRENCH 267ML + CHILLI LIME 267ML 6x(2x267ML)]","Salad Dressing","Promotion",0],[35511005,"Butter Milk Ranch 12x267ml","Salad Dressing","Regular",0],[35511000,"Smoky French 12x257ml","Salad Dressing","Regular",0],[35591051,"DELICIO RANCH + FRENCH DRESSING [6x(2x267Ml)]\u00a0 VALUE PACK","Salad Dressing","Promotion",0],[35590163,"DELICIO MAYONNAISE ASST TWIN PACK [2x300gm]","Mayonnaise","Promotion",0],[35590115,"DELICIO REAL MAYONNAISE 300ML TWIN PACK [6x(2x300ml)]","Mayonnaise","Promotion",0],[35590103,"DELICIO 2 CHILLY MAYO+ 1 BLACK TRUFFLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion",0],[35510180,"DELICIO MAYONNAISE REAL PET [12x300ml]","Mayonnaise","Regular",0],[35510193,"DELICIO MAYONNAISE CHILI PET [12x300ml]","Mayonnaise","Regular",0],[35510183,"DELICIO MAYONNAISE REAL PET [12x500ml]","Mayonnaise","Regular",0],[35510197,"DELICIO MAYONNAISE LITE PET [12x500ml]","Mayonnaise","Regular",0],[35590104,"DELICIO 2 CHILLY MAYO+ 1 CHIPOTLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion",0],[35510145,"DELICIO MAYONNAISE GARLIC PET [12x300ml]","Mayonnaise","Regular",0],[35510132,"DELICIO REAL MAYONNAISE PET [6x946ML]","Mayonnaise","Regular",0],[35510194,"DELICIO CHILLI MAYONNAISE - 12 X 500 ML","Mayonnaise","Regular",0],[35510101,"DELICIO CHIPOTLE MAYONNAISE 12 X 300 ML","Mayonnaise","Regular",0],[35510175,"DELICIO MAYOCHUP PET [12x300ml]","Mayonnaise","Regular",0],[35590185,"DELICIO Real MAYO 500G [12x1x500GM] SPECIAL PRICE","Mayonnaise","Promotion",0],[35510185,"DELICIO BLACK TRUFFLE MAYONNAISE [12x300ML]","Mayonnaise","Regular",0],[35590132,"DELICIO REAL  MAYO  PET [(1X6)x946ml]SPL PRICE","Mayonnaise","Promotion",0],[35510105,"DELICIO SIRACHA MAYONNAISE [12x300ml]","Mayonnaise","Regular",0],[35590184,"DELICIO CHILLI MAYONNAISE PET [12x500ml] SPL PRICE","Mayonnaise","Promotion",0],[35590175,"DELICIO BLACK TRUFFLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion",0],[35590177,"DELICIO CHIPOTLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion",0],[35590118,"DELICIO REAL MAYONNAISE 300 ML TWIN PACK [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion",0],[35590143,"DELICIO  MAYONNAISE CHILLI TWIN PACK  [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion",0],[35590144,"DELICIO CHILLY MAYO+ GARLIC MAYO [(2x300ml)X6] SPL PRICE","Mayonnaise","Promotion",0],[35591033,"DELICIO MAYOCHUP 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion",0],[35590142,"DELICIO CHILLI MAYONNAISE 300ML 20% OFF [12x300ml]","Mayonnaise","Promotion",0],[35590167,"DELICIO MAYONNAISE ASST 2+1 [(3x300ml)]","Mayonnaise","Promotion",0],[35590148,"DELICIO GARLIC MAYONNAISE 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion",0],[35590119,"DELICIO MAYONNAISE ASST 3X300 ML\u00a0 [4x(3x300Ml)]VALUE PACK","Mayonnaise","Promotion",0],[35511175,"DELICIO SMOKY BBQ SAUCE WITH SWEETENED DATES [12x532ml]","Sauces","Regular",0],[35511110,"DELICIO MUSTARD SAUCE [12x325ml]","Sauces","Regular",0],[35513010,"DELICIO CHEESE SAUCE [12x300ml]","Sauces","Regular",0],[35510360,"DELICIO DYNAMITE SAUCE [12x300ml]","Sauces","Regular",0],[35591115,"DELICIO SMOKY BBQ SAUCE 532ml SPL OFFER [12x532ml]","Sauces","Promotion",0],[35511185,"DELICIO SPICY BBQ SAUCE [12x532ml]","Sauces","Regular",0],[35511180,"DELICIO HONEY BBQ SAUCE [12x532ml]","Sauces","Regular",0],[35511125,"DELICIO SWEET THAI CHILLI SAUCE [12x267ml]","Sauces","Regular",0],[35591118,"DELICIO BBQ SAUCE TWIN PACK [2x532ml]","Sauces","Promotion",0],[35510370,"Burger Sauce 12x200ml","Sauces","Regular",0],[35590031,"DELICIO TOMATO KETCHUP [2x500gm]","Ketchup","Promotion",0],[35510030,"DELICIO TOMATO KETCHUP [12x500gm]","Ketchup","Regular",0],[35521127,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 910 GM","Ketchup","Regular",0],[35521125,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 340 GM","Ketchup","Regular",0],[35590032,"DELICIO TOMATO KETCHUP [6x(2x500 ML)]+GIFT","Ketchup","Promotion",0],[35590010,"Ketchup 910 G @ 25% OFF","Ketchup","Promotion",0],[35590017,"DELICIO TOMATO KETCHUP 3X340 Gm\u00a0 [4x(3x340Gm)]VALUE PACK","Ketchup","Promotion",0],[35510282,"DELICIO LEMON PICKLE  SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510292,"DELICIO CHILLI GARLIC  SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510252,"DELICIO SWEET JALAPENO SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510258,"DELICIO JALAPENO HOT SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510272,"DELICIO CHIPOTLE SAUCE [24x175ml]","Hot Sauce","Regular",0],[35512110,"DELICIO VANILLA ESSENCE [12x28ml]","C&E","Regular",0],[35512150,"DELICIO YELLO FOOD COLOR [12x28ml]","C&E","Regular",0],[35512130,"DELICIO GREEN FOOD COLOR [12x28ml]","C&E","Regular",0],[35512140,"DELICIO RED FOOD COLOR [12x28ml]","C&E","Regular",0],[35512020,"DELICIO PINEAPPL ESSENCE [12x28ml]","C&E","Regular",0],[35512120,"DELICIO BR BLUE FOOD COLOR [12x28ml]","C&E","Regular",0],[35591381,"DELICIO PIZZA SAUCE [12X500GM] SPL PRICE","Pasta","Promotion",0],[35591375,"DELICIO PASTA SAUCE ARBTA/BLGNS/MRNA- SPL PRICE ASST- [12X500GM]","Pasta","Promotion",0],[35511400,"DELICIO PIZZA SAUCE  - 12 X 500 GM","Pasta","Regular",0],[35511370,"DELICIO MARINARA PASTA SAUCE - 12 X 500 GM","Pasta","Regular",0],[35511320,"DELICIO PASTA S ARRABBIATA [12x500gm]","Pasta","Regular",0],[35511340,"DELICIO PASTA S BOLOGNESE [12x500gm]","Pasta","Regular",0],[35531128,"Strawberry Jam 12 x 360g","Jam","Regular",0],[35531132,"Apricot Jam 12 x 360g","Jam","Regular",0],[35531129,"Fig Jam 12 x 360g","Jam","Regular",0],[35531131,"Mix Fruit Jam 12 x 360g","Jam","Regular",0],[35531130,"Orange Jam 12 x 360g","Jam","Regular",0],[35591098,"Two French 267 + Ketchup 340 Free","Dressing + Ketchup","Promotion",0],[35591097,"French 532 + Chili 500","Dressing + Mayo","Promotion",0],[35591095,"French 267 + Cheese 300 @ 25% OFF","Dressing + Sauce","Promotion",0],[35591096,"French 267 + Dynamite 300 @ 25% OFF","Dressing + Sauce","Promotion",0],[35510091,"DELICIO PREMIUM MAYONNAISE [4x1 US Gallon]","Mayonnaise","Regular",1],[35510092,"DELICIO FRENCH DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510093,"DELICIO ITALIAN FAT FREE DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510094,"DELICIO 1000 ISLAND DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510095,"DELICIO RANCH DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510099,"DELICIO SMOKY BBQ SAUCE [4x1 USG]","Sauces","Regular",1],[35522013,"DELICIO SUPERIOR TOMATO KETCHUP [4x5KG]","Ketchup","Regular",1],[35522014,"DELICIO TOMATO KETCHUP SACHETS [1000x9GM]","Ketchup","Regular",1],[35522011,"DELICIO SUPERIOR MAYONNAISE [4x1 Gallon]","Mayonnaise","Regular",1],[35513020,"DELICIO CHEESE SAUCE [4x1 USG]","Sauces","Regular",1],[35510104,"DELICIO CHIPOTLE MAYONNAISE [4x1 USG]","Mayonnaise","Regular",1],[35511395,"DELICIO PIZZA SAUCE [4x1 USG]","Sauces","Regular",1],[35522012,"DELICIO MAYONNAISE SACHET [1000x9GM]","Mayonnaise","Regular",1]]</script>
 <script>
 (function(){
 'use strict';
@@ -754,14 +827,14 @@ var SITES = [], CUSTOMERS = [], sitesByCust = {}, AREAS = [], areaOf = null;
    of every figure, so the dashboard only ever shows live business. */
 var LIVE = null;
 function liveScan(){
-  var key = state.yrB + '|' + SITES.length;
+  var key = state.yrB + '|' + state.dep + '|' + SITES.length;
   if (LIVE && LIVE.key === key) return LIVE;
   var siteLive = new Uint8Array(SITES.length), custLive = new Uint8Array(CUSTOMERS.length);
   var ib = yIdx(state.yrB);
   if (F && ib >= 0){
-    var fs = F.s, fp = F.p, fq = F.q, n = fs.length;
+    var fs = F.s, fp = F.p, fq = F.q, fd = F.d, n = fs.length;
     for (var k=0;k<n;k++){
-      if (fq[k] > 0 && ((fp[k]/12)|0) === ib){
+      if (fq[k] > 0 && ((fp[k]/12)|0) === ib && factInDep(fd[k])){
         var s = fs[k];
         siteLive[s] = 1;
         custLive[SITES[s][4]] = 1;
@@ -772,6 +845,32 @@ function liveScan(){
   return LIVE;
 }
 function areaLabel(i){ return AREAS[i] || ''; }
+
+/* ALL / CPD / FSD ------------------------------------------------------------
+   CPD is the retail business, FSD is food service (channel HOR). The food
+   service assortment is a short active list of catering packs; those items are
+   flagged in the item master. */
+function depWanted(){ return state.dep; }
+function factInDep(d){
+  if (state.dep === 'ALL') return true;
+  return state.dep === 'FSD' ? d === 1 : d === 0;
+}
+function isFsdItem(i){ return ITEMS[i][4] === 1; }
+/* which items belong on screen for the current department */
+function itemInDep(i){
+  if (state.dep === 'FSD') return true;            /* catering list plus retail packs */
+  if (state.dep === 'CPD') return !isFsdItem(i);   /* catering-only packs are not retail */
+  return true;
+}
+/* which items can be ticked during a market visit */
+function itemAuditable(i){
+  if (ITEMS[i][3] === 'Promotion') return false;
+  return state.dep === 'FSD' ? isFsdItem(i) : !isFsdItem(i);
+}
+function depLabel(){
+  return state.dep === 'ALL' ? 'CPD + Food Service'
+       : (state.dep === 'FSD' ? 'Food Service only' : 'CPD only');
+}
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
 var loadedAt = null;
@@ -850,6 +949,7 @@ function snapshotClear(cb){
 }
 
 function applySnapshot(snap){
+  if (snap && snap.f && !snap.f.d) snap.f.d = new Uint8Array(snap.f.s.length);   /* older copy: all CPD */
   SITES = snap.sites; YEARS = snap.years.slice(); NY = YEARS.length;
   F = snap.f; loadedAt = snap.at;
   if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
@@ -1020,7 +1120,10 @@ function loadAll(progress, ok, fail){
         stockMaps[cc][rawCode] = cnum(sTxt);
       }
     }
-    if (f[C_DEP].trim().toUpperCase() !== 'CPD') return;
+    /* both departments are loaded now; each fact remembers which one it is so the
+       ALL / CPD / FSD switch can filter without another download */
+    var depTxt = f[C_DEP].trim().toUpperCase();
+    var dep = (depTxt === 'FSD' || f[C_CHAN].trim().toUpperCase() === 'HOR') ? 1 : 0;
 
     /* register the outlet from any CPD row, so a store that has only ever bought
        off-list items still appears and can be audited */
@@ -1062,7 +1165,7 @@ function loadAll(progress, ok, fail){
     yearSeen[y] = 1;
     rows++;
     /* one bucket per site x item x year x month */
-    B.add(((si * NI + ii) * 64 + (y - 2000)) * 12 + m, v, q);
+    B.add(((((si * NI + ii) * 64 + (y - 2000)) * 12 + m) * 2) + dep, v, q);
   }
 
   function feed(text){
@@ -1097,14 +1200,15 @@ function loadAll(progress, ok, fail){
 
     var n = B.n;
     var fs = new Int32Array(n), fi = new Int32Array(n), fp = new Int32Array(n),
-        fv = new Float64Array(n), fq = new Float64Array(n);
+        fv = new Float64Array(n), fq = new Float64Array(n), fd = new Uint8Array(n);
     for (var k=0;k<n;k++){
       var key = B.key[k];
+      var dp = key % 2; key = (key - dp) / 2;
       var m = key % 12; key = (key - m) / 12;
       var y = (key % 64) + 2000; key = (key - (y - 2000)) / 64;
       var ii = key % NI;
       var si = (key - ii) / NI;
-      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fq[k] = B.q[k];
+      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fq[k] = B.q[k]; fd[k] = dp;
     }
     B = null;
 
@@ -1131,7 +1235,7 @@ function loadAll(progress, ok, fail){
       stockPending = true;
     }
     var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites,
-                f:{s:fs, i:fi, p:fp, v:fv, q:fq}};
+                f:{s:fs, i:fi, p:fp, v:fv, q:fq, d:fd}};
     function complete(){
       snap.stock = STOCK; snap.stockAt = stockAt;
       applySnapshot(snap);
@@ -1395,9 +1499,10 @@ function aggregate(){
   A.qA.fill(0); A.vA.fill(0); A.qB.fill(0); A.vB.fill(0);
   A.mq.fill(0); A.mv.fill(0);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
-  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, n = fs.length;
+  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
   for (var k=0;k<n;k++){
     if (!mask[fs[k]]) continue;
+    if (!factInDep(fd[k])) continue;
     var it = fi[k], p = fp[k], yi = (p/12)|0, m = p%12;
     var g = it*NY*12 + p;
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
@@ -1619,7 +1724,7 @@ function reportPdf(info, rows){
 var state = {
   yrA: 0, yrB: 0, m1: 0, m2: 11,
   cust: new Set(), site: new Set(),
-  cat: null, q: '', area: new Set(),
+  cat: null, q: '', area: new Set(), dep: 'ALL',
   aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
@@ -1725,8 +1830,9 @@ function buildRows(){
   for (var i=0;i<NI;i++){
     var vA=A.vA[i], vB=A.vB[i], qA=A.qA[i], qB=A.qB[i];
     var promo = ITEMS[i][3] === 'Promotion';
+    if (!itemInDep(i)) continue;
     if (state.hideZero && !vA && !vB && !qA && !qB && promo) continue;
-    if (state.onlyUnchecked && (promo || state.checked.has(i))) continue;
+    if (state.onlyUnchecked && (!itemAuditable(i) || state.checked.has(i))) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
     var it = ITEMS[i];
     if (q && (String(it[0]).indexOf(q) < 0 && it[1].toLowerCase().indexOf(q) < 0)) continue;
@@ -1763,6 +1869,7 @@ function render(){
 
   var T = {qA:0,qB:0,vA:0,vB:0,act:0,lost:0,gain:0};
   for (i=0;i<NI;i++){
+    if (!itemInDep(i)) continue;                 /* the KPIs count what the table shows */
     T.qA+=A.qA[i]; T.qB+=A.qB[i]; T.vA+=A.vA[i]; T.vB+=A.vB[i];
     if (A.vB[i]||A.qB[i]) T.act++;
     if ((A.vA[i]||A.qA[i]) && !(A.vB[i]||A.qB[i])) T.lost++;
@@ -1815,7 +1922,7 @@ function render(){
       '<td class="c-type"><span class="pill '+(r.promo?'promo':'reg')+'">'+(r.promo?'Promo':'Reg')+'</span></td>'+
       '<td class="c-cat" style="white-space:nowrap">'+esc(r.cat)+'</td>'+
       '<td class="c-code mono" style="font-size:11px">'+r.code+'</td>'+
-      '<td class="chkc">'+(r.promo ? '<span class="dash">–</span>' :
+      '<td class="chkc">'+(!itemAuditable(r.i) ? '<span class="dash">–</span>' :
         '<button class="chk" data-i="'+r.i+'" aria-pressed="'+(hit?'true':'false')+'" aria-label="'+esc(r.desc)+' on shelf" title="'+(hit?'On shelf — tap to mark missing':'Not marked — tap when found on shelf')+'">✓</button>')+'</td>'+
       '<td class="desc" data-i="'+r.i+'" role="button" tabindex="0" title="Tap for the monthly breakdown">'+esc(r.desc)+'</td>'+
       '<td class="num d-q25" data-l="'+state.yrA+' QTY">'+fmt(r.qA)+'</td>'+
@@ -1840,11 +1947,12 @@ function render(){
     '<td class="num d-stock">'+fmtS(totStock)+'</td><td></td></tr>';
 
   document.getElementById('rowCount').textContent =
-    rows.length + ' items · ' + siteScopeLabel() + ' · ' + yearsLabel();
+    rows.length + ' items · ' + depLabel() + ' · ' + siteScopeLabel() + ' · ' + yearsLabel();
 
   /* no supply in the current year */
   var lost = [], ib = yIdx(state.yrB);
   for (i=0;i<NI;i++){
+    if (!itemInDep(i)) continue;
     if (A.last[i] >= 0 && Math.floor(A.last[i]/12) >= ib) continue;
     if (!(A.vA[i] || A.qA[i])) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
@@ -1879,7 +1987,7 @@ function store(k, v){
 }
 var memChk = {}, curKey = 'ALL';
 function loadChecks(){
-  var k = scopeKey(), raw = store(k);
+  var k = scopeKey() + '|' + state.dep, raw = store(k);
   if (raw === null || raw === undefined) raw = memChk[k] || '';
   state.checked = new Set(raw ? raw.split(',').map(Number) : []);
   curKey = k;
@@ -1891,7 +1999,7 @@ function saveChecks(){
 var auditRows = [];
 function renderAudit(){
   auditRows = [];
-  for (var i=0;i<NI;i++) if (ITEMS[i][3] !== 'Promotion') auditRows.push(i);
+  for (var i=0;i<NI;i++) if (itemAuditable(i)) auditRows.push(i);
   var done = 0, never = 0;
   for (var j=0;j<auditRows.length;j++){
     var it = auditRows[j];
@@ -1979,7 +2087,8 @@ document.getElementById('pdf').addEventListener('click', function(){
       '<div><span>Visit date</span>'+stamp+'</div>'+
       '<div><span>Checked by</span>'+(who?esc(who):'—')+'</div>'+
       '<div><span>Sales period</span>'+yearsLabel()+'</div>'+
-      '<div><span>Assortment checked</span>'+auditRows.length+' regular items</div>'+
+      '<div><span>Department</span>'+depLabel()+'</div>'+
+      '<div><span>Assortment checked</span>'+auditRows.length+' items</div>'+
       '<div><span>On shelf</span>'+found+'</div>'+
       '<div><span>Missing</span>'+missing.length+'</div>'+
       '<div><span>Never supplied</span>'+neverN+'</div>'+
@@ -1996,7 +2105,7 @@ document.getElementById('pdf').addEventListener('click', function(){
     'NEVER SUPPLIED = this customer / site has never been invoiced for the item at all \u2014 a distribution gap rather than an out-of-stock. '+
     'Last supplied is the most recent month with a positive shipment anywhere in the data, whatever period is selected on screen. '+
     'Stock is cases on hand at the main warehouse \u2014 a missing item with stock can be ordered today. '+
-    'Promotional packs are excluded from the check, and the data covers CPD only \u2014 Food Service (FSD) is out of scope. '+
+    'Promotional packs are excluded from the check. This visit covers ' + depLabel() + '. '+
     'Values cover '+yearsLabel()+'.</div>';
 
   document.body.classList.add('reporting');
@@ -2025,7 +2134,8 @@ document.getElementById('pdf').addEventListener('click', function(){
         ['Visit date', stamp],
         ['Checked by', who || '-'],
         ['Sales period', yearsLabel()],
-        ['Assortment checked', auditRows.length + ' regular items'],
+        ['Department', depLabel()],
+        ['Assortment checked', auditRows.length + ' items'],
         ['On shelf', String(found)],
         ['Missing', String(missing.length)],
         ['Never supplied', String(neverN)],
@@ -2189,7 +2299,7 @@ function syncPresets(){
     b.classList.toggle('on', p.a===state.m1 && p.b===state.m2);
   });
   document.getElementById('footMeta').textContent =
-    'CPD only — Food Service (FSD) excluded · years available: ' + YEARS.join(', ') +
+    depLabel() + ' · years available: ' + YEARS.join(', ') +
     ' · ' + YEARS[NY-1] + ' data through ' + MONTHS[LASTM] +
     (state.m2 > LASTM && state.yrB === YEARS[NY-1]
       ? ' — this period runs past the ' + YEARS[NY-1] + ' data, so it compares an incomplete year against a full one.' : '');
@@ -2222,15 +2332,38 @@ function wirePeriod(){
 }
 
 /* ---------- filters ---------- */
+var catWired = false;
 function buildCatFilter(){
   var sel = document.getElementById('catSel');
-  var order = CATS.map(function(n,i){ return {i:i, n:n}; }).sort(function(a,b){ return a.n<b.n?-1:1; });
+  var live = {};
+  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]] = 1;
+  var order = CATS.map(function(n,i){ return {i:i, n:n}; })
+                  .filter(function(o){ return live[o.i]; })
+                  .sort(function(a,b){ return a.n<b.n?-1:1; });
+  if (state.cat !== null && !live[state.cat]) state.cat = null;
   sel.innerHTML = '<option value="">All categories</option>' +
     order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
-  sel.addEventListener('change', function(){
-    state.cat = this.value === '' ? null : +this.value;
-    render();
-  });
+  sel.value = state.cat === null ? '' : String(state.cat);
+  if (!catWired){
+    catWired = true;
+    sel.addEventListener('change', function(){
+      state.cat = this.value === '' ? null : +this.value;
+      render();
+    });
+  }
+  /* the analysis category list follows the same rule */
+  var asel = document.getElementById('anCat');
+  if (asel && asel.options.length){
+    var hasReg = {};
+    for (var ci=0; ci<NI; ci++) if (ITEMS[ci][3] !== 'Promotion' && analysisItemInDep(ci)) hasReg[catOf[ci]] = 1;
+    if (state.aCat !== null && !hasReg[state.aCat]) state.aCat = null;
+    asel.innerHTML = '<option value="">All categories</option>' +
+      CATS.map(function(n,i){ return {i:i, n:n}; })
+          .filter(function(o){ return hasReg[o.i]; })
+          .sort(function(a,b){ return a.n<b.n?-1:1; })
+          .map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
+    asel.value = state.aCat === null ? '' : String(state.aCat);
+  }
 }
 document.getElementById('grp').addEventListener('change', function(){ state.group = this.checked; render(); });
 document.getElementById('hideZero').addEventListener('change', function(){ state.hideZero = this.checked; render(); });
@@ -2381,7 +2514,8 @@ var siteCust = null;
 var anRows = [];
 
 function analysisScan(){
-  var key = state.yrA + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' + SITES.length;
+  var key = state.yrA + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' +
+            state.dep + '|' + SITES.length;
   if (AN && AN.key === key) return AN;
 
   var NS = SITES.length, n = NS * NI;
@@ -2397,9 +2531,10 @@ function analysisScan(){
   var custLive = new Uint8Array(CUSTOMERS.length);
   var siteLive = new Uint8Array(NS);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
-  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, N = fs.length;
+  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, N = fs.length;
 
   for (var k=0;k<N;k++){
+    if (!factInDep(fd[k])) continue;
     var s = fs[k], i = fi[k], p = fp[k], idx = s*NI + i;
     /* Supply history is read across ALL years in the data, never through the
        compare or period selection: an item shipped in 2024 has been supplied,
@@ -2455,6 +2590,7 @@ function buildAnalysisRows(){
     if (!A2.siteLive[s]) continue;              /* closed outlet — not an opportunity */
     for (var i=0; i<NI; i++){
       if (ITEMS[i][3] === 'Promotion') continue;          /* promo packs aren't distribution */
+      if (!analysisItemInDep(i)) continue;
       if (state.aCat !== null && catOf[i] !== state.aCat) continue;
       if (state.aItems.size && !state.aItems.has(i)) continue;
       var idx = s*NI + i, lp = A2.lastP[idx], la = A2.lastAny[idx];
@@ -2575,17 +2711,26 @@ function renderAnalysis(){
     (state.aArea.size ? ' · ' + (state.aArea.size === 1
         ? (function(){ var n=''; state.aArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
         : state.aArea.size + ' areas') : '') +
-    (A2.dormant ? ' · ' + A2.dormant + ' inactive customers' : '') +
-    (A2.closedSites ? ' + ' + A2.closedSites + ' closed sites excluded' : '') +
+    (A2.dormant ? ' · ' + A2.dormant + ' customers and ' + A2.closedSites + ' sites with no ' +
+        (state.dep === 'FSD' ? 'Food Service' : (state.dep === 'CPD' ? 'CPD' : '')) +
+        ' sales this year excluded' : '') +
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
 }
 
 /* items offered for selection follow the category above — pick Dressings and the
    list holds dressings only */
+/* Analysis on Food Service looks at the catering active list alone — retail packs
+   bought by a restaurant are not the food service opportunity. */
+function analysisItemInDep(i){
+  if (state.dep === 'FSD') return isFsdItem(i);
+  if (state.dep === 'CPD') return !isFsdItem(i);
+  return true;
+}
 function analysisItemOptions(){
   var out = [];
   for (var i=0;i<NI;i++){
     if (ITEMS[i][3] === 'Promotion') continue;
+    if (!analysisItemInDep(i)) continue;
     if (state.aCat !== null && catOf[i] !== state.aCat) continue;
     out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
   }
@@ -2698,7 +2843,7 @@ function initAnalysis(){
   var sel = document.getElementById('anCat');
   /* promo-only categories can never yield a row here, so leave them out */
   var hasReg = {};
-  for (var ci=0; ci<NI; ci++) if (ITEMS[ci][3] !== 'Promotion') hasReg[catOf[ci]] = 1;
+  for (var ci=0; ci<NI; ci++) if (ITEMS[ci][3] !== 'Promotion' && analysisItemInDep(ci)) hasReg[catOf[ci]] = 1;
   var order = CATS.map(function(n,i){ return {i:i, n:n}; })
                   .filter(function(o){ return hasReg[o.i]; })
                   .sort(function(a,b){ return a.n<b.n?-1:1; });
@@ -2764,6 +2909,50 @@ document.getElementById('anCsv').addEventListener('click', function(){
   a.href = URL.createObjectURL(blob);
   a.download = 'delicio_oman_missing_opportunities_' + periodLabel() + '.csv';
   a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ---------- ALL / CPD / FSD ---------- */
+function syncDepButtons(){
+  document.querySelectorAll('.deps .dep').forEach(function(b){
+    b.classList.toggle('on', b.dataset.d === state.dep);
+  });
+  var hint = state.dep === 'FSD'
+      ? 'Food Service (HOR) — market visit checks the catering active list'
+      : (state.dep === 'CPD' ? 'Retail business only' : 'Retail and Food Service together');
+  var h1 = document.getElementById('depHint1'), h2 = document.getElementById('depHint2');
+  if (h1) h1.textContent = hint;
+  if (h2) h2.textContent = state.dep === 'FSD'
+      ? 'Food Service — gaps measured on the catering active list only'
+      : hint;
+}
+function setDep(d){
+  if (state.dep === d) return;
+  state.dep = d;
+  LIVE = null; AN = null;                       /* both scans depend on the department */
+  /* selections that no longer exist in this department have to go */
+  var liveSet = new Set(baseSites());
+  Array.from(state.site).forEach(function(s){ if (!liveSet.has(s)) state.site.delete(s); });
+  var liveC = new Set(liveCustomers());
+  Array.from(state.cust).forEach(function(c){ if (!liveC.has(c)) state.cust.delete(c); });
+  Array.from(state.aItems).forEach(function(i){ if (!analysisItemInDep(i)) state.aItems.delete(i); });
+  state.aCust.clear();
+  syncDepButtons();
+  if (msArea) msArea.refresh();
+  if (msCust) msCust.refresh();
+  if (msSite) msSite.refresh();
+  if (msAArea) msAArea.refresh();
+  if (msACust) msACust.refresh();
+  if (msAItem) msAItem.refresh();
+  buildCatFilter();
+  loadChecks();
+  renderHead(); render();
+  if (TAB === 'analysis') renderAnalysis();
+}
+document.querySelectorAll('.deps').forEach(function(box){
+  box.addEventListener('click', function(e){
+    var b = e.target.closest('.dep');
+    if (b) setDep(b.dataset.d);
+  });
 });
 
 /* ---------- tabs ---------- */
@@ -3121,6 +3310,7 @@ function afterLoad(rebuild){
   }
   buildPeriod();
   if (!wired){ wirePeriod(); wired = true; }
+  syncDepButtons();
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
