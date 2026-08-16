@@ -13,6 +13,7 @@ export default {
     if (url.pathname === '/api/visits') {
       if (request.method === 'POST') return saveVisit(request, env);
       if (request.method === 'GET') return readVisits(request, env);
+      if (request.method === 'DELETE') return deleteVisit(request, env);
       return json({ ok: false, error: 'method not allowed' }, 405);
     }
 
@@ -37,10 +38,22 @@ async function readVisits(request, env) {
   const url = new URL(request.url);
   const site = url.searchParams.get('site');
   const id = url.searchParams.get('id');
+  const all = url.searchParams.get('all');
 
   if (!env.DB) return json({ ok: false, error: 'no DB binding on this Worker' }, 500);
 
   try {
+    if (all) {
+      // every store, newest first — the overview when no site is selected
+      const { results } = await env.DB.prepare(
+        `SELECT id, visit_date, saved_at, customer, site_code, site_name, checker, checker_email,
+                assortment, on_shelf, missing, never_supplied
+           FROM visits
+          ORDER BY visit_date DESC, saved_at DESC LIMIT 200`
+      ).all();
+      return json({ ok: true, visits: results || [], all: true, you: who(request) });
+    }
+
     if (id) {
       const { results } = await env.DB.prepare(
         `SELECT item_code, item_desc, category, status, last_supplied, stock, qty_a, qty_b
@@ -58,6 +71,21 @@ async function readVisits(request, env) {
         ORDER BY visit_date DESC, saved_at DESC LIMIT 24`
     ).bind(site).all();
     return json({ ok: true, visits: results || [], you: who(request) });
+  } catch (err) {
+    return json({ ok: false, error: String(err) }, 500);
+  }
+}
+
+async function deleteVisit(request, env) {
+  if (!env.DB) return json({ ok: false, error: 'no DB binding on this Worker' }, 500);
+  const id = new URL(request.url).searchParams.get('id');
+  if (!id) return json({ ok: false, error: 'id required' }, 400);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM visit_items WHERE visit_id = ?`).bind(id),
+      env.DB.prepare(`DELETE FROM visits WHERE id = ?`).bind(id)
+    ]);
+    return json({ ok: true, deleted: id });
   } catch (err) {
     return json({ ok: false, error: String(err) }, 500);
   }
