@@ -435,6 +435,14 @@ body.imopen{overflow:hidden}
   #saveVisit{flex:1}
   .imtbl.vhist{font-size:11px}
 }
+
+.imtbl.vhist td.vstore{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imtbl.vhist .vdel{color:var(--neg);border-color:#E3B5AA;padding:3px 8px}
+.imtbl.vhist .vdel:hover{background:var(--neg-bg)}
+.imtbl.vhist .vdel[disabled]{opacity:.5}
+
+.imtbl.vhist tbody tr{cursor:pointer}
+.imtbl.vhist .vpdf{padding:3px 9px;font-size:10.5px}
 </style>
 </head>
 <body>
@@ -1408,13 +1416,13 @@ function reportPdf(info, rows){
   var doc = new PdfDoc(), M = doc.M, RIGHT = doc.PW - M, W = RIGHT - M;
   var sa = String(info.yrA || '').slice(2), sb = String(info.yrB || '').slice(2);
   var cols = [
-    {t:'CATEGORY',        w:74},
-    {t:'ITEM CODE',       w:52},
-    {t:'ITEM DESCRIPTION',w:186},
-    {t:sa + "' QTY",      w:45, a:'r'},
-    {t:sb + "' QTY",      w:45, a:'r'},
-    {t:'STOCK',           w:46, a:'r'},
-    {t:'LAST SUPPLIED',   w:74}
+    {t:'CATEGORY',        w:68},
+    {t:'ITEM CODE',       w:50},
+    {t:'ITEM DESCRIPTION',w:176},
+    {t:sa + "' QTY",      w:42, a:'r'},
+    {t:sb + "' QTY",      w:42, a:'r'},
+    {t:'STOCK',           w:43, a:'r'},
+    {t:'LAST SUPPLIED',   w:94}
   ];
   var xs = [], acc = M;
   cols.forEach(function(c){ xs.push(acc); acc += c.w; });
@@ -1898,7 +1906,6 @@ document.getElementById('pdf').addEventListener('click', function(){
     });
     var bytes = reportPdf({
       period: yearsLabel(),
-      yrA: state.yrA, yrB: state.yrB,
       yrA: state.yrA, yrB: state.yrB,
       meta: [
         ['Customer / site', scopeNames()],
@@ -2709,6 +2716,72 @@ document.getElementById('saveVisit').addEventListener('click', function(){
   });
 });
 
+/* ---------- a saved visit, printed exactly like a fresh one ---------- */
+var histVisits = {}, histItems = {};
+
+function visitPdf(v, items){
+  var yrs = String(v.period || '').match(/(20\d\d)\D+(20\d\d)/);
+  var yrA = yrs ? yrs[1] : state.yrA, yrB = yrs ? yrs[2] : state.yrB;
+
+  var miss = items.filter(function(i){ return i.status !== 'On shelf'; });
+  miss.sort(function(a,b){
+    var na = a.status === 'Never supplied' ? 1 : 0, nb = b.status === 'Never supplied' ? 1 : 0;
+    if (na !== nb) return na - nb;                       /* real gaps first */
+    var ca = (a.category||''), cb = (b.category||'');
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    return (b.qty_b || 0) - (a.qty_b || 0);
+  });
+  var num = function(x){ return (x || x === 0) ? nf0.format(Math.round(x)) : '-'; };
+  var rows = miss.map(function(i){
+    var never = i.status === 'Never supplied';
+    var row = [i.category || '', String(i.item_code), i.item_desc || '',
+               i.qty_a ? num(i.qty_a) : '-', i.qty_b ? num(i.qty_b) : '-',
+               (i.stock === null || i.stock === undefined || i.stock === '') ? '-' : num(i.stock),
+               never ? 'NEVER SUPPLIED' : (i.last_supplied || '-')];
+    row.never = never;
+    return row;
+  });
+
+  var when = fmtVisitDate(v.visit_date);
+  var whoBy = v.checker || (v.checker_email || '').split('@')[0] || '-';
+  var bytes = reportPdf({
+    period: v.period || '',
+    yrA: yrA, yrB: yrB,
+    meta: [
+      ['Customer / site', (v.site_name || '') + (v.customer ? ' — ' + v.customer : '')],
+      ['Visit date', when],
+      ['Checked by', whoBy],
+      ['Sales period', v.period || '-'],
+      ['Assortment checked', (v.assortment || items.length) + ' regular items'],
+      ['On shelf', String(v.on_shelf === undefined ? '-' : v.on_shelf)],
+      ['Missing', String(v.missing === undefined ? miss.length : v.missing)],
+      ['Never supplied', String(v.never_supplied === undefined ? '-' : v.never_supplied)],
+      ['Saved visit', 'from the visit log']
+    ]
+  }, rows);
+
+  var blob = new Blob([bytes], {type:'application/pdf'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'Delicio visit - ' + String(v.site_name || v.site_code || 'store').replace(/[\\/:*?"<>|]/g,'-') +
+               ' - ' + (v.visit_date || '') + '.pdf';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+
+function withVisitItems(id, then, fail){
+  if (histItems[id]) return then(histItems[id]);
+  fetch('/api/visits?id=' + encodeURIComponent(id), {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) throw new Error(j.error || 'failed');
+      histItems[id] = j.items || [];
+      then(histItems[id]);
+    })
+    .catch(function(err){ fail(err); });
+}
+
 /* ---------- history ---------- */
 function fmtVisitDate(s){
   if (!s) return '';
@@ -2718,39 +2791,56 @@ function fmtVisitDate(s){
 }
 function openHistory(){
   var si = currentSite();
-  if (si === null){ window.alert('Pick one customer site first.'); return; }
+  var everywhere = (si === null);          /* no store picked — show them all */
   document.getElementById('imTitle').textContent = 'Visit history';
-  document.getElementById('imSub').textContent = SITES[si][1] + ' · ' + SITES[si][0];
+  document.getElementById('imSub').textContent = everywhere
+    ? 'Every saved visit, newest first'
+    : SITES[si][1] + ' · ' + SITES[si][0];
   document.getElementById('imBody').innerHTML = '<div class="imnote">Loading…</div>';
   document.body.classList.add('imopen');
   document.getElementById('imWrap').scrollTop = 0;
 
-  fetch('/api/visits?site=' + encodeURIComponent(SITES[si][2]), {credentials:'same-origin'})
+  fetch(everywhere ? '/api/visits?all=1'
+                   : '/api/visits?site=' + encodeURIComponent(SITES[si][2]), {credentials:'same-origin'})
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!j.ok) throw new Error(j.error || 'failed');
       if (!j.visits.length){
-        document.getElementById('imBody').innerHTML =
-          '<div class="imnote">No visits saved for this store yet. Tick the shelf and press ' +
-          '<b>Save visit</b> — from then on every visit is kept here.</div>';
+        document.getElementById('imBody').innerHTML = everywhere
+          ? '<div class="imnote">Nothing saved yet. Pick a store, tick the shelf and press ' +
+            '<b>Save visit</b> — every visit is kept here from then on.</div>'
+          : '<div class="imnote">No visits saved for this store yet. Tick the shelf and press ' +
+            '<b>Save visit</b> — from then on every visit is kept here.</div>';
         return;
       }
+      histVisits = {};
+      j.visits.forEach(function(v){ histVisits[v.id] = v; });
+      var cols = everywhere ? 10 : 9;
       var rows = j.visits.map(function(v){
         var pct = v.assortment ? Math.round(v.on_shelf / v.assortment * 100) : 0;
         return '<tr data-id="' + esc(v.id) + '">' +
           '<td>' + fmtVisitDate(v.visit_date) + '</td>' +
+          (everywhere ? '<td class="vstore" title="' + esc((v.customer||'') + ' · ' + (v.site_name||'')) + '">' +
+                        esc(v.site_name || v.site_code || '') + '</td>' : '') +
           '<td>' + esc(v.checker || (v.checker_email || '').split('@')[0] || '—') + '</td>' +
           '<td class="n">' + v.on_shelf + ' / ' + v.assortment + '</td>' +
           '<td class="n"><span class="' + (pct >= 80 ? 'up' : (pct >= 50 ? 'flat' : 'down')) + '">' + pct + '%</span></td>' +
           '<td class="n">' + v.missing + '</td>' +
           '<td class="n">' + v.never_supplied + '</td>' +
-          '<td><button class="btn ghost vdet" type="button" data-id="' + esc(v.id) + '">Items</button></td></tr>';
+          '<td><button class="btn ghost vdet" type="button" data-id="' + esc(v.id) + '">Items</button></td>' +
+          '<td><button class="btn vpdf" type="button" data-id="' + esc(v.id) + '">PDF</button></td>' +
+          '<td><button class="btn ghost vdel" type="button" title="Delete this visit" ' +
+              'data-id="' + esc(v.id) + '" data-label="' + esc(fmtVisitDate(v.visit_date) + ' · ' + (v.site_name || '')) + '">✕</button></td>' +
+          '</tr>';
       }).join('');
       document.getElementById('imBody').innerHTML =
-        '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="7">Saved visits</th></tr>' +
-        '<tr><th>Date</th><th>Checked by</th><th class="n">On shelf</th><th class="n">Availability</th>' +
-        '<th class="n">Missing</th><th class="n">Never</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
-        '<div class="imnote" id="vdetail">Press <b>Items</b> on any visit to see exactly what was missing that day.</div>';
+        '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="' + cols + '">' +
+        (everywhere ? j.visits.length + ' saved visits — all stores' : 'Saved visits') + '</th></tr>' +
+        '<tr><th>Date</th>' + (everywhere ? '<th>Store</th>' : '') +
+        '<th>Checked by</th><th class="n">On shelf</th><th class="n">Availability</th>' +
+        '<th class="n">Missing</th><th class="n">Never</th><th></th><th></th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<div class="imnote" id="vdetail">Tap any row (or <b>PDF</b>) for the report of that visit, ' +
+        '<b>Items</b> to see what was missing on screen, or <b>✕</b> to delete a visit saved by mistake.</div>';
     })
     .catch(function(err){
       document.getElementById('imBody').innerHTML =
@@ -2758,15 +2848,51 @@ function openHistory(){
     });
 }
 document.getElementById('imBody').addEventListener('click', function(e){
+  var del = e.target.closest('.vdel');
+  if (del){
+    if (!window.confirm('Delete the visit saved on ' + del.dataset.label + '?\n\nThis cannot be undone.')) return;
+    del.disabled = true;
+    fetch('/api/visits?id=' + encodeURIComponent(del.dataset.id),
+          {method:'DELETE', credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j.ok) throw new Error(j.error || 'failed');
+        var tr = del.closest('tr');
+        if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
+        var note = document.getElementById('vdetail');
+        if (note) note.innerHTML = 'Visit deleted.';
+        vSay('Visit deleted.', 'ok');
+      })
+      .catch(function(err){
+        del.disabled = false;
+        window.alert('Could not delete that visit: ' + (err.message || err));
+      });
+    return;
+  }
+  var pdfBtn = e.target.closest('.vpdf');
+  var row = e.target.closest('tr[data-id]');
+  if (pdfBtn || (row && !e.target.closest('button'))){
+    var vid = pdfBtn ? pdfBtn.dataset.id : row.dataset.id;
+    var v = histVisits[vid];
+    if (!v) return;
+    var note = document.getElementById('vdetail');
+    if (note) note.textContent = 'Building the report…';
+    withVisitItems(vid, function(items){
+      visitPdf(v, items);
+      if (note) note.innerHTML = 'Report downloaded for <b>' + esc(fmtVisitDate(v.visit_date)) +
+        ' · ' + esc(v.site_name || '') + '</b>.';
+    }, function(err){
+      if (note) note.textContent = 'Could not build that report (' + (err.message || err) + ').';
+    });
+    return;
+  }
+
   var b = e.target.closest('.vdet');
   if (!b) return;
   var box = document.getElementById('vdetail');
   box.innerHTML = 'Loading items…';
-  fetch('/api/visits?id=' + encodeURIComponent(b.dataset.id), {credentials:'same-origin'})
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      if (!j.ok) throw new Error(j.error || 'failed');
-      var miss = j.items.filter(function(i){ return i.status !== 'On shelf'; });
+  withVisitItems(b.dataset.id, function(list){
+      var miss = list.filter(function(i){ return i.status !== 'On shelf'; });
       box.innerHTML = miss.length
         ? '<table class="imtbl vhist"><thead><tr class="cap"><th colspan="4">' + miss.length +
           ' not on shelf that day</th></tr><tr><th>Category</th><th>Item</th><th>Status</th>' +
@@ -2777,8 +2903,7 @@ document.getElementById('imBody').addEventListener('click', function(e){
               '<td>' + esc(i.last_supplied || '—') + '</td></tr>';
           }).join('') + '</tbody></table>'
         : '<div class="imnote">Everything was on shelf that day.</div>';
-    })
-    .catch(function(err){ box.textContent = 'Could not load the items.'; });
+    }, function(){ box.textContent = 'Could not load the items.'; });
 });
 document.getElementById('visitHist').addEventListener('click', openHistory);
 
