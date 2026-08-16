@@ -469,6 +469,14 @@ body.imopen{overflow:hidden}
   .d-only{display:none}
   .m-only{display:inline}
 }
+
+.field.f-area{min-width:150px;flex:.8}
+
+.filters .fbtns{display:flex;gap:8px;align-items:flex-end;margin-left:auto}
+@media (max-width:760px){
+  .filters .fbtns{width:100%;margin-left:0}
+  .filters .fbtns .btn{flex:1}
+}
 </style>
 </head>
 <body>
@@ -508,6 +516,17 @@ body.imopen{overflow:hidden}
 
 <div id="paneVisit">
   <div class="filters">
+    <div class="field f-area">
+      <span>Area</span>
+      <div class="ms" id="msArea">
+        <button class="ms-btn" type="button" data-role="btn"><b>All areas</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search area…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
     <div class="field f-cust">
       <span>Customer</span>
       <div class="ms" id="msCust">
@@ -533,10 +552,6 @@ body.imopen{overflow:hidden}
     <div class="field f-search">
       <span>Category</span>
       <select id="catSel" style="padding:8px 8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
-    </div>
-    <div class="field f-search">
-      <span>Item</span>
-      <input type="text" id="q" placeholder="Code or description…">
     </div>
     <button class="btn ghost" id="reset">Reset filters</button>
     <button class="btn" id="csv">Export CSV</button>
@@ -596,6 +611,17 @@ body.imopen{overflow:hidden}
 
 <div id="paneAnalysis" style="display:none">
   <div class="filters">
+    <div class="field f-area">
+      <span>Area</span>
+      <div class="ms" id="msAArea">
+        <button class="ms-btn" type="button" data-role="btn"><b>All areas</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search area…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
     <div class="field f-cust">
       <span>Customer</span>
       <div class="ms" id="msACust">
@@ -643,8 +669,10 @@ body.imopen{overflow:hidden}
         <option value="only">Only never supplied</option>
       </select>
     </div>
-    <button class="btn ghost" id="anReset">Reset filters</button>
-    <button class="btn" id="anCsv">Export CSV</button>
+    <div class="fbtns">
+      <button class="btn ghost" id="anReset">Reset filters</button>
+      <button class="btn" id="anCsv">Export CSV</button>
+    </div>
   </div>
 
   <div class="kpis" id="anKpis"></div>
@@ -719,11 +747,35 @@ var NI = ITEMS.length, imap = {}, CATS = [], catOf = new Int32Array(NI);
   }
 })();
 
-var SITES = [], CUSTOMERS = [], sitesByCust = {};
+var SITES = [], CUSTOMERS = [], sitesByCust = {}, AREAS = [], areaOf = null;
+
+/* An outlet with no positive shipment in the current year is closed, and a
+   customer with none anywhere is inactive. Both drop out of the pickers and out
+   of every figure, so the dashboard only ever shows live business. */
+var LIVE = null;
+function liveScan(){
+  var key = state.yrB + '|' + SITES.length;
+  if (LIVE && LIVE.key === key) return LIVE;
+  var siteLive = new Uint8Array(SITES.length), custLive = new Uint8Array(CUSTOMERS.length);
+  var ib = yIdx(state.yrB);
+  if (F && ib >= 0){
+    var fs = F.s, fp = F.p, fq = F.q, n = fs.length;
+    for (var k=0;k<n;k++){
+      if (fq[k] > 0 && ((fp[k]/12)|0) === ib){
+        var s = fs[k];
+        siteLive[s] = 1;
+        custLive[SITES[s][4]] = 1;
+      }
+    }
+  }
+  LIVE = {key:key, siteLive:siteLive, custLive:custLive};
+  return LIVE;
+}
+function areaLabel(i){ return AREAS[i] || ''; }
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
 var loadedAt = null;
-var DATA_VERSION = 7;
+var DATA_VERSION = 8;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -803,10 +855,15 @@ function applySnapshot(snap){
   if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
   CUSTOMERS = []; sitesByCust = {};
   var seen = {};
+  AREAS = []; areaOf = new Int32Array(SITES.length);
+  var seenArea = {};
   SITES.forEach(function(r, i){
     if (seen[r[0]] === undefined){ seen[r[0]] = CUSTOMERS.length; CUSTOMERS.push(r[0]); }
     r[4] = seen[r[0]];
     if (r[5] === undefined) r[5] = '';
+    var area = (r[6] || '').trim() || 'Unspecified';
+    if (seenArea[area] === undefined){ seenArea[area] = AREAS.length; AREAS.push(area); }
+    areaOf[i] = seenArea[area];
     (sitesByCust[r[4]] = sitesByCust[r[4]] || []).push(i);
   });
   LASTM = 0;
@@ -830,7 +887,7 @@ function csvUrl(){
 /* column positions in the sheet */
 var C_DEP = 0, C_ITEM = 3, C_CUST = 6, C_CODE = 10, C_SITE = 11, C_CHAN = 13,
     C_YR = 14, C_MNTH = 15, C_SALES = 16, C_CASES = 17, C_STOCK = 18,   /* S = stock */
-    C_COLL = 8;                                                          /* I = collector */
+    C_COLL = 8, C_CITY = 12;                        /* I = collector, M = city / area */
 
 /* Warehouse stock, looked up VLOOKUP-style: the same figure repeats on every row
    of an item, so it is ASSIGNED per item code, never summed. */
@@ -974,7 +1031,7 @@ function loadAll(progress, ok, fail){
     if (si === undefined){
       si = sites.length;
       codeIdx[code] = si;
-      sites.push([f[C_CUST].trim(), f[C_SITE].trim(), code, f[C_CHAN].trim(), 0, '']);
+      sites.push([f[C_CUST].trim(), f[C_SITE].trim(), code, f[C_CHAN].trim(), 0, '', f[C_CITY].trim()]);
       siteLastP[si] = abs;
     } else if (abs > siteLastP[si]){
       /* an outlet keeps one identity across renames — show its most recent name */
@@ -985,6 +1042,8 @@ function loadAll(progress, ok, fail){
       if (cu && cu !== sites[si][0]) sites[si][0] = cu;
       var ch = f[C_CHAN].trim();
       if (ch && ch !== sites[si][3]) sites[si][3] = ch;
+      var cy = f[C_CITY].trim();
+      if (cy && cy !== sites[si][6]) sites[si][6] = cy;
     }
 
     var ii = imap[cint(f[C_ITEM])];
@@ -1265,13 +1324,33 @@ function loadViaGviz(progress, ok, fail){
 
 /* ---------- scope: pure client-side masking, never a network call ---------- */
 var mask = null;
+/* live outlets, narrowed by the area filter */
+function baseSites(){
+  var L = liveScan(), out = [];
+  for (var i=0;i<SITES.length;i++){
+    if (!L.siteLive[i]) continue;
+    if (state.area.size && !state.area.has(areaOf[i])) continue;
+    out.push(i);
+  }
+  return out;
+}
+/* and then by the customer filter */
 function scopeSites(){
-  if (!state.cust.size){ var all = []; for (var i=0;i<SITES.length;i++) all.push(i); return all; }
+  var base = baseSites();
+  if (!state.cust.size) return base;
   var out = [];
-  state.cust.forEach(function(cid){
-    var arr = sitesByCust[cid] || [];
-    for (var j=0;j<arr.length;j++) out.push(arr[j]);
-  });
+  for (var i=0;i<base.length;i++) if (state.cust.has(SITES[base[i]][4])) out.push(base[i]);
+  return out;
+}
+function liveCustomers(){
+  var L = liveScan(), seen = {}, out = [];
+  var base = baseSites();
+  for (var i=0;i<base.length;i++){
+    var cid = SITES[base[i]][4];
+    if (seen[cid]) continue;
+    seen[cid] = 1;
+    if (L.custLive[cid]) out.push(cid);
+  }
   return out;
 }
 function buildMask(){
@@ -1540,8 +1619,8 @@ function reportPdf(info, rows){
 var state = {
   yrA: 0, yrB: 0, m1: 0, m2: 11,
   cust: new Set(), site: new Set(),
-  cat: null, q: '',
-  aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
+  cat: null, q: '', area: new Set(),
+  aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
@@ -1567,12 +1646,20 @@ function pctCell(a,b){
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 function periodLabel(){ return MONTHS[state.m1] + (state.m1===state.m2 ? '' : '–' + MONTHS[state.m2]); }
 function yearsLabel(){ return periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB; }
+function areaLabelShort(){
+  if (!state.area.size) return '';
+  if (state.area.size === 1){ var only = ''; state.area.forEach(function(a){ only = areaLabel(a); }); return only; }
+  return state.area.size + ' areas';
+}
 function siteScopeLabel(){
-  if (state.site.size) return state.site.size + ' site' + (state.site.size>1?'s':'');
-  if (state.cust.size) return state.cust.size + ' customer' + (state.cust.size>1?'s':'');
-  return 'All customers';
+  var a = areaLabelShort();
+  if (state.site.size) return state.site.size + ' site' + (state.site.size>1?'s':'') + (a ? ' · ' + a : '');
+  if (state.cust.size) return state.cust.size + ' customer' + (state.cust.size>1?'s':'') + (a ? ' · ' + a : '');
+  return a ? a : 'All customers';
 }
 function scopeNames(){
+  var a = areaLabelShort();
+  if (!state.site.size && !state.cust.size && a) return a + ' — all customers';
   if (state.site.size){
     var n = []; state.site.forEach(function(i){ if (n.length < 6) n.push(SITES[i][1]); });
     return n.join(', ') + (state.site.size>6 ? ' +'+(state.site.size-6)+' more' : '');
@@ -2014,22 +2101,41 @@ document.addEventListener('click', function(){
   document.querySelectorAll('.ms.open').forEach(function(x){ x.classList.remove('open'); });
 });
 
-function scopeSites(){
-  if (!state.cust.size){ var all=[]; for(var i=0;i<SITES.length;i++) all.push(i); return all; }
-  var out = [];
-  state.cust.forEach(function(cid){
-    var arr = sitesByCust[cid] || [];
-    for (var j=0;j<arr.length;j++) out.push(arr[j]);
-  });
-  return out;
-}
-var msCust, msSite;
+var msArea, msCust, msSite;
 function buildSelectors(){
+  msArea = MultiSelect('msArea', {
+    allLabel:'All areas',
+    options: function(){
+      var L = liveScan(), seen = {}, out = [];
+      for (var i=0;i<SITES.length;i++){
+        if (!L.siteLive[i]) continue;
+        var a = areaOf[i];
+        if (seen[a]) continue;
+        seen[a] = 1;
+        out.push({id:a, label:areaLabel(a)});
+      }
+      return out.sort(function(x,y){ return x.label < y.label ? -1 : 1; });
+    },
+    sel: function(){ return state.area; },
+    changed: function(){
+      /* an area change narrows what customers and sites are on offer, so drop
+         any selection that no longer belongs */
+      if (state.cust.size){
+        var live = new Set(liveCustomers());
+        Array.from(state.cust).forEach(function(c){ if (!live.has(c)) state.cust.delete(c); });
+      }
+      if (state.site.size){
+        var scope = new Set(scopeSites());
+        Array.from(state.site).forEach(function(s){ if (!scope.has(s)) state.site.delete(s); });
+      }
+      msCust.refresh(); msSite.refresh(); reload();
+    }
+  });
   msCust = MultiSelect('msCust', {
     allLabel:'All customers',
     options: function(){
-      return CUSTOMERS.map(function(n,i){ return {id:i, label:n}; })
-                      .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+      return liveCustomers().map(function(i){ return {id:i, label:CUSTOMERS[i]}; })
+                            .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
     },
     sel: function(){ return state.cust; },
     changed: function(){
@@ -2126,8 +2232,6 @@ function buildCatFilter(){
     render();
   });
 }
-var qEl = document.getElementById('q'), qT;
-qEl.addEventListener('input', function(){ clearTimeout(qT); qT = setTimeout(function(){ state.q = qEl.value; render(); }, 180); });
 document.getElementById('grp').addEventListener('change', function(){ state.group = this.checked; render(); });
 document.getElementById('hideZero').addEventListener('change', function(){ state.hideZero = this.checked; render(); });
 document.getElementById('onlyUn').addEventListener('change', function(){ state.onlyUnchecked = this.checked; render(); });
@@ -2139,12 +2243,12 @@ document.getElementById('hrow').addEventListener('click', function(e){
   renderHead(); render();
 });
 document.getElementById('reset').addEventListener('click', function(){
-  state.cust.clear(); state.site.clear(); state.cat = null; state.q = ''; qEl.value = '';
+  state.area.clear(); state.cust.clear(); state.site.clear(); state.cat = null; state.q = '';
   state.m1 = 0; state.m2 = LASTM;
   document.getElementById('m1').value = 0; document.getElementById('m2').value = LASTM;
   document.getElementById('catSel').value = '';
   state.onlyUnchecked = false; document.getElementById('onlyUn').checked = false;
-  msCust.refresh(); msSite.refresh(); syncPresets(); loadChecks(); render();
+  msArea.refresh(); msCust.refresh(); msSite.refresh(); syncPresets(); loadChecks(); render();
 });
 document.getElementById('refreshBtn').addEventListener('click', function(){
   if (!window.confirm('Reload everything from the Google Sheet? Your ticks are kept.')) return;
@@ -2345,6 +2449,7 @@ function buildAnalysisRows(){
 
   for (var s=0; s<SITES.length; s++){
     var cid = siteCust[s];
+    if (state.aArea.size && !state.aArea.has(areaOf[s])) continue;
     if (state.aCust.size && !state.aCust.has(cid)) continue;
     if (!A2.custLive[cid]) continue;            /* no sales at all in the current year */
     if (!A2.siteLive[s]) continue;              /* closed outlet — not an opportunity */
@@ -2467,6 +2572,9 @@ function renderAnalysis(){
   measureGroups();
   document.getElementById('anScope').textContent =
     periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · gap of ' + state.aGap + '+ months' +
+    (state.aArea.size ? ' · ' + (state.aArea.size === 1
+        ? (function(){ var n=''; state.aArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
+        : state.aArea.size + ' areas') : '') +
     (A2.dormant ? ' · ' + A2.dormant + ' inactive customers' : '') +
     (A2.closedSites ? ' + ' + A2.closedSites + ' closed sites excluded' : '') +
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
@@ -2534,7 +2642,47 @@ window.addEventListener('resize', function(){
   syncAnHeadHeight(); measureGroups();
 });
 document.getElementById('anScroll').addEventListener('scroll', onAnScroll, {passive:true});
+/* customers worth offering: active, and inside the chosen areas */
+function analysisCustomerOptions(){
+  var A2 = (F && state.yrB) ? analysisScan() : null;
+  var seen = {}, out = [];
+  for (var s=0; s<SITES.length; s++){
+    if (state.aArea.size && !state.aArea.has(areaOf[s])) continue;
+    if (A2 && !A2.siteLive[s]) continue;
+    var cid = SITES[s][4];
+    if (seen[cid]) continue;
+    if (A2 && !A2.custLive[cid]) continue;
+    seen[cid] = 1;
+    out.push({id:cid, label:CUSTOMERS[cid]});
+  }
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
 function initAnalysis(){
+  msAArea = MultiSelect('msAArea', {
+    allLabel:'All areas',
+    options: function(){
+      var A2 = (F && state.yrB) ? analysisScan() : null;
+      var seen = {}, out = [];
+      for (var i=0;i<SITES.length;i++){
+        if (A2 && !A2.siteLive[i]) continue;
+        var a = areaOf[i];
+        if (seen[a]) continue;
+        seen[a] = 1;
+        out.push({id:a, label:areaLabel(a)});
+      }
+      return out.sort(function(x,y){ return x.label < y.label ? -1 : 1; });
+    },
+    sel: function(){ return state.aArea; },
+    changed: function(){
+      if (state.aCust.size){
+        var ok = {};
+        analysisCustomerOptions().forEach(function(o){ ok[o.id] = 1; });
+        Array.from(state.aCust).forEach(function(c){ if (!ok[c]) state.aCust.delete(c); });
+      }
+      if (msACust) msACust.refresh();
+      renderAnalysis();
+    }
+  });
   msAItem = MultiSelect('msAItem', {
     allLabel: 'All items',
     options: analysisItemOptions,
@@ -2543,12 +2691,7 @@ function initAnalysis(){
   });
   msACust = MultiSelect('msACust', {
     allLabel: 'Active customers',
-    options: function(){
-      var live = (F && state.yrB) ? analysisScan().custLive : null;
-      return CUSTOMERS.map(function(n,i){ return {id:i, label:n}; })
-                      .filter(function(o){ return !live || live[o.id]; })
-                      .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
-    },
+    options: analysisCustomerOptions,
     sel: function(){ return state.aCust; },
     changed: function(){ renderAnalysis(); }
   });
@@ -2563,7 +2706,7 @@ function initAnalysis(){
     order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
 }
 
-var msACust = null, msAItem = null;
+var msAArea = null, msACust = null, msAItem = null;
 document.getElementById('anCat').addEventListener('change', function(){
   state.aCat = this.value === '' ? null : +this.value;
   if (state.aItems.size && state.aCat !== null){
@@ -2581,17 +2724,19 @@ document.getElementById('anNever').addEventListener('change', function(){
   state.aNever = this.value; renderAnalysis();
 });
 document.getElementById('anReset').addEventListener('click', function(){
-  state.aCust.clear(); state.aCat = null; state.aItems.clear(); state.aGap = 3; state.aNever = 'exclude';
+  state.aArea.clear(); state.aCust.clear(); state.aCat = null; state.aItems.clear();
+  state.aGap = 3; state.aNever = 'exclude';
   document.getElementById('anCat').value = '';
   document.getElementById('anGap').value = '3';
   document.getElementById('anNever').value = 'exclude';
+  if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
   if (msAItem) msAItem.refresh();
   renderAnalysis();
 });
 document.getElementById('anCsv').addEventListener('click', function(){
   var A2 = analysisScan();
-  var head = ['Customer','Customer Site','Category','Item Code','Item Description',
+  var head = ['Customer','Area','Customer Site','Category','Item Code','Item Description',
               state.yrA+' QTY', state.yrB+' QTY',
               state.yrA+' Value', state.yrB+' Value','Difference',
               'Warehouse Stock','Last Supplied','Months Since','Last Active Salesman'];
@@ -2602,6 +2747,7 @@ document.getElementById('anCsv').addEventListener('click', function(){
                      : (function(){ var o = periodOf(e); return MONTHS[o.month]+' '+o.year + (d.lp < 0 ? ' (returns only)' : ''); })();
     lines.push([
       '"'+CUSTOMERS[d.cid].replace(/"/g,'""')+'"',
+      '"'+String(areaLabel(areaOf[d.s])).replace(/"/g,'""')+'"',
       '"'+SITES[d.s][1].replace(/"/g,'""')+'"',
       '"'+ITEMS[d.i][2].replace(/"/g,'""')+'"',
       ITEMS[d.i][0],
@@ -2975,6 +3121,10 @@ function afterLoad(rebuild){
   }
   buildPeriod();
   if (!wired){ wirePeriod(); wired = true; }
+  if (msArea) msArea.refresh();
+  if (msCust) msCust.refresh();
+  if (msSite) msSite.refresh();
+  if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
   if (msAItem) msAItem.refresh();
   loadChecks();
