@@ -825,6 +825,7 @@ var SITES = [], CUSTOMERS = [], sitesByCust = {}, AREAS = [], areaOf = null;
 /* An outlet with no positive shipment in the current year is closed, and a
    customer with none anywhere is inactive. Both drop out of the pickers and out
    of every figure, so the dashboard only ever shows live business. */
+var DEPN = [0, 0];          /* facts loaded per department: [CPD, FSD] */
 var LIVE = null;
 function liveScan(){
   var key = state.yrB + '|' + state.dep + '|' + SITES.length;
@@ -874,7 +875,7 @@ function depLabel(){
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
 var loadedAt = null;
-var DATA_VERSION = 8;
+var DATA_VERSION = 9;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -949,7 +950,7 @@ function snapshotClear(cb){
 }
 
 function applySnapshot(snap){
-  if (snap && snap.f && !snap.f.d) snap.f.d = new Uint8Array(snap.f.s.length);   /* older copy: all CPD */
+  if (snap && snap.f && !snap.f.d) snap.f.d = new Uint8Array(snap.f.s.length);
   SITES = snap.sites; YEARS = snap.years.slice(); NY = YEARS.length;
   F = snap.f; loadedAt = snap.at;
   if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
@@ -966,6 +967,8 @@ function applySnapshot(snap){
     areaOf[i] = seenArea[area];
     (sitesByCust[r[4]] = sitesByCust[r[4]] || []).push(i);
   });
+  DEPN = [0, 0];
+  for (var dk=0; dk<F.d.length; dk++) DEPN[F.d[dk] ? 1 : 0]++;
   LASTM = 0;
   var lastYearIdx = NY - 1;
   for (var k=0;k<F.p.length;k++){
@@ -1785,7 +1788,8 @@ function setStatus(kind, msg){
   var stamp = when ? when.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
   var base = kind === 'ok'
     ? 'All data loaded — filtering runs on this device' + (stamp ? ' · from the sheet ' + stamp : '') +
-      (stockFrom ? ' · stock from ' + stockFrom : '')
+      (stockFrom ? ' · stock from ' + stockFrom : '') +
+      (DEPN[1] ? '' : ' · no Food Service rows loaded — tap Refresh')
     : (msg || '');
   document.getElementById('statusMsg').textContent = base;
 }
@@ -1935,8 +1939,14 @@ function render(){
       '<td class="num d-stock" data-l="Stock">'+stockCell(r.stock)+'</td>'+
       '<td class="d-last" data-l="Last supp">'+lastLabel(r.last)+'</td></tr>');
   }
+  var emptyMsg = 'No items match this selection.';
+  if (!out.length && state.dep === 'FSD' && !DEPN[1]){
+    emptyMsg = 'No Food Service rows in the data on this device. Tap <b>Refresh</b> above to pull them from the sheet.';
+  } else if (!out.length && state.dep === 'CPD' && !DEPN[0]){
+    emptyMsg = 'No CPD rows in the data on this device. Tap <b>Refresh</b> above to reload.';
+  }
   document.getElementById('tbody').innerHTML = out.length ? out.join('') :
-    '<tr><td colspan="14" class="empty">No items match this selection.</td></tr>';
+    '<tr><td colspan="14" class="empty">' + emptyMsg + '</td></tr>';
 
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items</td>'+
