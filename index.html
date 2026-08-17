@@ -2000,11 +2000,11 @@ function render(){
   }
   /* Outlets gained and lost between exactly the two years being compared —
      a third year in the data never enters into it. */
-  var newSites = 0, lostSites = 0;
+  var newSites = 0, lostSites = 0, newVal = 0, lostVal = 0;
   for (var sB=0; sB<SITES.length; sB++){
     if (!mask[sB]) continue;
-    if (siteBilledB[sB] && !siteBilledA[sB]) newSites++;
-    else if (siteBilledA[sB] && !siteBilledB[sB]) lostSites++;
+    if (siteBilledB[sB] && !siteBilledA[sB]){ newSites++; newVal += siteValB[sB]; }
+    else if (siteBilledA[sB] && !siteBilledB[sB]){ lostSites++; lostVal += siteValA[sB]; }
   }
   var dv = T.vA ? T.vB/T.vA-1 : 0, dq = T.qA ? T.qB/T.qA-1 : 0;
   function kpi(lab, val, sub, cls, act){
@@ -2025,9 +2025,11 @@ function render(){
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
+        (newVal ? '+' + nf0.format(Math.round(newVal)) + ' gained · ' : '') +
         'billed in '+state.yrB+', never in '+state.yrA, newSites?'up':'flat',
         newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
+        (lostVal ? '−' + nf0.format(Math.round(lostVal)) + ' at risk · ' : '') +
         'billed in '+state.yrA+', nothing in '+state.yrB, lostSites?'down':'flat',
         lostSites ? 'lost' : '');
 
