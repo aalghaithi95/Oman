@@ -553,6 +553,8 @@ document.querySelectorAll('.deps').forEach(function(box){
   .acard{padding:9px 11px}
   .acard .av{font-size:16px}
 }
+
+.panel-head .repname{color:var(--accent-2);font-weight:600}
 </style>
 </head>
 <body>
@@ -1559,9 +1561,15 @@ function ensureA(){
     };
   }
 }
+var siteBilledA = null, siteBilledB = null;
 function aggregate(){
   ensureA();
   buildMask();
+  if (!siteBilledA || siteBilledA.length !== SITES.length){
+    siteBilledA = new Uint8Array(SITES.length);
+    siteBilledB = new Uint8Array(SITES.length);
+  }
+  siteBilledA.fill(0); siteBilledB.fill(0);
   A.qA.fill(0); A.vA.fill(0); A.qB.fill(0); A.vB.fill(0);
   A.mq.fill(0); A.mv.fill(0);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
@@ -1573,8 +1581,14 @@ function aggregate(){
     var g = it*NY*12 + p;
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
     if (m >= m1 && m <= m2){
-      if (yi === ia){ A.vA[it] += fv[k]; A.qA[it] += fq[k]; }
-      else if (yi === ib){ A.vB[it] += fv[k]; A.qB[it] += fq[k]; }
+      var billed = (fq[k] > 0 || fv[k] > 0);
+      if (yi === ia){
+        A.vA[it] += fv[k]; A.qA[it] += fq[k];
+        if (billed) siteBilledA[fs[k]] = 1;
+      } else if (yi === ib){
+        A.vB[it] += fv[k]; A.qB[it] += fq[k];
+        if (billed) siteBilledB[fs[k]] = 1;
+      }
     }
   }
   /* Last supply = the most recent month anywhere in the data with a net POSITIVE
@@ -1828,6 +1842,12 @@ function siteScopeLabel(){
   if (state.cust.size) return state.cust.size + ' customer' + (state.cust.size>1?'s':'') + (a ? ' · ' + a : '');
   return a ? a : 'All customers';
 }
+function currentRep(){
+  if (state.site.size !== 1) return '';
+  var s = null;
+  state.site.forEach(function(i){ s = i; });
+  return s === null ? '' : (SITES[s][5] || '');
+}
 function scopeNames(){
   var a = areaLabelShort();
   if (!state.site.size && !state.cust.size && a) return a + ' — all customers';
@@ -1942,6 +1962,14 @@ function render(){
     if ((A.vA[i]||A.qA[i]) && !(A.vB[i]||A.qB[i])) T.lost++;
     if (!(A.vA[i]||A.qA[i]) && (A.vB[i]||A.qB[i])) T.gain++;
   }
+  /* Outlets gained and lost between exactly the two years being compared —
+     a third year in the data never enters into it. */
+  var newSites = 0, lostSites = 0;
+  for (var sB=0; sB<SITES.length; sB++){
+    if (!mask[sB]) continue;
+    if (siteBilledB[sB] && !siteBilledA[sB]) newSites++;
+    else if (siteBilledA[sB] && !siteBilledB[sB]) lostSites++;
+  }
   var dv = T.vA ? T.vB/T.vA-1 : 0, dq = T.qA ? T.qB/T.qA-1 : 0;
   function kpi(lab, val, sub, cls){
     return '<div class="kpi"><div class="eyebrow">'+lab+'</div><div class="v">'+val+'</div><div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
@@ -1957,8 +1985,10 @@ function render(){
         state.yrA+' base '+nf0.format(Math.round(T.vA)), cls) +
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
-    kpi('Active SKUs', String(T.act), T.gain+' new in '+state.yrB, T.gain?'up':'flat') +
-    kpi('Delisted SKUs', String(T.lost), 'sold in '+state.yrA+', not in '+state.yrB, T.lost?'down':'flat');
+    kpi('New Customer Sites', nf0.format(newSites),
+        'billed in '+state.yrB+', not in '+state.yrA, newSites?'up':'flat') +
+    kpi('Lost Customer Sites', nf0.format(lostSites),
+        'billed in '+state.yrA+', not in '+state.yrB, lostSites?'down':'flat');
 
   renderAudit();
   renderAreaCards();
@@ -2037,10 +2067,15 @@ function render(){
     '<td class="num">'+(T.vB-T.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(T.vB-T.vA)))+'</td>'+
     '<td class="num d-stock">'+fmtS(totStock)+'</td><td></td></tr>';
 
-  document.getElementById('rowCount').textContent =
-    rows.length + ' items · ' + depLabel() +
-    (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' : '') +
-    ' · ' + siteScopeLabel() + ' · ' + yearsLabel();
+  /* with a single store selected, name the salesman who last served it */
+  var oneSite = null;
+  if (state.site.size === 1) state.site.forEach(function(s){ oneSite = s; });
+  var repName = oneSite === null ? '' : (SITES[oneSite][5] || '');
+  document.getElementById('rowCount').innerHTML =
+    esc(rows.length + ' items · ' + depLabel() +
+        (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' : '') +
+        ' · ' + siteScopeLabel() + ' · ' + yearsLabel()) +
+    (repName ? ' · <span class="repname">Salesman ' + esc(repName) + '</span>' : '');
 
   /* no supply in the current year */
   var lost = [], ib = yIdx(state.yrB);
@@ -2181,6 +2216,7 @@ document.getElementById('pdf').addEventListener('click', function(){
       '<div><span>Checked by</span>'+(who?esc(who):'—')+'</div>'+
       '<div><span>Sales period</span>'+yearsLabel()+'</div>'+
       '<div><span>Department</span>'+depLabel()+'</div>'+
+      (currentRep() ? '<div><span>Last active salesman</span>'+esc(currentRep())+'</div>' : '')+
       '<div><span>Assortment checked</span>'+auditRows.length+' items</div>'+
       '<div><span>On shelf</span>'+found+'</div>'+
       '<div><span>Missing</span>'+missing.length+'</div>'+
@@ -2228,6 +2264,7 @@ document.getElementById('pdf').addEventListener('click', function(){
         ['Checked by', who || '-'],
         ['Sales period', yearsLabel()],
         ['Department', depLabel()],
+        ['Last active salesman', currentRep() || '-'],
         ['Assortment checked', auditRows.length + ' items'],
         ['On shelf', String(found)],
         ['Missing', String(missing.length)],
