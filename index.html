@@ -897,11 +897,13 @@ var FSD_MIN_QTY = 10;
    van are not retail business and are left out of it. FSD is everything that
    went through Food Service. ALL is the two added together, so the three
    figures always reconcile. */
+/* A channel's total is everything invoiced through that channel — catering packs
+   that went out on a retail van and codes outside the assortment list included.
+   They are counted, just not listed in the product summary. */
 function factCounted(d, i){
-  var retailLine = (d === 0) && !isFsdItem(i) && !isOther(i);
-  if (state.dep === 'CPD') return retailLine;
+  if (state.dep === 'CPD') return d === 0;
   if (state.dep === 'FSD') return d === 1;
-  return retailLine || d === 1;
+  return true;
 }
 function itemVisible(i){
   if (isOther(i)) return false;                    /* off-list codes: counted, not listed */
