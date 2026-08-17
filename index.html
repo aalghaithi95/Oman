@@ -538,6 +538,21 @@ document.querySelectorAll('.deps').forEach(function(box){
   .dep{flex:1;padding:8px 6px;text-align:center}
   .dephint{width:100%;margin:5px 0 0;font-size:10.5px}
 }
+
+/* ---------- performance by area ---------- */
+.areacards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;margin-bottom:14px}
+.acard{background:#fff;padding:11px 14px}
+.acard .an{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.acard .av{font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.1}
+.acard .ag{font-size:11px;margin-top:3px}
+@media (max-width:760px){
+  .areacards{grid-template-columns:repeat(2,1fr)}
+  .acard{padding:9px 11px}
+  .acard .av{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -627,6 +642,7 @@ document.querySelectorAll('.deps').forEach(function(box){
   <div class="status loading" id="status"><span class="dot"></span><span class="msg" id="statusMsg">Connecting…</span><button id="refreshBtn" type="button">Refresh</button></div>
 
   <div class="kpis" id="kpis"></div>
+  <div class="areacards" id="areaCards"></div>
 
   <div class="panel">
     <div class="panel-head">
@@ -1492,10 +1508,23 @@ function liveCustomers(){
   }
   return out;
 }
+/* The pickers only offer outlets still trading, but the FIGURES must cover every
+   outlet in the selected area and customer — including ones that stopped buying
+   this year. Leaving them out would strip their sales from the base year and
+   flatter the growth rate. */
+function maskSites(){
+  var out = [];
+  for (var i=0;i<SITES.length;i++){
+    if (state.area.size && !state.area.has(areaOf[i])) continue;
+    if (state.cust.size && !state.cust.has(SITES[i][4])) continue;
+    out.push(i);
+  }
+  return out;
+}
 function buildMask(){
   if (!mask || mask.length !== SITES.length) mask = new Uint8Array(SITES.length);
   mask.fill(0);
-  var scope = scopeSites();
+  var scope = maskSites();
   if (state.site.size){
     for (var i=0;i<scope.length;i++) if (state.site.has(scope[i])) mask[scope[i]] = 1;
   } else {
@@ -1930,6 +1959,7 @@ function render(){
     kpi('Delisted SKUs', String(T.lost), 'sold in '+state.yrA+', not in '+state.yrB, T.lost?'down':'flat');
 
   renderAudit();
+  renderAreaCards();
 
   var out = [], lastCat = -1, totStock = 0;
   for (i=0;i<rows.length;i++) totStock += rows[i].stock;
@@ -2590,6 +2620,7 @@ function analysisScan(){
   }
   var custA = new Float64Array(CUSTOMERS.length), custB = new Float64Array(CUSTOMERS.length);
   var custLive = new Uint8Array(CUSTOMERS.length);
+  var siteA = new Float64Array(NS), siteB = new Float64Array(NS);
   var siteLive = new Uint8Array(NS);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, N = fs.length;
@@ -2611,15 +2642,15 @@ function analysisScan(){
        outlets is still shipping. Judged on the whole year, not the month range. */
     if (yi === ib && fq[k] > 0){ siteLive[s] = 1; custLive[siteCust[s]] = 1; }
     if (m >= m1 && m <= m2){
-      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; }
-      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; }
+      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; siteA[s] += fv[k]; }
+      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; siteB[s] += fv[k]; }
     }
   }
   var dormant = 0, closedSites = 0;
   for (var ci=0; ci<CUSTOMERS.length; ci++) if (!custLive[ci]) dormant++;
   for (var sj=0; sj<NS; sj++) if (!siteLive[sj]) closedSites++;
   AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, qA:qA, qB:qB,
-        custA:custA, custB:custB, custLive:custLive, dormant:dormant,
+        custA:custA, custB:custB, siteA:siteA, siteB:siteB, custLive:custLive, dormant:dormant,
         siteLive:siteLive, closedSites:closedSites, ref:(NY-1)*12 + LASTM};
   return AN;
 }
@@ -2705,6 +2736,17 @@ function renderAnalysis(){
         state.aNever === 'exclude' ? 'excluded by the filter' : 'no invoice at that site ever',
         (state.aNever !== 'exclude' && neverN) ? 'down' : 'flat');
 
+  /* A customer's own figures answer to the Area and Customer pickers only — the
+     category, item, gap and never-supplied filters narrow the rows beneath, not
+     the customer's business. */
+  var custTotA = {}, custTotB = {};
+  for (var st=0; st<SITES.length; st++){
+    if (state.aArea.size && !state.aArea.has(areaOf[st])) continue;
+    if (state.aCust.size && !state.aCust.has(SITES[st][4])) continue;
+    var ct = SITES[st][4];
+    custTotA[ct] = (custTotA[ct] || 0) + A2.siteA[st];
+    custTotB[ct] = (custTotB[ct] || 0) + A2.siteB[st];
+  }
   /* count per customer up front so each group can show its own total */
   var perCust = {}, lossCust = {};
   for (var c=0;c<anRows.length;c++){
@@ -2721,13 +2763,14 @@ function renderAnalysis(){
       if (lastCust !== -1) html += '</tbody>';
       lastCust = d.cid; inCust = 0;
       var cnt = perCust[d.cid], cl = lossCust[d.cid];
-      var cDiff = A2.custB[d.cid] - A2.custA[d.cid];
+      var gA = custTotA[d.cid] || 0, gB = custTotB[d.cid] || 0;
+      var cDiff = gB - gA;
       html += '<tbody class="grp">';
       html += '<tr class="cat"><td class="catname" colspan="5">' + esc(CUSTOMERS[d.cid]) +
               ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' + cnt + ' gaps' +
               (cl ? ' · ' + nf0.format(Math.round(cl)) + ' at risk' : '') + '</span></td>' +
-              '<td class="num">' + fmtS(A2.custA[d.cid]) + '</td>' +
-              '<td class="num">' + fmtS(A2.custB[d.cid]) + '</td>' +
+              '<td class="num">' + fmtS(gA) + '</td>' +
+              '<td class="num">' + fmtS(gB) + '</td>' +
               '<td class="num"><span class="' + (cDiff>0?'up':(cDiff<0?'down':'flat')) + '">' +
                 (cDiff>=0?'+':'−') + nf0.format(Math.abs(Math.round(cDiff))) + '</span></td>' +
               '<td></td><td></td></tr>';
@@ -3032,6 +3075,56 @@ document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
   showTab(b.dataset.t);
 });
+
+/* ================= performance by area =================
+   These cards always cover the whole country: they answer to the compare years,
+   the period and the department, and deliberately ignore the area, customer and
+   site pickers, so they stay a fixed frame of reference while you filter. */
+var AREASCAN = null;
+function areaScan(){
+  var key = state.yrA + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' +
+            state.dep + '|' + SITES.length;
+  if (AREASCAN && AREASCAN.key === key) return AREASCAN;
+  var n = AREAS.length;
+  var vA = new Float64Array(n), vB = new Float64Array(n), qB = new Float64Array(n);
+  var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
+  if (F){
+    var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, N = fs.length;
+    for (var k=0;k<N;k++){
+      if (!factCounted(fd[k], fi[k])) continue;
+      var p = fp[k], m = p % 12;
+      if (m < m1 || m > m2) continue;
+      var yi = (p/12)|0, a = areaOf[fs[k]];
+      if (yi === ia) vA[a] += fv[k];
+      else if (yi === ib){ vB[a] += fv[k]; qB[a] += fq[k]; }
+    }
+  }
+  AREASCAN = {key:key, vA:vA, vB:vB, qB:qB};
+  return AREASCAN;
+}
+function renderAreaCards(){
+  var box = document.getElementById('areaCards');
+  if (!box) return;
+  var S = areaScan();
+  var order = [];
+  for (var a=0;a<AREAS.length;a++){
+    if (!S.vA[a] && !S.vB[a]) continue;              /* an area with no trade at all */
+    order.push(a);
+  }
+  order.sort(function(x,y){ return S.vB[y] - S.vB[x]; });
+  if (!order.length){ box.innerHTML = ''; return; }
+  box.innerHTML = order.map(function(a){
+    var g = S.vA[a] ? (S.vB[a]/S.vA[a] - 1) : null;
+    var cls = g === null ? 'flat' : (g > 0.0005 ? 'up' : (g < -0.0005 ? 'down' : 'flat'));
+    var txt = g === null ? 'no ' + state.yrA + ' base'
+                         : (g > 0 ? '+' : '') + nf1.format(g*100) + '% vs ' + state.yrA;
+    return '<div class="acard">' +
+             '<div class="an">' + esc(areaLabel(a)) + '</div>' +
+             '<div class="av">' + nf0.format(Math.round(S.vB[a])) + '</div>' +
+             '<div class="ag ' + cls + '">' + txt + '</div>' +
+           '</div>';
+  }).join('');
+}
 
 /* ================= store visits, saved to Cloudflare =================
    The backend sits on the same domain (/api/visits), so the browser sends the
