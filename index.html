@@ -876,10 +876,16 @@ var FSD_MIN_QTY = 10;
 /* Counting follows the channel the sale was invoiced through — nothing else.
    CPD + FSD therefore always equals ALL, and each view equals that channel's
    own total in the sheet. */
+/* CPD is the retail assortment: the listed items, through retail channels.
+   Codes outside the list and catering packs that happen to go out on a retail
+   van are not retail business and are left out of it. FSD is everything that
+   went through Food Service. ALL is the two added together, so the three
+   figures always reconcile. */
 function factCounted(d, i){
-  if (state.dep === 'CPD') return d === 0;
+  var retailLine = (d === 0) && !isFsdItem(i) && !isOther(i);
+  if (state.dep === 'CPD') return retailLine;
   if (state.dep === 'FSD') return d === 1;
-  return true;
+  return retailLine || d === 1;
 }
 function itemVisible(i){
   if (isOther(i)) return false;                    /* off-list codes: counted, not listed */
