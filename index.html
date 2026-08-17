@@ -2025,13 +2025,13 @@ function render(){
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
-        (newVal ? '+' + nf0.format(Math.round(newVal)) + ' gained · ' : '') +
-        'billed in '+state.yrB+', never in '+state.yrA, newSites?'up':'flat',
-        newSites ? 'new' : '') +
+        newVal ? '+' + nf0.format(Math.round(newVal)) + ' Gained'
+               : 'billed in ' + state.yrB + ', never in ' + state.yrA,
+        newSites?'up':'flat', newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
-        (lostVal ? '−' + nf0.format(Math.round(lostVal)) + ' at risk · ' : '') +
-        'billed in '+state.yrA+', nothing in '+state.yrB, lostSites?'down':'flat',
-        lostSites ? 'lost' : '');
+        lostVal ? '−' + nf0.format(Math.round(lostVal)) + ' at Risk'
+                : 'billed in ' + state.yrA + ', nothing in ' + state.yrB,
+        lostSites?'down':'flat', lostSites ? 'lost' : '');
 
   renderAudit();
   renderAreaCards();
