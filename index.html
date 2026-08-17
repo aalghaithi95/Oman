@@ -858,20 +858,19 @@ function factInDep(d){
 }
 function isFsdItem(i){ return ITEMS[i][4] === 1; }
 /* which items belong on screen for the current department */
-function itemInDep(i){
-  if (state.dep === 'FSD') return true;            /* catering list plus retail packs */
-  if (state.dep === 'CPD') return !isFsdItem(i);   /* catering-only packs are not retail */
-  return true;
-}
+/* Every item counts towards its channel's totals — a sale belongs to the channel
+   it was invoiced through, whatever pack it was. Departments differ in what is
+   LISTED, not in what is counted, so ALL always equals CPD + FSD. */
+function itemInDep(i){ return true; }
 /* Under Food Service the list shows the catering active list plus any retail pack
    the channel actually buys. A retail pack with a token quantity is noise on a
    visit, so it drops off the list — its sales still count in the totals. */
 var FSD_MIN_QTY = 10;
 function itemVisible(i){
-  if (!itemInDep(i)) return false;
+  if (state.dep === 'CPD') return !isFsdItem(i);   /* catering packs are not retail lines */
   if (state.dep !== 'FSD') return true;
-  if (isFsdItem(i)) return true;
-  return (A.qA[i] + A.qB[i]) >= FSD_MIN_QTY;
+  if (isFsdItem(i)) return true;                   /* the catering active list */
+  return (A.qA[i] + A.qB[i]) >= FSD_MIN_QTY;       /* retail packs the channel really buys */
 }
 /* which items can be ticked during a market visit */
 function itemAuditable(i){
@@ -1974,7 +1973,7 @@ function render(){
 
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items'+
-      (hiddenN ? ' listed, ' + hiddenN + ' low-volume retail packs counted but not shown' : '')+'</td>'+
+      (hiddenN ? ' listed, ' + hiddenN + ' more counted but not shown' : '')+'</td>'+
     '<td class="num">'+fmtS(T.qA)+'</td><td class="num">'+fmtS(T.qB)+'</td>'+
     '<td class="num">'+fmtAvgS(T.qB/monthsB())+'</td>'+
     '<td class="num">'+fmtS(T.vA)+'</td><td class="num">'+fmtS(T.vB)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
@@ -1983,7 +1982,8 @@ function render(){
 
   document.getElementById('rowCount').textContent =
     rows.length + ' items · ' + depLabel() +
-    (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' : '') +
+    (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' :
+     (state.dep === 'CPD' ? ' (list hides catering packs)' : '')) +
     ' · ' + siteScopeLabel() + ' · ' + yearsLabel();
 
   /* no supply in the current year */
@@ -2373,7 +2373,7 @@ var catWired = false;
 function buildCatFilter(){
   var sel = document.getElementById('catSel');
   var live = {};
-  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]] = 1;
+  for (var i=0;i<NI;i++) if (itemVisible(i)) live[catOf[i]] = 1;
   var order = CATS.map(function(n,i){ return {i:i, n:n}; })
                   .filter(function(o){ return live[o.i]; })
                   .sort(function(a,b){ return a.n<b.n?-1:1; });
