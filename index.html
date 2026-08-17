@@ -561,9 +561,22 @@ document.querySelectorAll('.deps').forEach(function(box){
 .kpi .opn{margin-left:7px;font-size:8.5px;letter-spacing:.08em;color:var(--accent-2);
   border:1px solid #E7C57F;border-radius:20px;padding:1px 6px;vertical-align:middle}
 .kpi.clickable:hover .opn{background:#FBF3E1}
+/* a fixed table takes its widths from the first row, and that row is the caption,
+   so the columns are sized here instead */
+.imtbl.sitelist{table-layout:fixed}
+.imtbl.sitelist col.w-name{width:35%}
+.imtbl.sitelist col.w-site{width:35%}
+.imtbl.sitelist col.w-area{width:12%}
+.imtbl.sitelist col.w-val{width:18%}
+.imtbl.sitelist td.c-name,.imtbl.sitelist td.c-site{white-space:normal;word-break:break-word;
+  line-height:1.25;text-align:left}
+.imtbl.sitelist th{text-align:left}
+.imtbl.sitelist th.n,.imtbl.sitelist td.n{text-align:right}
 .imtbl.sitelist tfoot th{background:var(--paper-2);border:1px solid var(--line);
   padding:6px 8px;font-size:11.5px;text-align:left}
 .imtbl.sitelist tfoot th.n{text-align:right}
+.sitetools{display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px}
+.sitetools .btn{padding:5px 12px;font-size:11.5px}
 @media (max-width:760px){
   .imtbl.sitelist{font-size:11px}
   .kpi .opn{font-size:8px}
@@ -1574,18 +1587,21 @@ function ensureA(){
     };
   }
 }
-var siteBilledA = null, siteBilledB = null, siteValB = null, siteValAFull = null;
+/* Membership of the new / lost lists is judged on the WHOLE of each compared
+   year, so narrowing the period never adds or removes an outlet. The money
+   column does follow the period. */
+var siteBilledA = null, siteBilledB = null, siteValA = null, siteValB = null;
 function aggregate(){
   ensureA();
   buildMask();
   if (!siteBilledA || siteBilledA.length !== SITES.length){
     siteBilledA = new Uint8Array(SITES.length);
     siteBilledB = new Uint8Array(SITES.length);
+    siteValA = new Float64Array(SITES.length);
     siteValB = new Float64Array(SITES.length);
-    siteValAFull = new Float64Array(SITES.length);
   }
   siteBilledA.fill(0); siteBilledB.fill(0);
-  siteValB.fill(0); siteValAFull.fill(0);
+  siteValA.fill(0); siteValB.fill(0);
   A.qA.fill(0); A.vA.fill(0); A.qB.fill(0); A.vB.fill(0);
   A.mq.fill(0); A.mv.fill(0);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
@@ -1596,17 +1612,17 @@ function aggregate(){
     var it = fi[k], p = fp[k], yi = (p/12)|0, m = p%12;
     var g = it*NY*12 + p;
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
-    /* the base year's WHOLE year, for what a lost outlet used to be worth */
-    if (yi === ia) siteValAFull[fs[k]] += fv[k];
+    /* whole-year presence decides who is new and who is lost */
+    var billedHere = (fq[k] > 0 || fv[k] > 0);
+    if (yi === ia && billedHere) siteBilledA[fs[k]] = 1;
+    else if (yi === ib && billedHere) siteBilledB[fs[k]] = 1;
     if (m >= m1 && m <= m2){
-      if (yi === ib) siteValB[fs[k]] += fv[k];
-      var billed = (fq[k] > 0 || fv[k] > 0);
       if (yi === ia){
         A.vA[it] += fv[k]; A.qA[it] += fq[k];
-        if (billed) siteBilledA[fs[k]] = 1;
+        siteValA[fs[k]] += fv[k];
       } else if (yi === ib){
         A.vB[it] += fv[k]; A.qB[it] += fq[k];
-        if (billed) siteBilledB[fs[k]] = 1;
+        siteValB[fs[k]] += fv[k];
       }
     }
   }
@@ -1724,7 +1740,7 @@ var NEVBG = [0.984, 0.925, 0.910], NEVFG = [0.549, 0.184, 0.118];
 function reportPdf(info, rows){
   var doc = new PdfDoc(), M = doc.M, RIGHT = doc.PW - M, W = RIGHT - M;
   var sa = String(info.yrA || '').slice(2), sb = String(info.yrB || '').slice(2);
-  var cols = [
+  var cols = info.cols || [
     {t:'CATEGORY',        w:68},
     {t:'ITEM CODE',       w:50},
     {t:'ITEM DESCRIPTION',w:176},
@@ -1751,7 +1767,7 @@ function reportPdf(info, rows){
   doc.y -= 4;
   doc.text(M, doc.y, 'DELICIO - OMAN - CPD', {size:7, bold:true, color:BLUE});
   doc.y -= 17;
-  doc.text(M, doc.y, 'Store availability check - missing items', {size:15, bold:true});
+  doc.text(M, doc.y, info.title || 'Store availability check - missing items', {size:15, bold:true});
   doc.y -= 8;
   doc.line(M, doc.y, RIGHT, doc.y, BLUE, 1.4);
 
@@ -1769,7 +1785,8 @@ function reportPdf(info, rows){
 
   /* ---- table ---- */
   doc.y -= 22;
-  doc.text(M, doc.y, 'Missing items and last supply', {size:11, bold:true, color:BLUE});
+  doc.text(M, doc.y, info.subtitle || (info.title ? info.title : 'Missing items and last supply'),
+           {size:11, bold:true, color:BLUE});
   doc.y -= 5;
   doc.line(M, doc.y, RIGHT, doc.y, BLUE, 1);
   doc.y -= 4;
@@ -1798,7 +1815,7 @@ function reportPdf(info, rows){
   if (doc.y < M + 76){ doc.newPage(); }
   doc.y -= 22;
   doc.line(M, doc.y + 8, RIGHT, doc.y + 8, RULE, 0.5);
-  var note = [
+  var note = info.note ? [info.note] : [
     'Missing = a regular item on the checklist that was not ticked during the visit.',
     'NEVER SUPPLIED (shaded) = this customer / site has never been invoiced for the item - a distribution gap, not an out-of-stock.',
     'Last supplied is the most recent month with a positive shipment; months that net out as returns are skipped.',
@@ -2008,10 +2025,10 @@ function render(){
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
-        'billed in '+state.yrB+', not in '+state.yrA, newSites?'up':'flat',
+        'billed in '+state.yrB+', never in '+state.yrA, newSites?'up':'flat',
         newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
-        'billed in '+state.yrA+', not in '+state.yrB, lostSites?'down':'flat',
+        'billed in '+state.yrA+', nothing in '+state.yrB, lostSites?'down':'flat',
         lostSites ? 'lost' : '');
 
   renderAudit();
@@ -3149,12 +3166,12 @@ function openSiteList(kind){
   for (var s=0;s<SITES.length;s++){
     if (!mask[s]) continue;
     if (isNew ? !(siteBilledB[s] && !siteBilledA[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
-    out.push({s:s, v: isNew ? siteValB[s] : siteValAFull[s]});
+    out.push({s:s, v: isNew ? siteValB[s] : siteValA[s]});
   }
   out.sort(function(a,b){ return b.v - a.v; });
 
   var total = out.reduce(function(a,r){ return a + r.v; }, 0);
-  var valHead = isNew ? state.yrB + ' ' + periodLabel() : state.yrA + ' full year';
+  var valHead = (isNew ? state.yrB : state.yrA) + ' ' + periodLabel();
   document.getElementById('imTitle').textContent =
     (isNew ? 'New customer sites' : 'Lost customer sites') + ' — ' + out.length;
   document.getElementById('imSub').textContent =
@@ -3162,24 +3179,35 @@ function openSiteList(kind){
            : 'Billed in ' + state.yrA + ', nothing in ' + state.yrB) +
     ' · ' + depLabel() + ' · ' + siteScopeLabel();
 
+  siteListData = {kind:kind, isNew:isNew, rows:out, total:total, valHead:valHead};
+
   document.getElementById('imBody').innerHTML = out.length
-    ? '<table class="imtbl vhist sitelist"><thead>' +
+    ? '<div class="sitetools">' +
+        '<button class="btn ghost" id="slCsv" type="button">Export CSV</button>' +
+        '<button class="btn" id="slPdf" type="button">Download PDF</button>' +
+      '</div>' +
+      '<table class="imtbl vhist sitelist">' +
+      '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>' +
+      '<thead>' +
         '<tr class="cap"><th colspan="4">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
-        '<tr><th>Customer</th><th>Customer Site</th><th>Area</th><th class="n">' + esc(valHead) + '</th></tr>' +
+        '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th>' +
+        '<th class="c-area">Area</th><th class="n c-val">' + esc(valHead) + '</th></tr>' +
       '</thead><tbody>' +
       out.map(function(r){
-        return '<tr><td>' + esc(SITES[r.s][0]) + '</td>' +
-               '<td>' + esc(SITES[r.s][1]) + '</td>' +
-               '<td>' + esc(areaLabel(areaOf[r.s])) + '</td>' +
-               '<td class="n">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
+        return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
+               '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+               '<td class="c-area">' + esc(areaLabel(areaOf[r.s])) + '</td>' +
+               '<td class="n c-val">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
       }).join('') +
       '</tbody><tfoot><tr><th colspan="3">Total</th>' +
       '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
       '<div class="imnote">' + (isNew
-        ? 'Outlets that started buying in ' + state.yrB + '. The figure is what each has bought so far.'
-        : 'Outlets that bought in ' + state.yrA + ' and have not ordered in ' + state.yrB +
-          '. The figure is their whole ' + state.yrA + ' value — the business at stake.') +
-      ' Follows the area, customer and site pickers above.</div>'
+        ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA + '.'
+        : 'Outlets that bought in ' + state.yrA + ' and have not ordered at all in ' + state.yrB +
+          ' — the business at stake.') +
+      ' Who is on this list is judged on the whole of each year, so the period picker never ' +
+      'changes the names; the value column shows ' + periodLabel() +
+      '. Follows the area, customer and site pickers above.</div>'
     : '<div class="imnote">Nothing to show for this selection.</div>';
 
   document.body.classList.add('imopen');
@@ -3189,6 +3217,87 @@ document.getElementById('kpis').addEventListener('click', function(e){
   var card = e.target.closest('.kpi.clickable');
   if (!card) return;
   openSiteList(card.dataset.open);
+});
+
+/* ---------- taking the list away with you ---------- */
+var siteListData = null;
+function siteListName(ext){
+  if (!siteListData) return 'sites.' + ext;
+  return 'Delicio ' + (siteListData.isNew ? 'new' : 'lost') + ' customer sites - ' +
+         depLabel().replace(/[\\/:*?"<>|]/g,'-') + ' - ' +
+         (siteListData.isNew ? state.yrB : state.yrA) + ' ' + periodLabel() + '.' + ext;
+}
+function siteListCsv(){
+  if (!siteListData || !siteListData.rows.length) return;
+  var head = ['Customer','Customer Site','Site Code','Area','Channel','Last Active Salesman',
+              siteListData.valHead];
+  var lines = [head.join(',')];
+  siteListData.rows.forEach(function(r){
+    var s = SITES[r.s];
+    lines.push([
+      '"' + String(s[0]).replace(/"/g,'""') + '"',
+      '"' + String(s[1]).replace(/"/g,'""') + '"',
+      s[2],
+      '"' + String(areaLabel(areaOf[r.s])).replace(/"/g,'""') + '"',
+      s[3],
+      '"' + String(s[5] || '').replace(/"/g,'""') + '"',
+      r.v.toFixed(2)
+    ].join(','));
+  });
+  lines.push(['Total','','','','','', siteListData.total.toFixed(2)].join(','));
+  var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = siteListName('csv');
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function siteListPdf(){
+  if (!siteListData || !siteListData.rows.length) return;
+  var d = new Date();
+  var stamp = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  var rows = siteListData.rows.map(function(r){
+    var s = SITES[r.s];
+    return [s[0], s[1], areaLabel(areaOf[r.s]), s[5] || '-',
+            r.v ? nf0.format(Math.round(r.v)) : '-'];
+  });
+  rows.push(['TOTAL', '', '', '', nf0.format(Math.round(siteListData.total))]);
+  var bytes = reportPdf({
+    title: siteListData.isNew ? 'New customer sites' : 'Lost customer sites',
+    period: yearsLabel(),
+    yrA: state.yrA, yrB: state.yrB,
+    cols: [
+      {t:'CUSTOMER',      w:150},
+      {t:'CUSTOMER SITE', w:150},
+      {t:'AREA',          w:58},
+      {t:'SALESMAN',      w:78},
+      {t:siteListData.valHead.toUpperCase(), w:79, a:'r'}
+    ],
+    note: (siteListData.isNew
+      ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA + '.'
+      : 'Outlets that bought in ' + state.yrA + ' and have not ordered at all in ' + state.yrB +
+        ' - the business at stake.') +
+      ' Membership is judged on the whole of each year; the value column covers ' + periodLabel() + '.',
+    meta: [
+      ['Report', siteListData.isNew ? 'New customer sites' : 'Lost customer sites'],
+      ['Run on', stamp],
+      ['Department', depLabel()],
+      ['Selection', scopeNames()],
+      ['Compared', state.yrB + ' vs ' + state.yrA + ' \u00b7 ' + periodLabel()],
+      ['Outlets', String(siteListData.rows.length)],
+      ['Value', nf0.format(Math.round(siteListData.total))]
+    ]
+  }, rows);
+  var blob = new Blob([bytes], {type:'application/pdf'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = siteListName('pdf');
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+document.getElementById('imBody').addEventListener('click', function(e){
+  if (e.target.closest('#slCsv')) siteListCsv();
+  else if (e.target.closest('#slPdf')) siteListPdf();
 });
 
 /* ================= performance by area =================
