@@ -555,6 +555,19 @@ document.querySelectorAll('.deps').forEach(function(box){
 }
 
 .panel-head .repname{color:var(--accent-2);font-weight:600}
+
+.kpi.clickable{cursor:pointer}
+.kpi.clickable:hover{background:#FAFAF8}
+.kpi .opn{margin-left:7px;font-size:8.5px;letter-spacing:.08em;color:var(--accent-2);
+  border:1px solid #E7C57F;border-radius:20px;padding:1px 6px;vertical-align:middle}
+.kpi.clickable:hover .opn{background:#FBF3E1}
+.imtbl.sitelist tfoot th{background:var(--paper-2);border:1px solid var(--line);
+  padding:6px 8px;font-size:11.5px;text-align:left}
+.imtbl.sitelist tfoot th.n{text-align:right}
+@media (max-width:760px){
+  .imtbl.sitelist{font-size:11px}
+  .kpi .opn{font-size:8px}
+}
 </style>
 </head>
 <body>
@@ -1561,15 +1574,18 @@ function ensureA(){
     };
   }
 }
-var siteBilledA = null, siteBilledB = null;
+var siteBilledA = null, siteBilledB = null, siteValB = null, siteValAFull = null;
 function aggregate(){
   ensureA();
   buildMask();
   if (!siteBilledA || siteBilledA.length !== SITES.length){
     siteBilledA = new Uint8Array(SITES.length);
     siteBilledB = new Uint8Array(SITES.length);
+    siteValB = new Float64Array(SITES.length);
+    siteValAFull = new Float64Array(SITES.length);
   }
   siteBilledA.fill(0); siteBilledB.fill(0);
+  siteValB.fill(0); siteValAFull.fill(0);
   A.qA.fill(0); A.vA.fill(0); A.qB.fill(0); A.vB.fill(0);
   A.mq.fill(0); A.mv.fill(0);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
@@ -1580,7 +1596,10 @@ function aggregate(){
     var it = fi[k], p = fp[k], yi = (p/12)|0, m = p%12;
     var g = it*NY*12 + p;
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
+    /* the base year's WHOLE year, for what a lost outlet used to be worth */
+    if (yi === ia) siteValAFull[fs[k]] += fv[k];
     if (m >= m1 && m <= m2){
+      if (yi === ib) siteValB[fs[k]] += fv[k];
       var billed = (fq[k] > 0 || fv[k] > 0);
       if (yi === ia){
         A.vA[it] += fv[k]; A.qA[it] += fq[k];
@@ -1971,8 +1990,11 @@ function render(){
     else if (siteBilledA[sB] && !siteBilledB[sB]) lostSites++;
   }
   var dv = T.vA ? T.vB/T.vA-1 : 0, dq = T.qA ? T.qB/T.qA-1 : 0;
-  function kpi(lab, val, sub, cls){
-    return '<div class="kpi"><div class="eyebrow">'+lab+'</div><div class="v">'+val+'</div><div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
+  function kpi(lab, val, sub, cls, act){
+    return '<div class="kpi' + (act ? ' clickable" data-open="' + act + '"' : '"') + '>' +
+           '<div class="eyebrow">'+lab+(act?'<span class="opn">view</span>':'')+'</div>' +
+           '<div class="v">'+val+'</div>' +
+           '<div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
   }
   var cls = dv>0?'up':(dv<0?'down':'flat');
   var dvTxt = T.vA ? ((dv>0?'+':'')+nf1.format(dv*100)+'% vs '+state.yrA)
@@ -1986,9 +2008,11 @@ function render(){
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
-        'billed in '+state.yrB+', not in '+state.yrA, newSites?'up':'flat') +
+        'billed in '+state.yrB+', not in '+state.yrA, newSites?'up':'flat',
+        newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
-        'billed in '+state.yrA+', not in '+state.yrB, lostSites?'down':'flat');
+        'billed in '+state.yrA+', not in '+state.yrB, lostSites?'down':'flat',
+        lostSites ? 'lost' : '');
 
   renderAudit();
   renderAreaCards();
@@ -3113,6 +3137,58 @@ function showTab(t){
 document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
   showTab(b.dataset.t);
+});
+
+/* ================= new and lost outlets =================
+   The two cards open the outlets behind them. A new site shows what it has
+   bought so far this year; a lost one shows what it was worth over the whole of
+   the base year, which is what walking away actually cost. */
+function openSiteList(kind){
+  aggregate();
+  var isNew = kind === 'new', out = [];
+  for (var s=0;s<SITES.length;s++){
+    if (!mask[s]) continue;
+    if (isNew ? !(siteBilledB[s] && !siteBilledA[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
+    out.push({s:s, v: isNew ? siteValB[s] : siteValAFull[s]});
+  }
+  out.sort(function(a,b){ return b.v - a.v; });
+
+  var total = out.reduce(function(a,r){ return a + r.v; }, 0);
+  var valHead = isNew ? state.yrB + ' ' + periodLabel() : state.yrA + ' full year';
+  document.getElementById('imTitle').textContent =
+    (isNew ? 'New customer sites' : 'Lost customer sites') + ' — ' + out.length;
+  document.getElementById('imSub').textContent =
+    (isNew ? 'Billed in ' + state.yrB + ', nothing in ' + state.yrA
+           : 'Billed in ' + state.yrA + ', nothing in ' + state.yrB) +
+    ' · ' + depLabel() + ' · ' + siteScopeLabel();
+
+  document.getElementById('imBody').innerHTML = out.length
+    ? '<table class="imtbl vhist sitelist"><thead>' +
+        '<tr class="cap"><th colspan="4">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
+        '<tr><th>Customer</th><th>Customer Site</th><th>Area</th><th class="n">' + esc(valHead) + '</th></tr>' +
+      '</thead><tbody>' +
+      out.map(function(r){
+        return '<tr><td>' + esc(SITES[r.s][0]) + '</td>' +
+               '<td>' + esc(SITES[r.s][1]) + '</td>' +
+               '<td>' + esc(areaLabel(areaOf[r.s])) + '</td>' +
+               '<td class="n">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
+      }).join('') +
+      '</tbody><tfoot><tr><th colspan="3">Total</th>' +
+      '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
+      '<div class="imnote">' + (isNew
+        ? 'Outlets that started buying in ' + state.yrB + '. The figure is what each has bought so far.'
+        : 'Outlets that bought in ' + state.yrA + ' and have not ordered in ' + state.yrB +
+          '. The figure is their whole ' + state.yrA + ' value — the business at stake.') +
+      ' Follows the area, customer and site pickers above.</div>'
+    : '<div class="imnote">Nothing to show for this selection.</div>';
+
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop = 0;
+}
+document.getElementById('kpis').addEventListener('click', function(e){
+  var card = e.target.closest('.kpi.clickable');
+  if (!card) return;
+  openSiteList(card.dataset.open);
 });
 
 /* ================= performance by area =================
