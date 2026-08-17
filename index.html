@@ -833,9 +833,9 @@ function liveScan(){
   var siteLive = new Uint8Array(SITES.length), custLive = new Uint8Array(CUSTOMERS.length);
   var ib = yIdx(state.yrB);
   if (F && ib >= 0){
-    var fs = F.s, fp = F.p, fq = F.q, fd = F.d, n = fs.length;
+    var fs = F.s, fi = F.i, fp = F.p, fq = F.q, fd = F.d, n = fs.length;
     for (var k=0;k<n;k++){
-      if (fq[k] > 0 && ((fp[k]/12)|0) === ib && factInDep(fd[k])){
+      if (fq[k] > 0 && ((fp[k]/12)|0) === ib && factCounted(fd[k], fi[k])){
         var s = fs[k];
         siteLive[s] = 1;
         custLive[SITES[s][4]] = 1;
@@ -858,16 +858,26 @@ function factInDep(d){
 }
 function isFsdItem(i){ return ITEMS[i][4] === 1; }
 /* which items belong on screen for the current department */
-/* Every item counts towards its channel's totals — a sale belongs to the channel
-   it was invoiced through, whatever pack it was. Departments differ in what is
-   LISTED, not in what is counted, so ALL always equals CPD + FSD. */
-function itemInDep(i){ return true; }
+/* which items belong to the department */
+function itemInDep(i){
+  if (state.dep === 'FSD') return true;            /* catering list plus retail packs */
+  if (state.dep === 'CPD') return !isFsdItem(i);   /* catering-only packs are not retail */
+  return true;
+}
 /* Under Food Service the list shows the catering active list plus any retail pack
    the channel actually buys. A retail pack with a token quantity is noise on a
    visit, so it drops off the list — its sales still count in the totals. */
 var FSD_MIN_QTY = 10;
+/* ALL is exactly the CPD view plus the FSD view. A catering pack invoiced
+   through a retail channel is in neither view, so it stays out of ALL too and
+   the three figures always reconcile. */
+function factCounted(d, i){
+  if (state.dep === 'CPD') return d === 0 && !isFsdItem(i);
+  if (state.dep === 'FSD') return d === 1;
+  return d === 1 || !isFsdItem(i);
+}
 function itemVisible(i){
-  if (state.dep === 'CPD') return !isFsdItem(i);   /* catering packs are not retail lines */
+  if (!itemInDep(i)) return false;
   if (state.dep !== 'FSD') return true;
   if (isFsdItem(i)) return true;                   /* the catering active list */
   return (A.qA[i] + A.qB[i]) >= FSD_MIN_QTY;       /* retail packs the channel really buys */
@@ -1514,7 +1524,11 @@ function aggregate(){
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
   for (var k=0;k<n;k++){
     if (!mask[fs[k]]) continue;
-    if (!factInDep(fd[k])) continue;
+    if (!factCounted(fd[k], fi[k])) continue;
+    /* ALL is the CPD view plus the FSD view, nothing more: a catering pack
+       invoiced through a retail channel belongs to neither, so it is left out
+       here too and the three figures always reconcile. */
+    if (fd[k] === 0 && isFsdItem(fi[k])) continue;
     var it = fi[k], p = fp[k], yi = (p/12)|0, m = p%12;
     var g = it*NY*12 + p;
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
@@ -1973,7 +1987,7 @@ function render(){
 
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items'+
-      (hiddenN ? ' listed, ' + hiddenN + ' more counted but not shown' : '')+'</td>'+
+      (hiddenN ? ' listed, ' + hiddenN + ' low-volume retail packs counted but not shown' : '')+'</td>'+
     '<td class="num">'+fmtS(T.qA)+'</td><td class="num">'+fmtS(T.qB)+'</td>'+
     '<td class="num">'+fmtAvgS(T.qB/monthsB())+'</td>'+
     '<td class="num">'+fmtS(T.vA)+'</td><td class="num">'+fmtS(T.vB)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
@@ -1982,14 +1996,13 @@ function render(){
 
   document.getElementById('rowCount').textContent =
     rows.length + ' items · ' + depLabel() +
-    (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' :
-     (state.dep === 'CPD' ? ' (list hides catering packs)' : '')) +
+    (state.dep === 'FSD' ? ' (list hides retail packs under ' + FSD_MIN_QTY + ' cases)' : '') +
     ' · ' + siteScopeLabel() + ' · ' + yearsLabel();
 
   /* no supply in the current year */
   var lost = [], ib = yIdx(state.yrB);
   for (i=0;i<NI;i++){
-    if (!itemVisible(i)) continue;
+    if (!itemInDep(i)) continue;
     if (A.last[i] >= 0 && Math.floor(A.last[i]/12) >= ib) continue;
     if (!(A.vA[i] || A.qA[i])) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
@@ -2373,7 +2386,7 @@ var catWired = false;
 function buildCatFilter(){
   var sel = document.getElementById('catSel');
   var live = {};
-  for (var i=0;i<NI;i++) if (itemVisible(i)) live[catOf[i]] = 1;
+  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]] = 1;
   var order = CATS.map(function(n,i){ return {i:i, n:n}; })
                   .filter(function(o){ return live[o.i]; })
                   .sort(function(a,b){ return a.n<b.n?-1:1; });
@@ -2571,7 +2584,7 @@ function analysisScan(){
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, N = fs.length;
 
   for (var k=0;k<N;k++){
-    if (!factInDep(fd[k])) continue;
+    if (!factCounted(fd[k], fi[k])) continue;
     var s = fs[k], i = fi[k], p = fp[k], idx = s*NI + i;
     /* Supply history is read across ALL years in the data, never through the
        compare or period selection: an item shipped in 2024 has been supplied,
