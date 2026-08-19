@@ -481,6 +481,24 @@ document.querySelectorAll('.deps').forEach(function(box){
 }
 
 .imtbl.vhist td.vstore{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* desktop: give the store name the room, taking it back from the numeric columns */
+@media (min-width:761px){
+  /* auto layout so these widths are honoured — a fixed table would take its
+     widths from the caption row above and split everything evenly */
+  .imtbl.vhist{table-layout:auto;min-width:0}
+  .imtbl.vhist th.h-store,.imtbl.vhist td.vstore{width:26%;max-width:none}
+  .imtbl.vhist td.vstore{white-space:normal;word-break:break-word;line-height:1.25}
+  .imtbl.vhist th.h-date,.imtbl.vhist td.h-date{width:78px;white-space:nowrap}
+  .imtbl.vhist th.h-by,.imtbl.vhist td.h-by{width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .imtbl.vhist th.h-shelf,.imtbl.vhist td.h-shelf{width:66px}
+  .imtbl.vhist th.h-avail,.imtbl.vhist td.h-avail{width:78px}
+  .imtbl.vhist th.h-miss,.imtbl.vhist td.h-miss{width:62px}
+  .imtbl.vhist th.h-never,.imtbl.vhist td.h-never{width:56px}
+  .imtbl.vhist th.h-items,.imtbl.vhist td.h-items,
+  .imtbl.vhist th.h-pdf,.imtbl.vhist td.h-pdf,
+  .imtbl.vhist th.h-del,.imtbl.vhist td.h-del{width:1%;white-space:nowrap}
+  .imtbl.vhist th,.imtbl.vhist td{padding:6px 7px}
+}
 .imtbl.vhist .vdel{color:var(--neg);border-color:#E3B5AA;padding:3px 8px}
 .imtbl.vhist .vdel:hover{background:var(--neg-bg)}
 .imtbl.vhist .vdel[disabled]{opacity:.5}
@@ -581,6 +599,53 @@ document.querySelectorAll('.deps').forEach(function(box){
   .imtbl.sitelist{font-size:11px}
   .kpi .opn{font-size:8px}
 }
+
+.ly{font-size:8px;line-height:1;vertical-align:1px;margin-left:1px}
+@media (max-width:760px){
+  /* the arrow has to earn its place without pushing the value out of its cell */
+  #tbl tbody td.d-v26{font-size:10.5px;letter-spacing:-.2px}
+}
+
+/* ---------- near expiry ---------- */
+.nebtn{display:none}
+#neWrap{position:fixed;inset:0;background:rgba(18,36,44,.55);z-index:90;
+  align-items:flex-end;justify-content:center;padding:0;
+  opacity:0;pointer-events:none;transition:opacity .18s ease}
+body.neopen #neWrap{display:flex;opacity:1;pointer-events:auto}
+.necard{width:100%;max-width:420px;background:#fff;border-radius:12px 12px 0 0;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow:0 -12px 40px rgba(18,36,44,.3);
+  transform:translateY(14px);transition:transform .18s ease}
+body.neopen .necard{transform:translateY(0)}
+.nehead{margin-bottom:12px}
+.nehead .net{font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  font-family:'IBM Plex Mono',monospace;color:var(--muted)}
+.nehead .nes{font-size:13.5px;font-weight:600;line-height:1.25;margin-top:3px}
+.nehead .nes .mono{font-family:'IBM Plex Mono',monospace;font-size:11px;
+  font-weight:400;color:var(--muted)}
+.nelab{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px}
+#neQty{width:100%;padding:12px;font-size:17px;font-family:'IBM Plex Mono',monospace;
+  border:1px solid var(--line);border-radius:var(--r);background:#fff;color:var(--ink)}
+#neQty:focus{outline:none;border-color:var(--ink)}
+.nebtns{display:flex;gap:8px;margin-top:14px}
+.nebtns .btn{flex:1;padding:11px}
+@media (min-width:761px){
+  .necard{border-radius:12px;margin-bottom:12vh}
+  #neWrap{align-items:center}
+}
+@media (max-width:760px){
+  #tbl tbody td.desc{position:relative;padding-right:52px}
+  .nebtn{display:inline-flex;align-items:center;gap:3px;position:absolute;right:0;top:-1px;
+    background:#fff;border:1px solid var(--line);border-radius:var(--r);
+    color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+    letter-spacing:.06em;padding:3px 7px;cursor:pointer}
+  .nebtn b{color:var(--accent-2);font-size:10px}
+  .nebtn:active{background:var(--paper-2)}
+}
+
+.neerr{display:none;background:var(--neg-bg);border:1px solid #E3B5AA;color:var(--neg);
+  font-size:11.5px;padding:8px 10px;border-radius:var(--r);margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -824,6 +889,22 @@ document.querySelectorAll('.deps').forEach(function(box){
     <span id="footMeta"></span>
     <span>Change % compares the two selected years over the same months. “New” = sales this year with no base last year.</span>
     <span>Last Supplied always looks across all the data, whatever period is selected, and skips months that net out as returns.</span>
+  </div>
+</div>
+
+<div id="neWrap">
+  <div class="necard" role="dialog" aria-modal="true" aria-labelledby="neItem">
+    <div class="nehead">
+      <div class="net">Near expiry</div>
+      <div class="nes"><span id="neItem"></span> <span class="mono" id="neCode"></span></div>
+    </div>
+    <div class="neerr" id="neErr"></div>
+    <label class="nelab" for="neQty">Quantity (PC)</label>
+    <input id="neQty" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+    <div class="nebtns">
+      <button class="btn ghost" id="neCancel" type="button">Cancel</button>
+      <button class="btn" id="neSave" type="button">Save</button>
+    </div>
   </div>
 </div>
 
@@ -1854,6 +1935,14 @@ function fmtS(v){ return v ? nf0.format(Math.round(v)) : '–'; }
 var nf2 = new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 function fmtAvg(v){ return v ? nf2.format(v) : '<span class="dash">–</span>'; }
 function fmtAvgS(v){ return v ? nf2.format(v) : '–'; }
+/* mobile only: which way this year's value went against last year */
+function arrowLY(a, b){
+  if (!a && !b) return '';
+  if (!a) return ' <span class="ly up m-only" title="new vs last year">\u25B2</span>';
+  if (b > a) return ' <span class="ly up m-only" title="up vs last year">\u25B2</span>';
+  if (b < a) return ' <span class="ly down m-only" title="down vs last year">\u25BC</span>';
+  return '';
+}
 function stockCell(v){
   if (!STOCK) return '<span class="dash">–</span>';
   if (v > 0) return nf0.format(Math.round(v));
@@ -2076,12 +2165,14 @@ function render(){
       '<td class="c-code mono" style="font-size:11px">'+r.code+'</td>'+
       '<td class="chkc">'+(!itemAuditable(r.i) ? '<span class="dash">–</span>' :
         '<button class="chk" data-i="'+r.i+'" aria-pressed="'+(hit?'true':'false')+'" aria-label="'+esc(r.desc)+' on shelf" title="'+(hit?'On shelf — tap to mark missing':'Not marked — tap when found on shelf')+'">✓</button>')+'</td>'+
-      '<td class="desc" data-i="'+r.i+'" role="button" tabindex="0" title="Tap for the monthly breakdown">'+esc(r.desc)+'</td>'+
+      '<td class="desc" data-i="'+r.i+'" role="button" tabindex="0" title="Tap for the monthly breakdown">'+esc(r.desc)+
+        '<button class="nebtn m-only" type="button" data-ne="'+r.i+'" title="Near expiry quantity">NE'+
+        (neQty(r.i) ? ' <b>'+nf0.format(neQty(r.i))+'</b>' : '')+'</button></td>'+
       '<td class="num d-q25" data-l="'+state.yrA+' QTY">'+fmt(r.qA)+'</td>'+
       '<td class="num d-q26" data-l="'+String(state.yrB).slice(2)+' QTY">'+fmt(r.qB)+'</td>'+
       '<td class="num d-avgq" data-l="Avg QTY">'+fmtAvg(r.avgq)+'</td>'+
       '<td class="num d-v25" data-l="'+state.yrA+' value">'+fmt(r.vA)+'</td>'+
-      '<td class="num d-v26" data-l="'+String(state.yrB).slice(2)+' Value">'+fmt(r.vB)+'</td>'+
+      '<td class="num d-v26" data-l="'+String(state.yrB).slice(2)+' Value">'+fmt(r.vB)+arrowLY(r.vA, r.vB)+'</td>'+
       '<td class="num d-dv" data-l="Value change">'+pctCell(r.vB,r.vA)+'</td>'+
       '<td class="num d-delta" data-l="Vs '+state.yrA+'"><span class="'+(r.delta>0?'up':(r.delta<0?'down':'flat'))+'">'+(r.delta>=0?'+':'−')+nf0.format(Math.abs(Math.round(r.delta)))+'</span></td>'+
       '<td class="num d-stock" data-l="Stock">'+stockCell(r.stock)+'</td>'+
@@ -2158,6 +2249,7 @@ function store(k, v){
 }
 var memChk = {}, curKey = 'ALL';
 function loadChecks(){
+  neLoad();
   var k = scopeKey() + '|' + state.dep, raw = store(k);
   if (raw === null || raw === undefined) raw = memChk[k] || '';
   state.checked = new Set(raw ? raw.split(',').map(Number) : []);
@@ -2207,6 +2299,70 @@ document.getElementById('clearChk').addEventListener('click', function(){
   if (!state.checked.size) return;
   if (!window.confirm('Clear all ticks for ' + siteScopeLabel() + '?')) return;
   state.checked.clear(); saveChecks(); render();
+});
+
+/* ---------- near expiry ---------- */
+var neMap = {};
+function neKey(){ return 'delicio.ne.' + scopeKey() + '|' + state.dep; }
+function neLoad(){
+  neMap = {};
+  try {
+    var raw = window.localStorage.getItem(neKey());
+    if (raw) neMap = JSON.parse(raw) || {};
+  } catch(e){ neMap = {}; }
+}
+function neSave(){
+  try { window.localStorage.setItem(neKey(), JSON.stringify(neMap)); } catch(e){}
+}
+function neQty(i){ var v = neMap[ITEMS[i][0]]; return v ? +v : 0; }
+var neItem = null;
+function neOpen(i){
+  neItem = i;
+  document.getElementById('neItem').textContent = ITEMS[i][1];
+  document.getElementById('neCode').textContent = ITEMS[i][0];
+  var box = document.getElementById('neQty');
+  box.value = neQty(i) ? String(neQty(i)) : '';
+  var err = document.getElementById('neErr');
+  err.style.display = 'none'; err.textContent = '';
+  document.body.classList.add('neopen');
+  setTimeout(function(){ box.focus(); }, 60);
+}
+function neClose(){
+  document.body.classList.remove('neopen');
+  neItem = null;
+}
+document.getElementById('neCancel').addEventListener('click', neClose);
+document.getElementById('neWrap').addEventListener('click', function(e){
+  if (e.target === this) neClose();
+});
+window.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && document.body.classList.contains('neopen')) neClose();
+});
+document.getElementById('neSave').addEventListener('click', function(){
+  if (neItem === null) return;
+  var raw = (document.getElementById('neQty').value || '').trim();
+  var parsed = raw === '' ? 0 : parseFloat(raw);
+  var err = document.getElementById('neErr');
+  if (isNaN(parsed) || parsed < 0){
+    err.textContent = 'Enter a quantity of 0 or more.';
+    err.style.display = 'block';
+    return;
+  }
+  err.style.display = 'none';
+  var n = Math.floor(parsed);
+  if (n > 0) neMap[ITEMS[neItem][0]] = n;
+  else delete neMap[ITEMS[neItem][0]];
+  neSave();
+  var i = neItem;
+  neClose();
+  var btn = document.querySelector('.nebtn[data-ne="' + i + '"]');
+  if (btn) btn.innerHTML = 'NE' + (neQty(i) ? ' <b>' + nf0.format(neQty(i)) + '</b>' : '');
+});
+document.getElementById('tbody').addEventListener('click', function(e){
+  var b = e.target.closest('.nebtn');
+  if (!b) return;
+  e.stopPropagation();
+  neOpen(+b.dataset.ne);
 });
 
 /* ---------- report ---------- */
@@ -2436,7 +2592,21 @@ function buildSelectors(){
                          .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
     },
     sel: function(){ return state.site; },
-    changed: function(){ reload(); }
+    changed: function(){
+      /* a site belongs to one customer — select that customer and only that one,
+         so the two pickers always agree */
+      if (state.site.size){
+        var parents = new Set();
+        state.site.forEach(function(s){ parents.add(SITES[s][4]); });
+        var same = (parents.size === state.cust.size);
+        if (same) parents.forEach(function(c){ if (!state.cust.has(c)) same = false; });
+        if (!same){
+          state.cust = parents;
+          msCust.refresh();
+        }
+      }
+      reload();
+    }
   });
 }
 function reload(){
@@ -2673,6 +2843,7 @@ window.addEventListener('keydown', function(e){
   if (e.key === 'Escape' && document.body.classList.contains('imopen')) closeItem();
 });
 document.getElementById('tbody').addEventListener('click', function(e){
+  if (e.target.closest('.nebtn')) return;          /* near expiry has its own window */
   var cell = e.target.closest('td.desc');
   if (!cell || cell.dataset.i === undefined) return;
   openItem(+cell.dataset.i);
