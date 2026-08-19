@@ -1830,18 +1830,55 @@ function reportPdf(info, rows){
     {t:'STOCK',           w:43, a:'r'},
     {t:'LAST SUPPLIED',   w:94}
   ];
-  var xs = [], acc = M;
-  cols.forEach(function(c){ xs.push(acc); acc += c.w; });
+  function offsets(cs){
+    var xs = [], acc = M;
+    cs.forEach(function(c){ xs.push(acc); acc += c.w; });
+    return xs;
+  }
+  var xs = offsets(cols);
 
-  function tableHead(){
-    var h = 15;
-    doc.y -= h;
-    doc.rect(M, doc.y, W, h, BLUE);
-    cols.forEach(function(c, i){
-      var x = c.a === 'r' ? xs[i] + c.w - 4 : xs[i] + 4;
-      doc.text(x, doc.y + 4.6, c.t, {size:6.6, bold:true, color:[1,1,1], align:c.a, maxW:c.w-8});
+  function headFor(cs, xa){
+    return function(){
+      var h = 15;
+      doc.y -= h;
+      doc.rect(M, doc.y, W, h, BLUE);
+      cs.forEach(function(c, i){
+        var x = c.a === 'r' ? xa[i] + c.w - 4 : xa[i] + 4;
+        doc.text(x, doc.y + 4.6, c.t, {size:6.6, bold:true, color:[1,1,1], align:c.a, maxW:c.w-8});
+      });
+      doc.y -= 2;
+    };
+  }
+  var tableHead = headFor(cols, xs);
+
+  /* one table: heading rule, blue header row, then the rows */
+  function drawTable(heading, cs, rws, emptyMsg){
+    var xa = offsets(cs), head = headFor(cs, xa);
+    if (doc.y < M + 90){ doc.newPage(); doc.y -= 6; }
+    doc.y -= 22;
+    doc.text(M, doc.y, heading, {size:11, bold:true, color:BLUE});
+    doc.y -= 5;
+    doc.line(M, doc.y, RIGHT, doc.y, BLUE, 1);
+    doc.y -= 4;
+    if (!rws.length){
+      doc.y -= 20;
+      doc.text(M, doc.y, emptyMsg, {size:10});
+      return;
+    }
+    head();
+    rws.forEach(function(r){
+      if (doc.y < M + 46){ doc.newPage(); doc.y -= 6; head(); }
+      var h = 13.5, never = !!r.never;
+      doc.y -= h;
+      if (never) doc.rect(M, doc.y, W, h, NEVBG);
+      cs.forEach(function(c, i){
+        var x = c.a === 'r' ? xa[i] + c.w - 4 : xa[i] + 4;
+        var isFlag = never && cs[i].t === 'LAST SUPPLIED';
+        doc.text(x, doc.y + 4, r[i], {size:isFlag ? 7.5 : 8.2, align:c.a, maxW:c.w-8,
+          bold:isFlag, color:never ? NEVFG : BLACK});
+      });
+      doc.line(M, doc.y, RIGHT, doc.y, RULE, 0.4);
     });
-    doc.y -= 2;
   }
 
   /* ---- header block ---- */
@@ -1864,32 +1901,13 @@ function reportPdf(info, rows){
   doc.y -= 10;
   doc.line(M, doc.y, RIGHT, doc.y, RULE, 0.7);
 
-  /* ---- table ---- */
-  doc.y -= 22;
-  doc.text(M, doc.y, info.subtitle || (info.title ? info.title : 'Missing items and last supply'),
-           {size:11, bold:true, color:BLUE});
-  doc.y -= 5;
-  doc.line(M, doc.y, RIGHT, doc.y, BLUE, 1);
-  doc.y -= 4;
+  /* ---- tables ---- */
+  drawTable(info.subtitle || (info.title ? info.title : 'Missing items and last supply'),
+            cols, rows, 'Every regular item in this assortment was found on shelf.');
 
-  if (!rows.length){
-    doc.y -= 20;
-    doc.text(M, doc.y, 'Every regular item in this assortment was found on shelf.', {size:10});
-  } else {
-    tableHead();
-    rows.forEach(function(r){
-      if (doc.y < M + 46){ doc.newPage(); doc.y -= 6; tableHead(); }
-      var h = 13.5, never = !!r.never;
-      doc.y -= h;
-      if (never) doc.rect(M, doc.y, W, h, NEVBG);
-      cols.forEach(function(c, i){
-        var x = c.a === 'r' ? xs[i] + c.w - 4 : xs[i] + 4;
-        var isFlag = never && i === 3;
-        doc.text(x, doc.y + 4, r[i], {size:isFlag ? 7.5 : 8.2, align:c.a, maxW:c.w-8,
-          bold:isFlag, color:never ? NEVFG : BLACK});
-      });
-      doc.line(M, doc.y, RIGHT, doc.y, RULE, 0.4);
-    });
+  if (info.extra){
+    drawTable(info.extra.title, info.extra.cols, info.extra.rows,
+              info.extra.empty || 'Nothing recorded.');
   }
 
   /* ---- note ---- */
@@ -2394,15 +2412,30 @@ document.getElementById('pdf').addEventListener('click', function(){
     var o = periodOf(p);
     return MONTHS[o.month] + ' ' + o.year;
   }
-  var rowsHtml = missing.map(function(i){
+  /* every item with a near-expiry quantity, whatever its shelf status */
+  var neList = [];
+  for (var ni=0; ni<NI; ni++) if (neQty(ni) > 0) neList.push(ni);
+  neList.sort(function(a,b){
+    if (catOf[a] !== catOf[b]) return catOf[a] - catOf[b];
+    return ITEMS[a][1] < ITEMS[b][1] ? -1 : 1;
+  });
+  var neHtml = neList.map(function(i){
     var it = ITEMS[i], lt = lastTxt(A.last[i]), st = stockOf(i);
-    var ne = neQty(i);
-    return '<tr'+(lt?'':' class="nev"')+'><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
+    return '<tr><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
       '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
       '<td class="n">'+(A.qB[i]?nf0.format(Math.round(A.qB[i])):'—')+'</td>'+
       '<td class="n">'+(STOCK ? (st>0 ? nf0.format(Math.round(st)) : '<b>0</b>') : '—')+'</td>'+
       '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td>'+
-      '<td class="n">'+(ne ? nf0.format(ne) : '')+'</td></tr>';
+      '<td class="n"><b>'+nf0.format(neQty(i))+'</b></td></tr>';
+  }).join('');
+
+  var rowsHtml = missing.map(function(i){
+    var it = ITEMS[i], lt = lastTxt(A.last[i]), st = stockOf(i);
+    return '<tr'+(lt?'':' class="nev"')+'><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
+      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
+      '<td class="n">'+(A.qB[i]?nf0.format(Math.round(A.qB[i])):'—')+'</td>'+
+      '<td class="n">'+(STOCK ? (st>0 ? nf0.format(Math.round(st)) : '<b>0</b>') : '—')+'</td>'+
+      '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td></tr>';
   }).join('');
   document.getElementById('report').innerHTML =
     '<div class="rep-tools">'+
@@ -2429,9 +2462,16 @@ document.getElementById('pdf').addEventListener('click', function(){
       ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th>'+
         '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
         '<th style="text-align:right">'+String(state.yrB).slice(2)+"' QTY</th>"+
-        '<th style="text-align:right">Stock</th><th>Last Supplied</th>'+
-        '<th style="text-align:right">NE</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
+        '<th style="text-align:right">Stock</th><th>Last Supplied</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
       : '<p>Every regular item in this assortment was found on shelf.</p>')+
+    '<h2>Near expiry</h2>'+
+    (neList.length
+      ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th>'+
+        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">'+String(state.yrB).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">Stock</th><th>Last Supplied</th>'+
+        '<th style="text-align:right">NE</th></tr></thead><tbody>'+neHtml+'</tbody></table>'
+      : '<p>No near expiry stock recorded on this visit.</p>')+
     '<div class="note">Missing = a regular item on the checklist that was not ticked during the visit. '+
     'NEVER SUPPLIED = this customer / site has never been invoiced for the item at all \u2014 a distribution gap rather than an out-of-stock. '+
     'Last supplied is the most recent month with a positive shipment anywhere in the data, whatever period is selected on screen. '+
@@ -2449,13 +2489,11 @@ document.getElementById('pdf').addEventListener('click', function(){
     var rows = missing.map(function(i){
       var it = ITEMS[i], lt = lastTxt(A.last[i]);
       var st = stockOf(i);
-      var ne = neQty(i);
       var row = [it[2], String(it[0]), it[1],
                  A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                  A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
                  STOCK ? nf0.format(Math.round(st)) : '-',
-                 lt ? lt : 'NEVER SUPPLIED',
-                 ne ? nf0.format(ne) : ''];          /* near expiry, blank when none */
+                 lt ? lt : 'NEVER SUPPLIED'];
       row.never = !lt;
       return row;
     });
@@ -2463,19 +2501,33 @@ document.getElementById('pdf').addEventListener('click', function(){
     var bytes = reportPdf({
       period: yearsLabel(),
       yrA: state.yrA, yrB: state.yrB,
-      /* same seven columns as before, trimmed just enough to fit NE on the end */
-      /* Category, Code and Description keep their exact widths; NE is paid for
-         out of the slack in the numeric columns, which only ever hold 2-5 digits */
-      cols: [
-        {t:'CATEGORY',        w:68},
-        {t:'CODE',            w:50},
-        {t:'ITEM DESCRIPTION',w:176},
-        {t:sa + "' QTY",      w:32, a:'r'},
-        {t:sb + "' QTY",      w:32, a:'r'},
-        {t:'STOCK',           w:38, a:'r'},
-        {t:'LAST SUPPLIED',   w:94},
-        {t:'NE',              w:25, a:'r'}
-      ],
+      /* the near expiry table repeats the same columns and adds NE on the end,
+         paid for out of the slack in the numeric columns */
+      extra: {
+        title: 'Near expiry',
+        empty: 'No near expiry stock recorded on this visit.',
+        cols: [
+          {t:'CATEGORY',        w:68},
+          {t:'CODE',            w:50},
+          {t:'ITEM DESCRIPTION',w:166},
+          {t:sa + "' QTY",      w:37, a:'r'},
+          {t:sb + "' QTY",      w:37, a:'r'},
+          {t:'STOCK',           w:39, a:'r'},
+          {t:'LAST SUPPLIED',   w:91},
+          {t:'NE',              w:27, a:'r'}
+        ],
+        rows: neList.map(function(i){
+          var it = ITEMS[i], lt2 = lastTxt(A.last[i]), st2 = stockOf(i);
+          var row = [it[2], String(it[0]), it[1],
+                     A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
+                     A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
+                     STOCK ? nf0.format(Math.round(st2)) : '-',
+                     lt2 ? lt2 : 'NEVER SUPPLIED',
+                     nf0.format(neQty(i))];
+          row.never = !lt2;
+          return row;
+        })
+      },
       meta: [
         ['Customer / site', scopeNames()],
         ['Visit date', stamp],
