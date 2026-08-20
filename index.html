@@ -268,11 +268,10 @@ tr.ok td.desc{color:var(--pos)}
     padding:9px 11px calc(9px + env(safe-area-inset-bottom));gap:8px}
   .audit .txt{width:100%;font-size:11.5px}
   .audit .track{flex:1 1 100%;order:2}
-  .audit .by{order:3;flex:1 1 auto}
-  .audit .by label{display:none}
-  .audit .by input{width:100%}
-  .audit #clearChk{order:4;padding:8px 10px}
-  .audit #pdf{order:5;padding:8px 12px}
+  /* the name box is gone from the phone — a visit is generated without it */
+  .audit .by{display:none}
+  .audit #clearChk{order:4;padding:8px 12px;flex:0 0 auto}
+  .audit #pdf{order:5;padding:8px 12px;flex:1 1 auto}
   .foot{padding-bottom:10px}
 }
 @media (max-width:400px){
@@ -384,6 +383,7 @@ function setDep(d){
   Array.from(state.aItems).forEach(function(i){ if (!analysisItemInDep(i)) state.aItems.delete(i); });
   state.aCust.clear();
   syncDepButtons();
+  placeControls();
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
@@ -584,6 +584,7 @@ document.querySelectorAll('.deps').forEach(function(box){
 .imtbl.sitelist{table-layout:fixed}
 .imtbl.sitelist col.w-name{width:35%}
 .imtbl.sitelist col.w-site{width:35%}
+.imtbl.sitelist colgroup col.w-open ~ col.w-area{width:11%}
 .imtbl.sitelist col.w-area{width:12%}
 .imtbl.sitelist col.w-val{width:18%}
 .imtbl.sitelist td.c-name,.imtbl.sitelist td.c-site{white-space:normal;word-break:break-word;
@@ -646,6 +647,42 @@ body.neopen .necard{transform:translateY(0)}
 
 .neerr{display:none;background:var(--neg-bg);border:1px solid #E3B5AA;color:var(--neg);
   font-size:11.5px;padding:8px 10px;border-radius:var(--r);margin-bottom:10px}
+
+.imtbl.sitelist col.w-open{width:11%}
+.imtbl.sitelist td.c-open{white-space:nowrap;text-align:left}
+
+/* the vertical form of the monthly performance table, mobile only */
+.imtbl.imtblv{min-width:0;width:100%;table-layout:auto}
+.imtbl.imtblv thead tr:last-child th:first-child{width:auto}
+.imtbl.imtblv tbody th{width:52px;background:var(--paper-2);font-size:11px}
+.imtbl.imtblv td.n,.imtbl.imtblv th.n{text-align:right}
+.imtbl.imtblv tr.imvs th,.imtbl.imtblv tr.imvs td{background:#F4F7F6;font-weight:600}
+@media (max-width:760px){
+  .m-only .imtbl.imtblv{font-size:11px}
+  .imbody .m-only{display:block}
+}
+
+/* ---------- desktop: refresh by the compare filter, visit history in the panel head ---------- */
+.railslot{display:flex;align-items:center;margin-right:12px}
+.railslot #refreshBtn{background:none;border:1px solid #2E5462;color:#9DBDB8;
+  padding:5px 11px;border-radius:var(--r);font-size:11px;cursor:pointer}
+.railslot #refreshBtn:hover{color:#fff;border-color:#5C8189}
+.headslot{display:inline-flex;align-items:center}
+.headslot #visitHist{padding:5px 11px;font-size:11.5px}
+@media (max-width:760px){
+  .railslot{display:none}
+  .headslot{display:none}
+}
+@media (min-width:761px){
+  /* visits are recorded on the phone, so the entry controls are hidden here */
+  .audit{display:none}
+}
+
+@media (min-width:761px){
+  .acard{cursor:pointer}
+  .acard:hover{background:#FAFAF8}
+}
+.imtbl.vhist td.empty{padding:18px;text-align:center;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -661,6 +698,7 @@ body.neopen .necard{transform:translateY(0)}
     <span class="sub">Oman · CPD · Customer Performance</span>
   </div>
   <div class="spacer"></div>
+  <div class="railslot" id="refreshSlot"></div>
   <div class="period">
     <div class="yrsel">
       <label for="yrB">Compare</label>
@@ -742,6 +780,7 @@ body.neopen .necard{transform:translateY(0)}
       <h2>Item performance</h2>
       <span class="count" id="rowCount"></span>
       <div class="right">
+        <span class="headslot" id="histSlot"></span>
         <label class="toggle"><input type="checkbox" id="grp" checked> Group by category</label>
         <label class="toggle"><input type="checkbox" id="hideZero" checked> Hide unsold promo packs</label>
         <label class="toggle"><input type="checkbox" id="onlyUn"> Only unchecked</label>
@@ -1672,9 +1711,12 @@ function ensureA(){
    year, so narrowing the period never adds or removes an outlet. The money
    column does follow the period. */
 var siteBilledA = null, siteBilledB = null, siteValA = null, siteValB = null;
+var siteFirstB = null;      /* first month of the current year the outlet was billed */
 function aggregate(){
   ensureA();
   buildMask();
+  if (!siteFirstB || siteFirstB.length !== SITES.length) siteFirstB = new Int32Array(SITES.length);
+  siteFirstB.fill(-1);
   if (!siteBilledA || siteBilledA.length !== SITES.length){
     siteBilledA = new Uint8Array(SITES.length);
     siteBilledB = new Uint8Array(SITES.length);
@@ -1696,7 +1738,11 @@ function aggregate(){
     /* whole-year presence decides who is new and who is lost */
     var billedHere = (fq[k] > 0 || fv[k] > 0);
     if (yi === ia && billedHere) siteBilledA[fs[k]] = 1;
-    else if (yi === ib && billedHere) siteBilledB[fs[k]] = 1;
+    else if (yi === ib && billedHere){
+      siteBilledB[fs[k]] = 1;
+      var mm2 = fp[k] % 12;
+      if (siteFirstB[fs[k]] < 0 || mm2 < siteFirstB[fs[k]]) siteFirstB[fs[k]] = mm2;
+    }
     if (m >= m1 && m <= m2){
       if (yi === ia){
         A.vA[it] += fv[k]; A.qA[it] += fq[k];
@@ -2384,6 +2430,14 @@ document.getElementById('tbody').addEventListener('click', function(e){
 });
 
 /* ---------- report ---------- */
+/* PDF display names only — the item master, codes and every other view keep
+   their own wording */
+var PDF_DESC = {
+  35521125: 'DELICIO TOMATO KETCHUP [12x340gm]',
+  35521127: 'DELICIO TOMATO KETCHUP [12x910gm]'
+};
+function pdfDesc(i){ return PDF_DESC[ITEMS[i][0]] || ITEMS[i][1]; }
+
 var docTitle = '';
 function closeReport(){
   document.body.classList.remove('reporting');
@@ -2489,7 +2543,7 @@ document.getElementById('pdf').addEventListener('click', function(){
     var rows = missing.map(function(i){
       var it = ITEMS[i], lt = lastTxt(A.last[i]);
       var st = stockOf(i);
-      var row = [it[2], String(it[0]), it[1],
+      var row = [it[2], String(it[0]), pdfDesc(i),
                  A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                  A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
                  STOCK ? nf0.format(Math.round(st)) : '-',
@@ -2506,19 +2560,22 @@ document.getElementById('pdf').addEventListener('click', function(){
       extra: {
         title: 'Near expiry',
         empty: 'No near expiry stock recorded on this visit.',
+        /* identical to the missing-items table for the first six columns; these
+           rows never say NEVER SUPPLIED, so Last Supplied only needs room for a
+           month and the width saved goes to NE */
         cols: [
           {t:'CATEGORY',        w:68},
           {t:'CODE',            w:50},
-          {t:'ITEM DESCRIPTION',w:166},
-          {t:sa + "' QTY",      w:37, a:'r'},
-          {t:sb + "' QTY",      w:37, a:'r'},
-          {t:'STOCK',           w:39, a:'r'},
-          {t:'LAST SUPPLIED',   w:91},
-          {t:'NE',              w:27, a:'r'}
+          {t:'ITEM DESCRIPTION',w:176},
+          {t:sa + "' QTY",      w:42, a:'r'},
+          {t:sb + "' QTY",      w:42, a:'r'},
+          {t:'STOCK',           w:43, a:'r'},
+          {t:'LAST SUPPLIED',   w:68},
+          {t:'NE',              w:26, a:'r'}
         ],
         rows: neList.map(function(i){
           var it = ITEMS[i], lt2 = lastTxt(A.last[i]), st2 = stockOf(i);
-          var row = [it[2], String(it[0]), it[1],
+          var row = [it[2], String(it[0]), pdfDesc(i),
                      A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                      A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
                      STOCK ? nf0.format(Math.round(st2)) : '-',
@@ -2841,13 +2898,18 @@ document.getElementById('csv').addEventListener('click', function(){
    stops at the last month with data, so a part-year is never read as a decline. */
 function shortYr(y){ return "'" + String(y).slice(2); }
 
+/* cases carry two decimals in this view only; values keep whole numbers */
+function perfNum(v, isValue){
+  if (!v) return '<span class="z">–</span>';
+  return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
+}
 function monthCells(i, arr, yi, upto, isValue){
   var out = '', span = NY*12, base = i*span + yi*12, total = 0;
   for (var m=0;m<12;m++){
     if (m > upto){ out += '<td class="off"></td>'; continue; }
     var v = arr[base+m];
     total += v;
-    out += '<td>' + (v ? nf0.format(Math.round(v)) : '<span class="z">–</span>') + '</td>';
+    out += '<td>' + perfNum(v, isValue) + '</td>';
   }
   return {cells:out, total:total};
 }
@@ -2882,10 +2944,36 @@ function yearTable(i, arr, title, isValue){
     var upto = (y === latest) ? upToLatest : 11;
     var r = monthCells(i, arr, y, upto, isValue);
     h += '<tr><th>' + YEARS[y] + (y === latest ? ' <i>YTD</i>' : '') + '</th>' + r.cells +
-         '<td class="tot">' + (r.total ? nf0.format(Math.round(r.total)) : '<span class="z">–</span>') + '</td></tr>';
+         '<td class="tot">' + perfNum(r.total, isValue) + '</td></tr>';
   }
   h += pctRow(i, arr, latest, NY - 2, upToLatest);
   h += '</tbody></table>';
+  return h;
+}
+/* mobile: the same numbers with months down the side and years across, so the
+   table fits a phone without sideways scrolling */
+function yearTableV(i, arr, title, isValue){
+  var latest = NY - 1, span = NY*12;
+  var h = '<table class="imtbl imtblv"><thead>' +
+          '<tr class="cap"><th colspan="' + (NY+1) + '">' + title + '</th></tr>' +
+          '<tr><th>Month</th>';
+  for (var y=0;y<NY;y++) h += '<th class="n">' + YEARS[y] + (y === latest ? ' <i>YTD</i>' : '') + '</th>';
+  h += '</tr></thead><tbody>';
+  var tot = new Float64Array(NY);
+  for (var m=0;m<12;m++){
+    h += '<tr><th>' + MONTHS[m] + '</th>';
+    for (var y2=0;y2<NY;y2++){
+      var beyond = (y2 === latest && m > LASTM);
+      if (beyond){ h += '<td class="off"></td>'; continue; }
+      var v = arr[i*span + y2*12 + m];
+      tot[y2] += v;
+      h += '<td class="n">' + perfNum(v, isValue) + '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '<tr class="imvs"><th>Total</th>';
+  for (var y3=0;y3<NY;y3++) h += '<td class="n tot">' + perfNum(tot[y3], isValue) + '</td>';
+  h += '</tr></tbody></table>';
   return h;
 }
 function openItem(i){
@@ -2896,8 +2984,14 @@ function openItem(i){
   document.getElementById('imSub').textContent =
     it[2] + ' · ' + (it[3] === 'Promotion' ? 'Promo pack' : 'Regular') + ' · ' + scopeNames();
   document.getElementById('imBody').innerHTML =
-    yearTable(i, A.mq, 'Sales in Volume (cases)', false) +
-    yearTable(i, A.mv, 'Sales in Value', true) +
+    '<div class="d-only">' +
+      yearTable(i, A.mq, 'Sales in Volume (cases)', false) +
+      yearTable(i, A.mv, 'Sales in Value', true) +
+    '</div>' +
+    '<div class="m-only">' +
+      yearTableV(i, A.mq, 'Sales in Volume (cases)', false) +
+      yearTableV(i, A.mv, 'Sales in Value', true) +
+    '</div>' +
     '<div class="imnote">' + YEARS[NY-1] + ' runs to ' + MONTHS[LASTM] +
     ', so its total is year-to-date and the % row compares the same months of ' +
     (NY > 1 ? YEARS[NY-2] : '') + '. Figures follow the customer and site selection above, ' +
@@ -3385,6 +3479,34 @@ document.querySelectorAll('.deps').forEach(function(box){
 });
 
 /* ---------- tabs ---------- */
+/* ---------- desktop puts two controls in different places ----------
+   The same buttons are moved, never duplicated, so their behaviour is untouched. */
+var wideMQ = window.matchMedia ? window.matchMedia('(min-width:761px)') : null;
+function placeControls(){
+  var wide = wideMQ ? wideMQ.matches : true;
+  var refresh = document.getElementById('refreshBtn');
+  var hist = document.getElementById('visitHist');
+  var slotR = document.getElementById('refreshSlot');
+  var slotH = document.getElementById('histSlot');
+  var status = document.getElementById('status');
+  var audit = document.querySelector('.audit');
+  if (refresh){
+    var homeR = wide ? slotR : status;
+    if (homeR && refresh.parentNode !== homeR) homeR.appendChild(refresh);
+  }
+  if (hist && audit){
+    var homeH = wide ? slotH : audit;
+    if (homeH && hist.parentNode !== homeH){
+      if (homeH === audit) audit.insertBefore(hist, document.getElementById('saveVisit'));
+      else homeH.appendChild(hist);
+    }
+  }
+}
+if (wideMQ){
+  if (wideMQ.addEventListener) wideMQ.addEventListener('change', placeControls);
+  else if (wideMQ.addListener) wideMQ.addListener(placeControls);
+}
+
 function showTab(t){
   TAB = t;
   document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
@@ -3431,19 +3553,23 @@ function openSiteList(kind){
         '<button class="btn" id="slPdf" type="button">Download PDF</button>' +
       '</div>' +
       '<table class="imtbl vhist sitelist">' +
-      '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>' +
+      (isNew
+        ? '<colgroup><col class="w-name"><col class="w-site"><col class="w-open"><col class="w-area"><col class="w-val"></colgroup>'
+        : '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>') +
       '<thead>' +
-        '<tr class="cap"><th colspan="4">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
+        '<tr class="cap"><th colspan="' + (isNew ? 5 : 4) + '">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
         '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th>' +
+        (isNew ? '<th class="c-open">Open Month</th>' : '') +
         '<th class="c-area">Area</th><th class="n c-val">' + esc(valHead) + '</th></tr>' +
       '</thead><tbody>' +
       out.map(function(r){
         return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
                '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+               (isNew ? '<td class="c-open">' + esc(openMonth(r.s)) + '</td>' : '') +
                '<td class="c-area">' + esc(areaLabel(areaOf[r.s])) + '</td>' +
                '<td class="n c-val">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
       }).join('') +
-      '</tbody><tfoot><tr><th colspan="3">Total</th>' +
+      '</tbody><tfoot><tr><th colspan="' + (isNew ? 4 : 3) + '">Total</th>' +
       '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
       '<div class="imnote">' + (isNew
         ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA + '.'
@@ -3465,6 +3591,11 @@ document.getElementById('kpis').addEventListener('click', function(e){
 
 /* ---------- taking the list away with you ---------- */
 var siteListData = null;
+/* the month the outlet first billed this year */
+function openMonth(s){
+  var m = siteFirstB ? siteFirstB[s] : -1;
+  return m < 0 ? '' : MONTHS[m] + " '" + String(state.yrB).slice(2);
+}
 function siteListName(ext){
   if (!siteListData) return 'sites.' + ext;
   return 'Delicio ' + (siteListData.isNew ? 'new' : 'lost') + ' customer sites - ' +
@@ -3586,13 +3717,99 @@ function renderAreaCards(){
     var cls = g === null ? 'flat' : (g > 0.0005 ? 'up' : (g < -0.0005 ? 'down' : 'flat'));
     var txt = g === null ? 'no ' + state.yrA + ' base'
                          : (g > 0 ? '+' : '') + nf1.format(g*100) + '% vs ' + state.yrA;
-    return '<div class="acard">' +
+    return '<div class="acard" data-area="' + a + '">' +
              '<div class="an">' + esc(areaLabel(a)) + '</div>' +
              '<div class="av">' + nf0.format(Math.round(S.vB[a])) + '</div>' +
              '<div class="ag ' + cls + '">' + txt + '</div>' +
            '</div>';
   }).join('');
 }
+
+/* ---------- an area's own performance, desktop ----------
+   Reuses the item popup: same modal, same table styling, same close behaviour. */
+function areaMonthly(a){
+  var span = NY*12;
+  var mv = new Float64Array(span), siteV = {};
+  var ib = yIdx(state.yrB);
+  if (F){
+    var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fd = F.d, N = fs.length;
+    for (var k=0;k<N;k++){
+      if (areaOf[fs[k]] !== a) continue;
+      if (!factCounted(fd[k], fi[k])) continue;
+      var p = fp[k];
+      mv[p] += fv[k];
+      if (((p/12)|0) === ib && (p % 12) >= state.m1 && (p % 12) <= state.m2){
+        siteV[fs[k]] = (siteV[fs[k]] || 0) + fv[k];
+      }
+    }
+  }
+  var tops = Object.keys(siteV).map(function(s){ return {s:+s, v:siteV[s]}; })
+                   .sort(function(x,y){ return y.v - x.v; }).slice(0, 10);
+  return {mv:mv, tops:tops};
+}
+function openArea(a){
+  aggregate();
+  var d = areaMonthly(a);
+  document.getElementById('imTitle').innerHTML =
+    esc(areaLabel(a)) + ' <span class="code">area</span>';
+  document.getElementById('imSub').textContent =
+    depLabel() + ' · monthly sales value · ' + YEARS.join(', ');
+
+  var latest = NY - 1;
+  var h = '<table class="imtbl"><thead>' +
+          '<tr class="cap"><th colspan="14">Sales in Value</th></tr>' +
+          '<tr><th></th>';
+  for (var m=0;m<12;m++) h += '<th>' + MONTHS[m] + '</th>';
+  h += '<th class="tot">Total</th></tr></thead><tbody>';
+  for (var y=0;y<NY;y++){
+    var upto = (y === latest) ? LASTM : 11, total = 0;
+    h += '<tr><th>' + YEARS[y] + (y === latest ? ' <i>YTD</i>' : '') + '</th>';
+    for (var mm=0;mm<12;mm++){
+      if (mm > upto){ h += '<td class="off"></td>'; continue; }
+      var v = d.mv[y*12 + mm];
+      total += v;
+      h += '<td>' + (v ? nf0.format(Math.round(v)) : '<span class="z">–</span>') + '</td>';
+    }
+    h += '<td class="tot">' + (total ? nf0.format(Math.round(total)) : '<span class="z">–</span>') + '</td></tr>';
+  }
+  /* the same % row the item popup uses */
+  if (NY > 1){
+    var bL = latest*12, bP = (NY-2)*12, cur = 0, prev = 0;
+    h += '<tr class="imvs"><th>% Vs ' + String(YEARS[NY-2]).slice(2) + '</th>';
+    for (var m2=0;m2<12;m2++){
+      if (m2 > LASTM){ h += '<td class="off"></td>'; continue; }
+      cur += d.mv[bL+m2]; prev += d.mv[bP+m2];
+      h += '<td>' + pctVs(d.mv[bL+m2], d.mv[bP+m2]) + '</td>';
+    }
+    h += '<td class="tot">' + pctVs(cur, prev) + '</td></tr>';
+  }
+  h += '</tbody></table>';
+
+  h += '<table class="imtbl vhist"><thead>' +
+       '<tr class="cap"><th colspan="4">Top 10 customer sites · ' + state.yrB + ' ' + periodLabel() + '</th></tr>' +
+       '<tr><th>#</th><th>Customer</th><th>Customer Site</th><th class="n">' + state.yrB + ' Value</th></tr>' +
+       '</thead><tbody>' +
+       (d.tops.length ? d.tops.map(function(t, n){
+          return '<tr><td>' + (n+1) + '</td><td>' + esc(SITES[t.s][0]) + '</td>' +
+                 '<td>' + esc(SITES[t.s][1]) + '</td>' +
+                 '<td class="n">' + nf0.format(Math.round(t.v)) + '</td></tr>';
+        }).join('')
+        : '<tr><td colspan="4" class="empty">No sales in this area for the selected period.</td></tr>') +
+       '</tbody></table>' +
+       '<div class="imnote">' + YEARS[NY-1] + ' runs to ' + MONTHS[LASTM] +
+       ', so its total is year-to-date. The ranking covers ' + periodLabel() + ' ' + state.yrB +
+       ' and only outlets in ' + esc(areaLabel(a)) + '.</div>';
+
+  document.getElementById('imBody').innerHTML = h;
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop = 0;
+}
+document.getElementById('areaCards').addEventListener('click', function(e){
+  if (wideMQ && !wideMQ.matches) return;          /* desktop only */
+  var card = e.target.closest('.acard');
+  if (!card || card.dataset.area === undefined) return;
+  openArea(+card.dataset.area);
+});
 
 /* ================= store visits, saved to Cloudflare =================
    The backend sits on the same domain (/api/visits), so the browser sends the
@@ -3934,6 +4151,7 @@ function afterLoad(rebuild){
   buildPeriod();
   if (!wired){ wirePeriod(); wired = true; }
   syncDepButtons();
+  placeControls();
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
