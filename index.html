@@ -679,6 +679,16 @@ body.neopen .necard{transform:translateY(0)}
 .met:hover{color:var(--ink)}
 .met.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .met.on + .met{border-left-color:var(--ink)}
+
+/* the Value / Volume switch shares the last filter line with Reset and Export */
+.filters .fbar{flex-basis:100%;display:flex;align-items:flex-end;justify-content:space-between;
+  gap:10px;margin-left:0}
+.filters .fbar .fbtns{margin-left:0}
+.filters .metsw{margin-top:0}
+@media (max-width:760px){
+  .filters .fbar{flex-wrap:wrap}
+  .filters .fbar .fbtns{width:100%}
+}
 </style>
 </head>
 <body>
@@ -839,10 +849,6 @@ body.neopen .necard{transform:translateY(0)}
           <div class="ms-list" data-role="list"></div>
         </div>
       </div>
-      <div class="metsw" data-met="a">
-        <button class="met on" type="button" data-m="value">Value</button>
-        <button class="met" type="button" data-m="volume">Volume</button>
-      </div>
     </div>
     <div class="field f-cust">
       <span>Customer</span>
@@ -891,9 +897,15 @@ body.neopen .necard{transform:translateY(0)}
         <option value="only">Only never supplied</option>
       </select>
     </div>
-    <div class="fbtns">
-      <button class="btn ghost" id="anReset">Reset filters</button>
-      <button class="btn" id="anCsv">Export CSV</button>
+    <div class="fbar">
+      <div class="metsw" data-met="a">
+        <button class="met on" type="button" data-m="value">Value</button>
+        <button class="met" type="button" data-m="volume">Volume</button>
+      </div>
+      <div class="fbtns">
+        <button class="btn ghost" id="anReset">Reset filters</button>
+        <button class="btn" id="anCsv">Export CSV</button>
+      </div>
     </div>
   </div>
 
@@ -943,10 +955,6 @@ body.neopen .necard{transform:translateY(0)}
           <div class="ms-list" data-role="list"></div>
         </div>
       </div>
-      <div class="metsw" data-met="o">
-        <button class="met on" type="button" data-m="value">Value</button>
-        <button class="met" type="button" data-m="volume">Volume</button>
-      </div>
     </div>
     <div class="field f-cust">
       <span>Customer</span>
@@ -991,9 +999,15 @@ body.neopen .necard{transform:translateY(0)}
         <option value="flat">No change</option>
       </select>
     </div>
-    <div class="fbtns">
-      <button class="btn ghost" id="oReset">Reset filters</button>
-      <button class="btn" id="oCsv">Export CSV</button>
+    <div class="fbar">
+      <div class="metsw" data-met="o">
+        <button class="met on" type="button" data-m="value">Value</button>
+        <button class="met" type="button" data-m="volume">Volume</button>
+      </div>
+      <div class="fbtns">
+        <button class="btn ghost" id="oReset">Reset filters</button>
+        <button class="btn" id="oCsv">Export CSV</button>
+      </div>
     </div>
   </div>
 
@@ -2859,11 +2873,18 @@ function buildPeriod(){
   }
   m1.value = state.m1; m2.value = state.m2;
 }
+/* the compare and period controls must redraw whichever tab is in front, not
+   just the Market Visit table */
+function renderActiveTab(){
+  render();
+  if (TAB === 'analysis') renderAnalysis();
+  else if (TAB === 'outlet') renderOutlet();
+}
 function onPeriod(){
   var m1 = document.getElementById('m1'), m2 = document.getElementById('m2');
   var a = +m1.value, b = +m2.value;
   if (a > b){ if (this === m1){ b = a; m2.value = b; } else { a = b; m1.value = a; } }
-  state.m1 = a; state.m2 = b; syncPresets(); renderHead(); render();
+  state.m1 = a; state.m2 = b; syncPresets(); renderHead(); renderActiveTab();
 }
 var PRESETS = [];
 function syncPresets(){
@@ -2881,10 +2902,10 @@ function wirePeriod(){
   document.getElementById('m1').addEventListener('change', onPeriod);
   document.getElementById('m2').addEventListener('change', onPeriod);
   document.getElementById('yrA').addEventListener('change', function(){
-    state.yrA = +this.value; renderHead(); render(); syncPresets();
+    state.yrA = +this.value; renderHead(); renderActiveTab(); syncPresets();
   });
   document.getElementById('yrB').addEventListener('change', function(){
-    state.yrB = +this.value; renderHead(); render(); syncPresets();
+    state.yrB = +this.value; renderHead(); renderActiveTab(); syncPresets();
   });
   PRESETS = [
     {n:'YTD', a:0, b:LASTM},
@@ -2900,7 +2921,7 @@ function wirePeriod(){
     var p = PRESETS[+b.dataset.i];
     state.m1 = p.a; state.m2 = p.b;
     document.getElementById('m1').value = p.a; document.getElementById('m2').value = p.b;
-    syncPresets(); render();
+    syncPresets(); renderActiveTab();
   });
 }
 
@@ -3515,7 +3536,7 @@ document.getElementById('anReset').addEventListener('click', function(){
 document.getElementById('anCsv').addEventListener('click', function(){
   var A2 = analysisScan();
   var head = ['Customer','Area','Customer Site','Category','Item Code','Item Description',
-              state.yrA+' QTY', state.yrB+' QTY',
+              state.yrA+' QTY', state.yrB+' QTY','QTY Difference',
               state.yrA+' Value', state.yrB+' Value','Difference',
               'Warehouse Stock','Last Supplied','Months Since','Last Active Salesman'];
   var lines = [head.join(',')];
@@ -3530,7 +3551,7 @@ document.getElementById('anCsv').addEventListener('click', function(){
       '"'+ITEMS[d.i][2].replace(/"/g,'""')+'"',
       ITEMS[d.i][0],
       '"'+ITEMS[d.i][1].replace(/"/g,'""')+'"',
-      d.qA.toFixed(2), d.qB.toFixed(2),
+      d.qA.toFixed(2), d.qB.toFixed(2), (d.qB-d.qA).toFixed(2),
       d.vA.toFixed(2), d.vB.toFixed(2), (d.vB-d.vA).toFixed(2),
       STOCK ? Math.round(stockOf(d.i)) : '',
       lt, d.never ? '' : (A2.ref - e),
@@ -4609,7 +4630,7 @@ document.getElementById('oCsv').addEventListener('click', function(){
   var A2 = analysisScan(), ref = A2.ref;
   var head = ['Customer','Area','Customer Site','Site Code','Channel','Last Active Salesman',
               'Category','Item Code','Item Description',
-              state.yrA+' QTY', state.yrB+' QTY',
+              state.yrA+' QTY', state.yrB+' QTY','QTY Difference',
               state.yrA+' Value', state.yrB+' Value','Difference','% Change',
               'Outlet Status','Warehouse Stock','Last Supplied'];
   var lines = [head.join(',')];
@@ -4630,7 +4651,7 @@ document.getElementById('oCsv').addEventListener('click', function(){
           q(CUSTOMERS[g.cid]), q(areaLabel(areaOf[st.s])), q(SITES[st.s][1]), SITES[st.s][2],
           SITES[st.s][3], q(SITES[st.s][5] || ''),
           q(ITEMS[i][2]), ITEMS[i][0], q(ITEMS[i][1]),
-          qA.toFixed(2), qB.toFixed(2),
+          qA.toFixed(2), qB.toFixed(2), (qB-qA).toFixed(2),
           vA.toFixed(2), vB.toFixed(2), (vB-vA).toFixed(2), pc,
           st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change'),
           STOCK ? Math.round(stockOf(i)) : '',
