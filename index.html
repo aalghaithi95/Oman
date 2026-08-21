@@ -357,57 +357,7 @@ body.imopen{overflow:hidden}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
-/* ---------- ALL / CPD / FSD ---------- */
-function syncDepButtons(){
-  document.querySelectorAll('.deps .dep').forEach(function(b){
-    b.classList.toggle('on', b.dataset.d === state.dep);
-  });
-  var hint = state.dep === 'FSD'
-      ? 'Food Service (HOR) — market visit checks the catering active list'
-      : (state.dep === 'CPD' ? 'Retail business only' : 'Retail and Food Service together');
-  var h1 = document.getElementById('depHint1'), h2 = document.getElementById('depHint2');
-  if (h1) h1.textContent = hint;
-  if (h2) h2.textContent = state.dep === 'FSD'
-      ? 'Food Service — gaps measured on the catering active list only'
-      : hint;
-}
-function setDep(d){
-  if (state.dep === d) return;
-  state.dep = d;
-  LIVE = null; AN = null;                       /* both scans depend on the department */
-  /* selections that no longer exist in this department have to go */
-  var liveSet = new Set(baseSites());
-  Array.from(state.site).forEach(function(s){ if (!liveSet.has(s)) state.site.delete(s); });
-  var liveC = new Set(liveCustomers());
-  Array.from(state.cust).forEach(function(c){ if (!liveC.has(c)) state.cust.delete(c); });
-  Array.from(state.aItems).forEach(function(i){ if (!analysisItemInDep(i)) state.aItems.delete(i); });
-  state.aCust.clear();
-  syncDepButtons();
-  placeControls();
-  if (msArea) msArea.refresh();
-  if (msCust) msCust.refresh();
-  if (msSite) msSite.refresh();
-  if (msAArea) msAArea.refresh();
-  if (msACust) msACust.refresh();
-  if (msAItem) msAItem.refresh();
-  buildCatFilter();
-  buildOutletCats();
-  loadChecks();
-  renderHead(); render();
-  if (TAB === 'analysis') renderAnalysis();
-  if (TAB === 'outlet') renderOutlet();
-  if (TAB === 'outlet'){
-    Array.from(state.oItems).forEach(function(i){ if (!analysisItemInDep(i)) state.oItems.delete(i); });
-    if (msOItem) msOItem.refresh();
-    renderOutlet();
-  }
-}
-document.querySelectorAll('.deps').forEach(function(box){
-  box.addEventListener('click', function(e){
-    var b = e.target.closest('.dep');
-    if (b) setDep(b.dataset.d);
-  });
-});
+
 
 /* ---------- tabs ---------- */
 .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}
@@ -717,6 +667,7 @@ body.neopen .necard{transform:translateY(0)}
   #otbl th.o-cat,#otbl td.o-cat{width:auto}
   #otbl{font-size:11.5px}
 }
+
 </style>
 </head>
 <body>
@@ -989,9 +940,17 @@ body.neopen .necard{transform:translateY(0)}
         </div>
       </div>
     </div>
-    <div class="field">
+    <div class="field f-search">
+      <span>Sales Type</span>
+      <select id="oSales" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%">
+        <option value="all">All</option>
+        <option value="reg">Regular</option>
+        <option value="promo">Promo</option>
+      </select>
+    </div>
+    <div class="field f-search">
       <span>Category</span>
-      <select id="oCat"></select>
+      <select id="oCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
     </div>
     <div class="field f-item">
       <span>Item Description</span>
@@ -1004,9 +963,9 @@ body.neopen .necard{transform:translateY(0)}
         </div>
       </div>
     </div>
-    <div class="field">
+    <div class="field f-search">
       <span>Performance</span>
-      <select id="oStatus">
+      <select id="oStatus" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%">
         <option value="all">Show all</option>
         <option value="up">Growth</option>
         <option value="down">Decline</option>
@@ -1279,9 +1238,12 @@ function applySnapshot(snap){
     if (seen[r[0]] === undefined){ seen[r[0]] = CUSTOMERS.length; CUSTOMERS.push(r[0]); }
     r[4] = seen[r[0]];
     if (r[5] === undefined) r[5] = '';
-    var area = (r[6] || '').trim() || 'Unspecified';
-    if (seenArea[area] === undefined){ seenArea[area] = AREAS.length; AREAS.push(area); }
-    areaOf[i] = seenArea[area];
+    /* "SOHAR", "Sohar " and "sohar" are the same place — match on a normalised
+       key so the list only ever holds genuinely distinct areas */
+    var area = (r[6] || '').replace(/\s+/g, ' ').trim() || 'Unspecified';
+    var akey = area.toUpperCase();
+    if (seenArea[akey] === undefined){ seenArea[akey] = AREAS.length; AREAS.push(area); }
+    areaOf[i] = seenArea[akey];
     (sitesByCust[r[4]] = sitesByCust[r[4]] || []).push(i);
   });
   DEPN = [0, 0];
@@ -2106,7 +2068,7 @@ var state = {
   cust: new Set(), site: new Set(),
   cat: null, q: '', area: new Set(), dep: 'ALL',
   aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
-  oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all',
+  oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
@@ -3563,6 +3525,8 @@ function syncDepButtons(){
       ? 'Food Service (HOR) — market visit checks the catering active list'
       : (state.dep === 'CPD' ? 'Retail business only' : 'Retail and Food Service together');
   var h1 = document.getElementById('depHint1'), h2 = document.getElementById('depHint2');
+  var h3 = document.getElementById('depHint3');
+  if (h3) h3.textContent = hint;
   if (h1) h1.textContent = hint;
   if (h2) h2.textContent = state.dep === 'FSD'
       ? 'Food Service — gaps measured on the catering active list only'
@@ -3579,17 +3543,24 @@ function setDep(d){
   Array.from(state.cust).forEach(function(c){ if (!liveC.has(c)) state.cust.delete(c); });
   Array.from(state.aItems).forEach(function(i){ if (!analysisItemInDep(i)) state.aItems.delete(i); });
   state.aCust.clear();
+  Array.from(state.oItems).forEach(function(i){ if (!analysisItemInDep(i)) state.oItems.delete(i); });
   syncDepButtons();
+  placeControls();
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
   if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
   if (msAItem) msAItem.refresh();
+  if (msOArea) msOArea.refresh();
+  if (msOCust) msOCust.refresh();
+  if (msOItem) msOItem.refresh();
   buildCatFilter();
+  buildOutletCats();
   loadChecks();
   renderHead(); render();
   if (TAB === 'analysis') renderAnalysis();
+  if (TAB === 'outlet') renderOutlet();
 }
 document.querySelectorAll('.deps').forEach(function(box){
   box.addEventListener('click', function(e){
@@ -4248,15 +4219,33 @@ function outletItemOk(i){
 }
 function outletItemInScope(i){
   if (!analysisItemInDep(i)) return false;            /* the ALL / CPD / FSD switch */
+  if (state.oSales !== 'all'){                       /* Regular / Promo, from the item master */
+    var isPromo = ITEMS[i][3] === 'Promotion';
+    if (state.oSales === 'promo' && !isPromo) return false;
+    if (state.oSales === 'reg' && isPromo) return false;
+  }
   if (state.oCat !== null && catOf[i] !== state.oCat) return false;
   if (state.oItems.size && !state.oItems.has(i)) return false;
   return true;
 }
 
-/* one pass building customer -> site -> category, on the current scope */
+/* What sits under a customer site: categories normally, but the selected items
+   themselves when the selection is confined to a single category — picking three
+   dressings should show those three, not one "Salad Dressing" line. */
+function outletShowsItems(){
+  if (!state.oItems.size) return false;
+  var cats = {}, n = 0;
+  state.oItems.forEach(function(i){
+    var c = catOf[i];
+    if (!cats[c]){ cats[c] = 1; n++; }
+  });
+  return n === 1;
+}
+/* one pass building customer -> site -> category (or item), on the current scope */
 function buildOutlet(){
   var A2 = analysisScan();
   var ref = A2.ref;
+  var byItem = outletShowsItems();
   var items = [];
   for (var i=0;i<NI;i++) if (outletItemInScope(i)) items.push(i);
 
@@ -4276,8 +4265,8 @@ function buildOutlet(){
       if (lpi > lp) lp = lpi;
       if (lai > la) la = lai;
       if (!a && !b) continue;                          /* nothing in either year */
-      var c = catOf[it];
-      var cc = cats[c] || (cats[c] = {c:c, vA:0, vB:0, lp:-1, la:-1});
+      var c = byItem ? it : catOf[it];
+      var cc = cats[c] || (cats[c] = {c:c, item:byItem, vA:0, vB:0, lp:-1, la:-1});
       cc.vA += a; cc.vB += b;
       if (lpi > cc.lp) cc.lp = lpi;
       if (lai > cc.la) cc.la = lai;
@@ -4292,7 +4281,8 @@ function buildOutlet(){
     g.vA += vA; g.vB += vB;
     g.sites.push({s:s, vA:vA, vB:vB, diff:diff, status:status, lp:lp, la:la,
                   cats: Object.keys(cats).map(function(x){ return cats[x]; })
-                          .sort(function(p,q){ return (q.vB - q.vA) - (p.vB - p.vA); })});
+                          /* largest current-year seller first */
+                          .sort(function(p,q){ return q.vB - p.vB || q.vA - p.vA; })});
   }
   for (var key in byCust){
     var grp = byCust[key];
@@ -4302,9 +4292,20 @@ function buildOutlet(){
   }
   /* biggest customers first, exactly as the Analysis tab ranks them */
   order.sort(function(p,q){ return (q.vB + q.vA) - (p.vB + p.vA); });
-  return {groups: order, ref: ref};
+  return {groups: order, ref: ref, byItem: byItem};
 }
 
+/* Tab 3 shows the month only — no elapsed-months badge */
+function outletLast(lastPos, lastAny){
+  if (lastAny < 0) return '<span class="never">Never</span>';
+  var e = effLast(lastPos, lastAny), o = periodOf(e);
+  return '<span class="mono" style="font-size:11px">' + MONTHS[o.month] + ' ' + o.year + '</span>';
+}
+function outletLastPlain(lastPos, lastAny){
+  if (lastAny < 0) return 'Never';
+  var e = effLast(lastPos, lastAny), o = periodOf(e);
+  return MONTHS[o.month] + ' ' + o.year;
+}
 var OUT_PER_CUST = 12, OUT_CAP = 600;
 function renderOutlet(){
   if (!F) return;
@@ -4371,19 +4372,19 @@ function renderOutlet(){
         '<td class="num"><span class="' + (st.diff>0?'up':(st.diff<0?'down':'flat')) + '">' +
           (st.diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(st.diff))) + '</span></td>' +
         '<td class="num">' + pctCell(st.vB, st.vA) + '</td>' +
-        '<td class="o-last">' + gapLabel(st.lp, st.la, ref) + '</td></tr>';
+        '<td class="o-last">' + outletLast(st.lp, st.la) + '</td></tr>';
 
       if (open){
         st.cats.forEach(function(c){
           var d = c.vB - c.vA;
           html += '<tr class="ocat"><td class="o-site"></td>' +
-            '<td class="o-cat">' + esc(CATS[c.c]) + '</td>' +
+            '<td class="o-cat">' + esc(c.item ? ITEMS[c.c][1] : CATS[c.c]) + '</td>' +
             '<td class="num">' + fmt(c.vA) + '</td>' +
             '<td class="num">' + fmt(c.vB) + '</td>' +
             '<td class="num"><span class="' + (d>0?'up':(d<0?'down':'flat')) + '">' +
               (d>=0?'+':'−') + nf0.format(Math.abs(Math.round(d))) + '</span></td>' +
             '<td class="num">' + pctCell(c.vB, c.vA) + '</td>' +
-            '<td class="o-last">' + gapLabel(c.lp, c.la, ref) + '</td></tr>';
+            '<td class="o-last">' + outletLast(c.lp, c.la) + '</td></tr>';
         });
       }
     }
@@ -4406,6 +4407,7 @@ function renderOutlet(){
     (state.oArea.size ? ' · ' + (state.oArea.size === 1
         ? (function(){ var n=''; state.oArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
         : state.oArea.size + ' areas') : '') +
+    (state.oSales !== 'all' ? ' · ' + (state.oSales === 'promo' ? 'promo only' : 'regular only') : '') +
     (state.oCat !== null ? ' · ' + CATS[state.oCat] : '') +
     (state.oItems.size ? ' · ' + state.oItems.size + ' item' + (state.oItems.size>1?'s':'') : '') +
     (state.oStatus !== 'all' ? ' · ' +
@@ -4422,13 +4424,18 @@ document.getElementById('otbl').addEventListener('click', function(e){
 });
 
 /* ---------- filters ---------- */
+/* Active customers = customers with at least one outlet still trading in the
+   current year, counted once each, and recomputed whenever the department
+   switch changes because the scan behind it is department-aware. */
 function outletCustomerOptions(){
   var A2 = (F && state.yrB) ? analysisScan() : null;
   var seen = {}, out = [];
   for (var s=0; s<SITES.length; s++){
     if (state.oArea.size && !state.oArea.has(areaOf[s])) continue;
+    if (A2 && !A2.siteLive[s]) continue;                 /* outlet no longer trading */
     var cid = SITES[s][4];
     if (seen[cid]) continue;
+    if (A2 && !A2.custLive[cid]) continue;
     seen[cid] = 1;
     out.push({id:cid, label:CUSTOMERS[cid]});
   }
@@ -4438,6 +4445,8 @@ function outletItemOptions(){
   var out = [];
   for (var i=0;i<NI;i++){
     if (!analysisItemInDep(i)) continue;
+    if (state.oSales === 'promo' && ITEMS[i][3] !== 'Promotion') continue;
+    if (state.oSales === 'reg' && ITEMS[i][3] === 'Promotion') continue;
     if (state.oCat !== null && catOf[i] !== state.oCat) continue;
     out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
   }
@@ -4447,8 +4456,12 @@ function initOutlet(){
   msOArea = MultiSelect('msOArea', {
     allLabel:'All areas',
     options: function(){
+      /* only areas that still have a trading outlet, exactly as the other tabs
+         build their lists — a spelling that survives on a dead outlet drops out */
+      var A2 = (F && state.yrB) ? analysisScan() : null;
       var seen = {}, out = [];
       for (var i=0;i<SITES.length;i++){
+        if (A2 && !A2.siteLive[i]) continue;
         var a = areaOf[i];
         if (seen[a]) continue;
         seen[a] = 1;
@@ -4468,7 +4481,7 @@ function initOutlet(){
     }
   });
   msOCust = MultiSelect('msOCust', {
-    allLabel:'All customers',
+    allLabel:'Active customers',
     options: outletCustomerOptions,
     sel: function(){ return state.oCust; },
     changed: function(){ renderOutlet(); }
@@ -4502,16 +4515,22 @@ document.getElementById('oCat').addEventListener('change', function(){
   if (msOItem) msOItem.refresh();
   renderOutlet();
 });
+document.getElementById('oSales').addEventListener('change', function(){
+  state.oSales = this.value;
+  if (msOItem) msOItem.refresh();
+  renderOutlet();
+});
 document.getElementById('oStatus').addEventListener('change', function(){
   state.oStatus = this.value;
   renderOutlet();
 });
 document.getElementById('oReset').addEventListener('click', function(){
   state.oArea.clear(); state.oCust.clear(); state.oItems.clear();
-  state.oCat = null; state.oStatus = 'all';
+  state.oCat = null; state.oStatus = 'all'; state.oSales = 'all';
   outletOpen = {};
   document.getElementById('oCat').value = '';
   document.getElementById('oStatus').value = 'all';
+  document.getElementById('oSales').value = 'all';
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
   if (msOItem) msOItem.refresh();
@@ -4525,7 +4544,7 @@ document.getElementById('oCsv').addEventListener('click', function(){
               'Category','Item Code','Item Description',
               state.yrA+' QTY', state.yrB+' QTY',
               state.yrA+' Value', state.yrB+' Value','Difference','% Change',
-              'Outlet Status','Warehouse Stock','Last Supplied','Months Since'];
+              'Outlet Status','Warehouse Stock','Last Supplied'];
   var lines = [head.join(',')];
   var q = function(t){ return '"' + String(t == null ? '' : t).replace(/"/g,'""') + '"'; };
 
@@ -4538,10 +4557,7 @@ document.getElementById('oCsv').addEventListener('click', function(){
         var vA = A2.vA[idx], vB = A2.vB[idx], qA = A2.qA[idx], qB = A2.qB[idx];
         var lp = A2.lastP[idx], la = A2.lastAny[idx];
         if (!vA && !vB && !qA && !qB && la < 0) continue;
-        var e = effLast(lp, la);
-        var lt = la < 0 ? 'NEVER SUPPLIED'
-                        : (function(){ var o = periodOf(e); return MONTHS[o.month]+' '+o.year +
-                                       (lp < 0 ? ' (returns only)' : ''); })();
+        var lt = outletLastPlain(lp, la);
         var pc = vA ? ((vB/vA - 1) * 100).toFixed(1) : (vB ? 'NEW' : '');
         lines.push([
           q(CUSTOMERS[g.cid]), q(areaLabel(areaOf[st.s])), q(SITES[st.s][1]), SITES[st.s][2],
@@ -4551,7 +4567,7 @@ document.getElementById('oCsv').addEventListener('click', function(){
           vA.toFixed(2), vB.toFixed(2), (vB-vA).toFixed(2), pc,
           st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change'),
           STOCK ? Math.round(stockOf(i)) : '',
-          lt, la < 0 ? '' : (ref - e)
+          lt
         ].join(','));
       }
     });
