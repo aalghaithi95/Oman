@@ -391,9 +391,16 @@ function setDep(d){
   if (msACust) msACust.refresh();
   if (msAItem) msAItem.refresh();
   buildCatFilter();
+  buildOutletCats();
   loadChecks();
   renderHead(); render();
   if (TAB === 'analysis') renderAnalysis();
+  if (TAB === 'outlet') renderOutlet();
+  if (TAB === 'outlet'){
+    Array.from(state.oItems).forEach(function(i){ if (!analysisItemInDep(i)) state.oItems.delete(i); });
+    if (msOItem) msOItem.refresh();
+    renderOutlet();
+  }
 }
 document.querySelectorAll('.deps').forEach(function(box){
   box.addEventListener('click', function(e){
@@ -683,6 +690,33 @@ body.neopen .necard{transform:translateY(0)}
   .acard:hover{background:#FAFAF8}
 }
 .imtbl.vhist td.empty{padding:18px;text-align:center;color:var(--muted)}
+
+/* ---------- outlet performance ---------- */
+#otbl th.o-site,#otbl td.o-site{width:30%}
+#otbl th.o-cat,#otbl td.o-cat{width:16%}
+#otbl th.o-last,#otbl td.o-last{width:13%;white-space:nowrap}
+#otbl tr.osite{cursor:pointer}
+#otbl tr.osite td{border-top:1px solid var(--line)}
+#otbl tr.osite:hover td{background:#FAFAF8}
+#otbl tr.osite .tw{display:inline-block;width:13px;color:var(--muted);font-size:9px}
+#otbl tr.osite.up td.o-site{box-shadow:inset 3px 0 0 var(--pos)}
+#otbl tr.osite.down td.o-site{box-shadow:inset 3px 0 0 var(--neg)}
+#otbl tr.osite.flat td.o-site{box-shadow:inset 3px 0 0 var(--line)}
+#otbl .gap{display:inline-block;margin-left:6px;font-size:10px;color:var(--muted);
+  background:var(--paper-2);border:1px solid var(--line);border-radius:20px;padding:1px 6px}
+#otbl .gap.ret{background:var(--neg-bg);border-color:#E3B5AA;color:var(--neg)}
+#otbl .never{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--neg)}
+#otbl tr.ocat td{background:#FBFBF9;color:var(--muted);font-size:11.5px}
+#otbl tr.ocat td.o-cat{padding-left:16px}
+.ostat{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+.ostat.up{color:var(--pos);border-color:#A7CDB5;background:var(--pos-bg)}
+.ostat.down{color:var(--neg);border-color:#E3B5AA;background:var(--neg-bg)}
+.ostat.flat{color:var(--muted)}
+@media (max-width:760px){
+  #otbl th.o-cat,#otbl td.o-cat{width:auto}
+  #otbl{font-size:11.5px}
+}
 </style>
 </head>
 <body>
@@ -719,6 +753,7 @@ body.neopen .necard{transform:translateY(0)}
   <div class="tabs" id="tabs">
     <button class="tab on" type="button" data-t="visit">Market Visit</button>
     <button class="tab" type="button" data-t="analysis">Analysis</button>
+    <button class="tab" type="button" data-t="outlet">Outlet Performance</button>
   </div>
 
 <div id="paneVisit">
@@ -923,6 +958,90 @@ body.neopen .necard{transform:translateY(0)}
     </div>
   </div>
 </div><!-- /paneAnalysis -->
+
+<div id="paneOutlet" style="display:none">
+  <div class="deps" data-pane="outlet">
+    <button class="dep on" type="button" data-d="ALL">All</button>
+    <button class="dep" type="button" data-d="CPD">CPD</button>
+    <button class="dep" type="button" data-d="FSD">FSD</button>
+    <span class="dephint" id="depHint3"></span>
+  </div>
+  <div class="filters">
+    <div class="field f-area">
+      <span>Area</span>
+      <div class="ms" id="msOArea">
+        <button class="ms-btn" type="button" data-role="btn"><b>All areas</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search area…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="field f-cust">
+      <span>Customer</span>
+      <div class="ms" id="msOCust">
+        <button class="ms-btn" type="button" data-role="btn"><b>All customers</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search customer…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <span>Category</span>
+      <select id="oCat"></select>
+    </div>
+    <div class="field f-item">
+      <span>Item Description</span>
+      <div class="ms" id="msOItem">
+        <button class="ms-btn" type="button" data-role="btn"><b>All items</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search item…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <span>Performance</span>
+      <select id="oStatus">
+        <option value="all">Show all</option>
+        <option value="up">Growth</option>
+        <option value="down">Decline</option>
+        <option value="flat">No change</option>
+      </select>
+    </div>
+    <div class="fbtns">
+      <button class="btn ghost" id="oReset">Reset filters</button>
+      <button class="btn" id="oCsv">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="kpis" id="oKpis"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Outlet performance</h2>
+      <span class="count" id="oCount"></span>
+      <div class="right"><span class="eyebrow" id="oScope"></span></div>
+    </div>
+    <div class="tscroll" id="oScroll">
+      <table id="otbl">
+        <thead><tr>
+          <th class="o-site">Customer Site</th>
+          <th class="o-cat">Category</th>
+          <th class="r" id="oYrA"></th>
+          <th class="r" id="oYrB"></th>
+          <th class="r">Difference</th>
+          <th class="r">% Change</th>
+          <th class="o-last">Last Supplied</th>
+        </tr></thead>
+      </table>
+    </div>
+  </div>
+</div><!-- /paneOutlet -->
 
   <div class="foot">
     <span id="footMeta"></span>
@@ -1987,6 +2106,7 @@ var state = {
   cust: new Set(), site: new Set(),
   cat: null, q: '', area: new Set(), dep: 'ALL',
   aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
+  oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
@@ -3512,10 +3632,12 @@ function showTab(t){
   document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.dataset.t === t); });
   document.getElementById('paneVisit').style.display = (t === 'visit') ? '' : 'none';
   document.getElementById('paneAnalysis').style.display = (t === 'analysis') ? '' : 'none';
+  document.getElementById('paneOutlet').style.display = (t === 'outlet') ? '' : 'none';
   if (t === 'analysis'){
     renderAnalysis();
     setTimeout(function(){ syncAnHeadHeight(); measureGroups(); }, 0);
   }
+  if (t === 'outlet') renderOutlet();
 }
 document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
@@ -4111,6 +4233,337 @@ document.getElementById('imBody').addEventListener('click', function(e){
 });
 document.getElementById('visitHist').addEventListener('click', openHistory);
 
+/* ================= Outlet Performance =================
+   Built on the Analysis tab's scan and styling. Where Analysis asks "which items
+   has this outlet stopped buying", this tab asks "which outlets are growing and
+   which are shrinking", under whatever slice of the range you choose. */
+
+var msOArea = null, msOCust = null, msOItem = null;
+var outletRowsCache = [], outletOpen = {};
+
+/* which items count towards an outlet's figures, given this tab's filters */
+function outletItemOk(i){
+  if (ITEMS[i][3] === 'Promotion') return true;      /* promo sales still belong to the outlet */
+  return true;
+}
+function outletItemInScope(i){
+  if (!analysisItemInDep(i)) return false;            /* the ALL / CPD / FSD switch */
+  if (state.oCat !== null && catOf[i] !== state.oCat) return false;
+  if (state.oItems.size && !state.oItems.has(i)) return false;
+  return true;
+}
+
+/* one pass building customer -> site -> category, on the current scope */
+function buildOutlet(){
+  var A2 = analysisScan();
+  var ref = A2.ref;
+  var items = [];
+  for (var i=0;i<NI;i++) if (outletItemInScope(i)) items.push(i);
+
+  var byCust = {}, order = [];
+  for (var s=0; s<SITES.length; s++){
+    if (state.oArea.size && !state.oArea.has(areaOf[s])) continue;
+    var cid = SITES[s][4];
+    if (state.oCust.size && !state.oCust.has(cid)) continue;
+
+    var base = s*NI, vA = 0, vB = 0, lp = -1, la = -1, cats = {};
+    for (var k=0;k<items.length;k++){
+      var it = items[k], idx = base + it;
+      var a = A2.vA[idx], b = A2.vB[idx];
+      var lpi = A2.lastP[idx], lai = A2.lastAny[idx];
+      if (!a && !b && lpi < 0 && lai < 0) continue;
+      vA += a; vB += b;
+      if (lpi > lp) lp = lpi;
+      if (lai > la) la = lai;
+      if (!a && !b) continue;                          /* nothing in either year */
+      var c = catOf[it];
+      var cc = cats[c] || (cats[c] = {c:c, vA:0, vB:0, lp:-1, la:-1});
+      cc.vA += a; cc.vB += b;
+      if (lpi > cc.lp) cc.lp = lpi;
+      if (lai > cc.la) cc.la = lai;
+    }
+    if (!vA && !vB) continue;                         /* nothing in scope at this outlet */
+
+    var diff = vB - vA;
+    var status = diff > 0.005 ? 'up' : (diff < -0.005 ? 'down' : 'flat');
+    if (state.oStatus !== 'all' && state.oStatus !== status) continue;
+
+    var g = byCust[cid] || (byCust[cid] = {cid:cid, vA:0, vB:0, sites:[]});
+    g.vA += vA; g.vB += vB;
+    g.sites.push({s:s, vA:vA, vB:vB, diff:diff, status:status, lp:lp, la:la,
+                  cats: Object.keys(cats).map(function(x){ return cats[x]; })
+                          .sort(function(p,q){ return (q.vB - q.vA) - (p.vB - p.vA); })});
+  }
+  for (var key in byCust){
+    var grp = byCust[key];
+    grp.diff = grp.vB - grp.vA;
+    grp.sites.sort(function(p,q){ return Math.abs(q.diff) - Math.abs(p.diff); });
+    order.push(grp);
+  }
+  /* biggest customers first, exactly as the Analysis tab ranks them */
+  order.sort(function(p,q){ return (q.vB + q.vA) - (p.vB + p.vA); });
+  return {groups: order, ref: ref};
+}
+
+var OUT_PER_CUST = 12, OUT_CAP = 600;
+function renderOutlet(){
+  if (!F) return;
+  var built = buildOutlet();
+  outletRowsCache = built.groups;
+
+  /* ---- cards ---- */
+  var grown = 0, declined = 0, valUp = 0, valDown = 0, siteCount = 0;
+  built.groups.forEach(function(g){
+    g.sites.forEach(function(st){
+      siteCount++;
+      if (st.status === 'up'){ grown++; valUp += st.diff; }
+      else if (st.status === 'down'){ declined++; valDown += -st.diff; }
+    });
+  });
+  function kpi(lab, val, sub, cls){
+    return '<div class="kpi"><div class="eyebrow">'+lab+'</div><div class="v">'+val+'</div>' +
+           '<div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
+  }
+  document.getElementById('oKpis').innerHTML =
+    kpi('Grown Outlets', nf0.format(grown),
+        siteCount ? Math.round(grown/siteCount*100) + '% of outlets in scope' : 'no outlets in scope',
+        grown ? 'up' : 'flat') +
+    kpi('Declined Outlets', nf0.format(declined),
+        siteCount ? Math.round(declined/siteCount*100) + '% of outlets in scope' : 'no outlets in scope',
+        declined ? 'down' : 'flat') +
+    kpi('Value Growth', nf0.format(Math.round(valUp)),
+        'gained by growing outlets', valUp ? 'up' : 'flat') +
+    kpi('Value Decline', nf0.format(Math.round(valDown)),
+        'lost by declining outlets', valDown ? 'down' : 'flat');
+
+  /* ---- table ---- */
+  var html = '', printed = 0, ref = built.ref;
+  for (var gi=0; gi<built.groups.length && printed < OUT_CAP; gi++){
+    var g = built.groups[gi];
+    html += '<tbody class="ogrp">';
+    html += '<tr class="cat"><td class="catname" colspan="2">' + esc(CUSTOMERS[g.cid]) +
+            ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
+            g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
+            '<td class="num">' + fmtS(g.vA) + '</td>' +
+            '<td class="num">' + fmtS(g.vB) + '</td>' +
+            '<td class="num"><span class="' + (g.diff>0?'up':(g.diff<0?'down':'flat')) + '">' +
+              (g.diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(g.diff))) + '</span></td>' +
+            '<td class="num">' + pctCell(g.vB, g.vA) + '</td>' +
+            '<td></td></tr>';
+
+    for (var si=0; si<g.sites.length && printed < OUT_CAP; si++){
+      if (si >= OUT_PER_CUST){
+        html += '<tr class="more"><td colspan="7">' + (g.sites.length - OUT_PER_CUST) +
+                ' more outlets for ' + esc(CUSTOMERS[g.cid]) +
+                ' — filter to this customer, or export the CSV, to see them all</td></tr>';
+        break;
+      }
+      var st = g.sites[si];
+      var key = g.cid + ':' + st.s;
+      var open = !!outletOpen[key];
+      printed++;
+      html += '<tr class="osite ' + st.status + (open ? ' open' : '') + '" data-key="' + esc(key) + '">' +
+        '<td class="o-site"><span class="tw">' + (open ? '▾' : '▸') + '</span>' + esc(SITES[st.s][1]) + '</td>' +
+        '<td class="o-cat"><span class="ostat ' + st.status + '">' +
+          (st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change')) + '</span></td>' +
+        '<td class="num">' + fmt(st.vA) + '</td>' +
+        '<td class="num">' + fmt(st.vB) + '</td>' +
+        '<td class="num"><span class="' + (st.diff>0?'up':(st.diff<0?'down':'flat')) + '">' +
+          (st.diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(st.diff))) + '</span></td>' +
+        '<td class="num">' + pctCell(st.vB, st.vA) + '</td>' +
+        '<td class="o-last">' + gapLabel(st.lp, st.la, ref) + '</td></tr>';
+
+      if (open){
+        st.cats.forEach(function(c){
+          var d = c.vB - c.vA;
+          html += '<tr class="ocat"><td class="o-site"></td>' +
+            '<td class="o-cat">' + esc(CATS[c.c]) + '</td>' +
+            '<td class="num">' + fmt(c.vA) + '</td>' +
+            '<td class="num">' + fmt(c.vB) + '</td>' +
+            '<td class="num"><span class="' + (d>0?'up':(d<0?'down':'flat')) + '">' +
+              (d>=0?'+':'−') + nf0.format(Math.abs(Math.round(d))) + '</span></td>' +
+            '<td class="num">' + pctCell(c.vB, c.vA) + '</td>' +
+            '<td class="o-last">' + gapLabel(c.lp, c.la, ref) + '</td></tr>';
+        });
+      }
+    }
+    html += '</tbody>';
+  }
+
+  var tbl = document.getElementById('otbl');
+  var olds = tbl.querySelectorAll('tbody');
+  for (var ob=0; ob<olds.length; ob++) olds[ob].parentNode.removeChild(olds[ob]);
+  tbl.insertAdjacentHTML('beforeend', html ||
+    '<tbody><tr><td colspan="7" class="empty">No outlets match these filters.</td></tr></tbody>');
+
+  document.getElementById('oYrA').textContent = state.yrA + ' Value';
+  document.getElementById('oYrB').textContent = state.yrB + ' Value';
+  document.getElementById('oCount').textContent =
+    nf0.format(siteCount) + ' outlets · ' + built.groups.length + ' customers' +
+    (printed < siteCount ? ' · showing the largest ' + OUT_PER_CUST + ' per customer' : '');
+  document.getElementById('oScope').textContent =
+    periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · ' + depLabel() +
+    (state.oArea.size ? ' · ' + (state.oArea.size === 1
+        ? (function(){ var n=''; state.oArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
+        : state.oArea.size + ' areas') : '') +
+    (state.oCat !== null ? ' · ' + CATS[state.oCat] : '') +
+    (state.oItems.size ? ' · ' + state.oItems.size + ' item' + (state.oItems.size>1?'s':'') : '') +
+    (state.oStatus !== 'all' ? ' · ' +
+      (state.oStatus === 'up' ? 'growth only' : (state.oStatus === 'down' ? 'decline only' : 'no change only')) : '');
+}
+
+/* expand a site to its categories */
+document.getElementById('otbl').addEventListener('click', function(e){
+  var row = e.target.closest('tr.osite');
+  if (!row) return;
+  var key = row.dataset.key;
+  if (outletOpen[key]) delete outletOpen[key]; else outletOpen[key] = 1;
+  renderOutlet();
+});
+
+/* ---------- filters ---------- */
+function outletCustomerOptions(){
+  var A2 = (F && state.yrB) ? analysisScan() : null;
+  var seen = {}, out = [];
+  for (var s=0; s<SITES.length; s++){
+    if (state.oArea.size && !state.oArea.has(areaOf[s])) continue;
+    var cid = SITES[s][4];
+    if (seen[cid]) continue;
+    seen[cid] = 1;
+    out.push({id:cid, label:CUSTOMERS[cid]});
+  }
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function outletItemOptions(){
+  var out = [];
+  for (var i=0;i<NI;i++){
+    if (!analysisItemInDep(i)) continue;
+    if (state.oCat !== null && catOf[i] !== state.oCat) continue;
+    out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
+  }
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function initOutlet(){
+  msOArea = MultiSelect('msOArea', {
+    allLabel:'All areas',
+    options: function(){
+      var seen = {}, out = [];
+      for (var i=0;i<SITES.length;i++){
+        var a = areaOf[i];
+        if (seen[a]) continue;
+        seen[a] = 1;
+        out.push({id:a, label:areaLabel(a)});
+      }
+      return out.sort(function(x,y){ return x.label < y.label ? -1 : 1; });
+    },
+    sel: function(){ return state.oArea; },
+    changed: function(){
+      if (state.oCust.size){
+        var ok = {};
+        outletCustomerOptions().forEach(function(o){ ok[o.id] = 1; });
+        Array.from(state.oCust).forEach(function(c){ if (!ok[c]) state.oCust.delete(c); });
+      }
+      if (msOCust) msOCust.refresh();
+      renderOutlet();
+    }
+  });
+  msOCust = MultiSelect('msOCust', {
+    allLabel:'All customers',
+    options: outletCustomerOptions,
+    sel: function(){ return state.oCust; },
+    changed: function(){ renderOutlet(); }
+  });
+  msOItem = MultiSelect('msOItem', {
+    allLabel:'All items',
+    options: outletItemOptions,
+    sel: function(){ return state.oItems; },
+    changed: function(){ renderOutlet(); }
+  });
+  buildOutletCats();
+}
+function buildOutletCats(){
+  var sel = document.getElementById('oCat');
+  if (!sel) return;
+  var live = {};
+  for (var i=0;i<NI;i++) if (analysisItemInDep(i)) live[catOf[i]] = 1;
+  if (state.oCat !== null && !live[state.oCat]) state.oCat = null;
+  sel.innerHTML = '<option value="">All categories</option>' +
+    CATS.map(function(n,i){ return {i:i, n:n}; })
+        .filter(function(o){ return live[o.i]; })
+        .sort(function(a,b){ return a.n<b.n?-1:1; })
+        .map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
+  sel.value = state.oCat === null ? '' : String(state.oCat);
+}
+document.getElementById('oCat').addEventListener('change', function(){
+  state.oCat = this.value === '' ? null : +this.value;
+  if (state.oItems.size && state.oCat !== null){
+    Array.from(state.oItems).forEach(function(i){ if (catOf[i] !== state.oCat) state.oItems.delete(i); });
+  }
+  if (msOItem) msOItem.refresh();
+  renderOutlet();
+});
+document.getElementById('oStatus').addEventListener('change', function(){
+  state.oStatus = this.value;
+  renderOutlet();
+});
+document.getElementById('oReset').addEventListener('click', function(){
+  state.oArea.clear(); state.oCust.clear(); state.oItems.clear();
+  state.oCat = null; state.oStatus = 'all';
+  outletOpen = {};
+  document.getElementById('oCat').value = '';
+  document.getElementById('oStatus').value = 'all';
+  if (msOArea) msOArea.refresh();
+  if (msOCust) msOCust.refresh();
+  if (msOItem) msOItem.refresh();
+  renderOutlet();
+});
+
+/* ---------- export: item-level detail, the way the Analysis tab does it ---------- */
+document.getElementById('oCsv').addEventListener('click', function(){
+  var A2 = analysisScan(), ref = A2.ref;
+  var head = ['Customer','Area','Customer Site','Site Code','Channel','Last Active Salesman',
+              'Category','Item Code','Item Description',
+              state.yrA+' QTY', state.yrB+' QTY',
+              state.yrA+' Value', state.yrB+' Value','Difference','% Change',
+              'Outlet Status','Warehouse Stock','Last Supplied','Months Since'];
+  var lines = [head.join(',')];
+  var q = function(t){ return '"' + String(t == null ? '' : t).replace(/"/g,'""') + '"'; };
+
+  outletRowsCache.forEach(function(g){
+    g.sites.forEach(function(st){
+      var base = st.s*NI;
+      for (var i=0;i<NI;i++){
+        if (!outletItemInScope(i)) continue;
+        var idx = base + i;
+        var vA = A2.vA[idx], vB = A2.vB[idx], qA = A2.qA[idx], qB = A2.qB[idx];
+        var lp = A2.lastP[idx], la = A2.lastAny[idx];
+        if (!vA && !vB && !qA && !qB && la < 0) continue;
+        var e = effLast(lp, la);
+        var lt = la < 0 ? 'NEVER SUPPLIED'
+                        : (function(){ var o = periodOf(e); return MONTHS[o.month]+' '+o.year +
+                                       (lp < 0 ? ' (returns only)' : ''); })();
+        var pc = vA ? ((vB/vA - 1) * 100).toFixed(1) : (vB ? 'NEW' : '');
+        lines.push([
+          q(CUSTOMERS[g.cid]), q(areaLabel(areaOf[st.s])), q(SITES[st.s][1]), SITES[st.s][2],
+          SITES[st.s][3], q(SITES[st.s][5] || ''),
+          q(ITEMS[i][2]), ITEMS[i][0], q(ITEMS[i][1]),
+          qA.toFixed(2), qB.toFixed(2),
+          vA.toFixed(2), vB.toFixed(2), (vB-vA).toFixed(2), pc,
+          st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change'),
+          STOCK ? Math.round(stockOf(i)) : '',
+          lt, la < 0 ? '' : (ref - e)
+        ].join(','));
+      }
+    });
+  });
+  var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'delicio_oman_outlet_performance_' + periodLabel() + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
 /* ================= boot ================= */
 function showLoader(msg){
   var el = document.getElementById('loading');
@@ -4139,6 +4592,7 @@ function afterLoad(rebuild){
     buildSelectors();
     buildCatFilter();
     initAnalysis();
+    initOutlet();
     built = true;
   } else if (rebuild){
     msCust.refresh(); msSite.refresh();
@@ -4158,6 +4612,11 @@ function afterLoad(rebuild){
   if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
   if (msAItem) msAItem.refresh();
+  if (msOArea) msOArea.refresh();
+  if (msOCust) msOCust.refresh();
+  if (msOItem) msOItem.refresh();
+  buildOutletCats();
+  if (TAB === 'outlet') renderOutlet();
   loadChecks();
   renderHead(); syncPresets(); render();
   vqSet(vqGet());                /* show anything still waiting */
