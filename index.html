@@ -668,6 +668,17 @@ body.neopen .necard{transform:translateY(0)}
   #otbl{font-size:11.5px}
 }
 
+
+/* ---------- value / volume switch ---------- */
+.metsw{display:flex;margin-top:6px}
+.met{background:#fff;border:1px solid var(--line);border-right:none;padding:5px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);cursor:pointer}
+.met:first-child{border-radius:var(--r) 0 0 var(--r)}
+.met:last-child{border-right:1px solid var(--line);border-radius:0 var(--r) var(--r) 0}
+.met:hover{color:var(--ink)}
+.met.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.met.on + .met{border-left-color:var(--ink)}
 </style>
 </head>
 <body>
@@ -828,6 +839,10 @@ body.neopen .necard{transform:translateY(0)}
           <div class="ms-list" data-role="list"></div>
         </div>
       </div>
+      <div class="metsw" data-met="a">
+        <button class="met on" type="button" data-m="value">Value</button>
+        <button class="met" type="button" data-m="volume">Volume</button>
+      </div>
     </div>
     <div class="field f-cust">
       <span>Customer</span>
@@ -927,6 +942,10 @@ body.neopen .necard{transform:translateY(0)}
           <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
           <div class="ms-list" data-role="list"></div>
         </div>
+      </div>
+      <div class="metsw" data-met="o">
+        <button class="met on" type="button" data-m="value">Value</button>
+        <button class="met" type="button" data-m="volume">Volume</button>
       </div>
     </div>
     <div class="field f-cust">
@@ -2068,6 +2087,7 @@ var state = {
   cust: new Set(), site: new Set(),
   cat: null, q: '', area: new Set(), dep: 'ALL',
   aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
+  aMetric: 'value', oMetric: 'value',
   oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
@@ -2383,8 +2403,8 @@ function render(){
   var lv = lost.reduce(function(s,r){ return s+r.v; }, 0);
   document.getElementById('lostNote').textContent = lost.length ? nf0.format(Math.round(lv))+' of '+state.yrA+' value at risk' : '';
 
-  document.getElementById('anYrA').textContent = state.yrA + ' Value';
-  document.getElementById('anYrB').textContent = state.yrB + ' Value';
+  document.getElementById('anYrA').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
   if (TAB === 'analysis') renderAnalysis();
 }
 
@@ -3121,6 +3141,7 @@ function analysisScan(){
   var custA = new Float64Array(CUSTOMERS.length), custB = new Float64Array(CUSTOMERS.length);
   var custLive = new Uint8Array(CUSTOMERS.length);
   var siteA = new Float64Array(NS), siteB = new Float64Array(NS);
+  var siteQA = new Float64Array(NS), siteQB = new Float64Array(NS);
   var siteLive = new Uint8Array(NS);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, N = fs.length;
@@ -3142,15 +3163,16 @@ function analysisScan(){
        outlets is still shipping. Judged on the whole year, not the month range. */
     if (yi === ib && fq[k] > 0){ siteLive[s] = 1; custLive[siteCust[s]] = 1; }
     if (m >= m1 && m <= m2){
-      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; siteA[s] += fv[k]; }
-      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; siteB[s] += fv[k]; }
+      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; siteA[s] += fv[k]; siteQA[s] += fq[k]; }
+      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; siteB[s] += fv[k]; siteQB[s] += fq[k]; }
     }
   }
   var dormant = 0, closedSites = 0;
   for (var ci=0; ci<CUSTOMERS.length; ci++) if (!custLive[ci]) dormant++;
   for (var sj=0; sj<NS; sj++) if (!siteLive[sj]) closedSites++;
   AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, qA:qA, qB:qB,
-        custA:custA, custB:custB, siteA:siteA, siteB:siteB, custLive:custLive, dormant:dormant,
+        custA:custA, custB:custB, siteA:siteA, siteB:siteB, siteQA:siteQA, siteQB:siteQB,
+        custLive:custLive, dormant:dormant,
         siteLive:siteLive, closedSites:closedSites, ref:(NY-1)*12 + LASTM};
   return AN;
 }
@@ -3217,6 +3239,9 @@ function renderAnalysis(){
   if (!F) return;
   var A2 = analysisScan();
   anRows = buildAnalysisRows();
+  /* the two value columns follow the Value / Volume switch */
+  document.getElementById('anYrA').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
 
   var lostVal = 0, custSet = {}, siteSet = {}, neverN = 0;
   for (var r=0;r<anRows.length;r++){
@@ -3240,12 +3265,14 @@ function renderAnalysis(){
      category, item, gap and never-supplied filters narrow the rows beneath, not
      the customer's business. */
   var custTotA = {}, custTotB = {};
+  var srcA = state.aMetric === 'volume' ? A2.siteQA : A2.siteA;
+  var srcB = state.aMetric === 'volume' ? A2.siteQB : A2.siteB;
   for (var st=0; st<SITES.length; st++){
     if (state.aArea.size && !state.aArea.has(areaOf[st])) continue;
     if (state.aCust.size && !state.aCust.has(SITES[st][4])) continue;
     var ct = SITES[st][4];
-    custTotA[ct] = (custTotA[ct] || 0) + A2.siteA[st];
-    custTotB[ct] = (custTotB[ct] || 0) + A2.siteB[st];
+    custTotA[ct] = (custTotA[ct] || 0) + srcA[st];
+    custTotB[ct] = (custTotB[ct] || 0) + srcB[st];
   }
   /* count per customer up front so each group can show its own total */
   var perCust = {}, lossCust = {};
@@ -3284,17 +3311,18 @@ function renderAnalysis(){
       continue;
     }
     printed++;
-    var diff = d.vB - d.vA;
+    var rA = aIsVolume() ? d.qA : d.vA, rB = aIsVolume() ? d.qB : d.vB;
+    var diff = rB - rA;
     html += '<tr' + (d.never ? ' class="nsup"' : '') + '>' +
       '<td class="a-cust">' + esc(CUSTOMERS[d.cid]) + '</td>' +
       '<td class="a-site">' + esc(SITES[d.s][1]) + '</td>' +
       '<td class="a-cat">' + esc(ITEMS[d.i][2]) + '</td>' +
       '<td class="a-code mono" style="font-size:11px">' + ITEMS[d.i][0] + '</td>' +
       '<td class="desc" title="' + esc(ITEMS[d.i][1]) + '">' + esc(ITEMS[d.i][1]) + '</td>' +
-      '<td class="num a-va">' + fmt(d.vA) + '</td>' +
-      '<td class="num a-vb">' + fmt(d.vB) + '</td>' +
+      '<td class="num a-va">' + fmt(rA) + '</td>' +
+      '<td class="num a-vb">' + fmt(rB) + '</td>' +
       '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
-        (d.vA || d.vB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
+        (rA || rB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
       '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td>' +
       '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td></tr>';
   }
@@ -3545,6 +3573,7 @@ function setDep(d){
   state.aCust.clear();
   Array.from(state.oItems).forEach(function(i){ if (!analysisItemInDep(i)) state.oItems.delete(i); });
   syncDepButtons();
+  syncMetricButtons();
   placeControls();
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
@@ -3597,6 +3626,37 @@ if (wideMQ){
   if (wideMQ.addEventListener) wideMQ.addEventListener('change', placeControls);
   else if (wideMQ.addListener) wideMQ.addListener(placeControls);
 }
+
+/* ---------- Value / Volume, table figures only ---------- */
+function metricOf(which){ return which === 'a' ? state.aMetric : state.oMetric; }
+function aIsVolume(){ return state.aMetric === 'volume'; }
+function oIsVolume(){ return state.oMetric === 'volume'; }
+function syncMetricButtons(){
+  document.querySelectorAll('.metsw').forEach(function(box){
+    var cur = metricOf(box.dataset.met);
+    box.querySelectorAll('.met').forEach(function(b){
+      b.classList.toggle('on', b.dataset.m === cur);
+    });
+  });
+}
+document.querySelectorAll('.metsw').forEach(function(box){
+  box.addEventListener('click', function(e){
+    var b = e.target.closest('.met');
+    if (!b) return;
+    var which = box.dataset.met;
+    if (which === 'a'){
+      if (state.aMetric === b.dataset.m) return;
+      state.aMetric = b.dataset.m;
+      syncMetricButtons();
+      renderAnalysis();
+    } else {
+      if (state.oMetric === b.dataset.m) return;
+      state.oMetric = b.dataset.m;
+      syncMetricButtons();
+      renderOutlet();
+    }
+  });
+});
 
 function showTab(t){
   TAB = t;
@@ -4255,19 +4315,21 @@ function buildOutlet(){
     var cid = SITES[s][4];
     if (state.oCust.size && !state.oCust.has(cid)) continue;
 
-    var base = s*NI, vA = 0, vB = 0, lp = -1, la = -1, cats = {};
+    var base = s*NI, vA = 0, vB = 0, qtyA = 0, qtyB = 0, lp = -1, la = -1, cats = {};
     for (var k=0;k<items.length;k++){
       var it = items[k], idx = base + it;
       var a = A2.vA[idx], b = A2.vB[idx];
       var lpi = A2.lastP[idx], lai = A2.lastAny[idx];
       if (!a && !b && lpi < 0 && lai < 0) continue;
       vA += a; vB += b;
+      qtyA += A2.qA[idx]; qtyB += A2.qB[idx];
       if (lpi > lp) lp = lpi;
       if (lai > la) la = lai;
       if (!a && !b) continue;                          /* nothing in either year */
       var c = byItem ? it : catOf[it];
-      var cc = cats[c] || (cats[c] = {c:c, item:byItem, vA:0, vB:0, lp:-1, la:-1});
+      var cc = cats[c] || (cats[c] = {c:c, item:byItem, vA:0, vB:0, qA:0, qB:0, lp:-1, la:-1});
       cc.vA += a; cc.vB += b;
+      cc.qA += A2.qA[idx]; cc.qB += A2.qB[idx];
       if (lpi > cc.lp) cc.lp = lpi;
       if (lai > cc.la) cc.la = lai;
     }
@@ -4277,9 +4339,10 @@ function buildOutlet(){
     var status = diff > 0.005 ? 'up' : (diff < -0.005 ? 'down' : 'flat');
     if (state.oStatus !== 'all' && state.oStatus !== status) continue;
 
-    var g = byCust[cid] || (byCust[cid] = {cid:cid, vA:0, vB:0, sites:[]});
+    var g = byCust[cid] || (byCust[cid] = {cid:cid, vA:0, vB:0, qA:0, qB:0, sites:[]});
     g.vA += vA; g.vB += vB;
-    g.sites.push({s:s, vA:vA, vB:vB, diff:diff, status:status, lp:lp, la:la,
+    g.qA += qtyA; g.qB += qtyB;
+    g.sites.push({s:s, vA:vA, vB:vB, qA:qtyA, qB:qtyB, diff:diff, status:status, lp:lp, la:la,
                   cats: Object.keys(cats).map(function(x){ return cats[x]; })
                           /* largest current-year seller first */
                           .sort(function(p,q){ return q.vB - p.vB || q.vA - p.vA; })});
@@ -4338,18 +4401,21 @@ function renderOutlet(){
         'lost by declining outlets', valDown ? 'down' : 'flat');
 
   /* ---- table ---- */
+  var oVol = oIsVolume();
+  var pick = function(o){ return {a: oVol ? (o.qA||0) : o.vA, b: oVol ? (o.qB||0) : o.vB}; };
   var html = '', printed = 0, ref = built.ref;
   for (var gi=0; gi<built.groups.length && printed < OUT_CAP; gi++){
     var g = built.groups[gi];
     html += '<tbody class="ogrp">';
+    var gp = pick(g), gd = gp.b - gp.a;
     html += '<tr class="cat"><td class="catname" colspan="2">' + esc(CUSTOMERS[g.cid]) +
             ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
             g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
-            '<td class="num">' + fmtS(g.vA) + '</td>' +
-            '<td class="num">' + fmtS(g.vB) + '</td>' +
-            '<td class="num"><span class="' + (g.diff>0?'up':(g.diff<0?'down':'flat')) + '">' +
-              (g.diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(g.diff))) + '</span></td>' +
-            '<td class="num">' + pctCell(g.vB, g.vA) + '</td>' +
+            '<td class="num">' + fmtS(gp.a) + '</td>' +
+            '<td class="num">' + fmtS(gp.b) + '</td>' +
+            '<td class="num"><span class="' + (gd>0?'up':(gd<0?'down':'flat')) + '">' +
+              (gd>=0?'+':'−') + nf0.format(Math.abs(Math.round(gd))) + '</span></td>' +
+            '<td class="num">' + pctCell(gp.b, gp.a) + '</td>' +
             '<td></td></tr>';
 
     for (var si=0; si<g.sites.length && printed < OUT_CAP; si++){
@@ -4360,6 +4426,7 @@ function renderOutlet(){
         break;
       }
       var st = g.sites[si];
+      var sp = pick(st), sd = sp.b - sp.a;
       var key = g.cid + ':' + st.s;
       var open = !!outletOpen[key];
       printed++;
@@ -4367,23 +4434,23 @@ function renderOutlet(){
         '<td class="o-site"><span class="tw">' + (open ? '▾' : '▸') + '</span>' + esc(SITES[st.s][1]) + '</td>' +
         '<td class="o-cat"><span class="ostat ' + st.status + '">' +
           (st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change')) + '</span></td>' +
-        '<td class="num">' + fmt(st.vA) + '</td>' +
-        '<td class="num">' + fmt(st.vB) + '</td>' +
-        '<td class="num"><span class="' + (st.diff>0?'up':(st.diff<0?'down':'flat')) + '">' +
-          (st.diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(st.diff))) + '</span></td>' +
-        '<td class="num">' + pctCell(st.vB, st.vA) + '</td>' +
+        '<td class="num">' + fmt(sp.a) + '</td>' +
+        '<td class="num">' + fmt(sp.b) + '</td>' +
+        '<td class="num"><span class="' + (sd>0?'up':(sd<0?'down':'flat')) + '">' +
+          (sd>=0?'+':'−') + nf0.format(Math.abs(Math.round(sd))) + '</span></td>' +
+        '<td class="num">' + pctCell(sp.b, sp.a) + '</td>' +
         '<td class="o-last">' + outletLast(st.lp, st.la) + '</td></tr>';
 
       if (open){
         st.cats.forEach(function(c){
-          var d = c.vB - c.vA;
+          var cp = pick(c), d = cp.b - cp.a;
           html += '<tr class="ocat"><td class="o-site"></td>' +
             '<td class="o-cat">' + esc(c.item ? ITEMS[c.c][1] : CATS[c.c]) + '</td>' +
-            '<td class="num">' + fmt(c.vA) + '</td>' +
-            '<td class="num">' + fmt(c.vB) + '</td>' +
+            '<td class="num">' + fmt(cp.a) + '</td>' +
+            '<td class="num">' + fmt(cp.b) + '</td>' +
             '<td class="num"><span class="' + (d>0?'up':(d<0?'down':'flat')) + '">' +
               (d>=0?'+':'−') + nf0.format(Math.abs(Math.round(d))) + '</span></td>' +
-            '<td class="num">' + pctCell(c.vB, c.vA) + '</td>' +
+            '<td class="num">' + pctCell(cp.b, cp.a) + '</td>' +
             '<td class="o-last">' + outletLast(c.lp, c.la) + '</td></tr>';
         });
       }
@@ -4397,8 +4464,8 @@ function renderOutlet(){
   tbl.insertAdjacentHTML('beforeend', html ||
     '<tbody><tr><td colspan="7" class="empty">No outlets match these filters.</td></tr></tbody>');
 
-  document.getElementById('oYrA').textContent = state.yrA + ' Value';
-  document.getElementById('oYrB').textContent = state.yrB + ' Value';
+  document.getElementById('oYrA').textContent = state.yrA + (oIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('oYrB').textContent = state.yrB + (oIsVolume() ? ' QTY' : ' Value');
   document.getElementById('oCount').textContent =
     nf0.format(siteCount) + ' outlets · ' + built.groups.length + ' customers' +
     (printed < siteCount ? ' · showing the largest ' + OUT_PER_CUST + ' per customer' : '');
