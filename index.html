@@ -1168,8 +1168,18 @@ function buildAreaStock(){
 /* the area stock relevant to what is on screen: one area shows its own figure,
    several show their sum */
 function areasInScope(){
+  /* a chosen outlet is the tightest scope there is — its own area is the one
+     whose stock matters, whatever the area picker happens to say */
+  var seen = {}, out = [];
+  if (state.site.size){
+    state.site.forEach(function(s){
+      var a = areaOf[s];
+      if (!seen[a]){ seen[a] = 1; out.push(a); }
+    });
+    return out;
+  }
   if (state.area.size) return Array.from(state.area);
-  var seen = {}, out = [], scope = maskSites();
+  var scope = maskSites();
   for (var i=0;i<scope.length;i++){
     var a = areaOf[scope[i]];
     if (!seen[a]){ seen[a] = 1; out.push(a); }
@@ -2932,16 +2942,22 @@ function buildSelectors(){
     },
     sel: function(){ return state.site; },
     changed: function(){
-      /* a site belongs to one customer — select that customer and only that one,
-         so the two pickers always agree */
+      /* a site belongs to one customer and sits in one area — select both, so all
+         three pickers always agree */
       if (state.site.size){
-        var parents = new Set();
-        state.site.forEach(function(s){ parents.add(SITES[s][4]); });
+        var parents = new Set(), areas = new Set();
+        state.site.forEach(function(s){ parents.add(SITES[s][4]); areas.add(areaOf[s]); });
         var same = (parents.size === state.cust.size);
         if (same) parents.forEach(function(c){ if (!state.cust.has(c)) same = false; });
         if (!same){
           state.cust = parents;
           msCust.refresh();
+        }
+        var sameArea = (areas.size === state.area.size);
+        if (sameArea) areas.forEach(function(a){ if (!state.area.has(a)) sameArea = false; });
+        if (!sameArea){
+          state.area = areas;
+          if (msArea) msArea.refresh();
         }
       }
       reload();
@@ -3092,7 +3108,7 @@ document.getElementById('csv').addEventListener('click', function(){
   var rows = sortRows(buildRows());
   var head = ['Sales Type','Category','Item Code','Store Check','Item Description',
               state.yrA+' QTY',state.yrB+' QTY','Avg QTY/Mo',state.yrA+' Value',state.yrB+' Value',
-              'Value Change %','Value vs '+state.yrA,'Warehouse Stock','Last Supplied'];
+              'Value Change %','Value vs '+state.yrA,'Warehouse Stock','Area Stock','Last Supplied'];
   var lines = [head.join(',')];
   rows.forEach(function(r){
     var pv = r.vA ? (r.vB/r.vA-1)*100 : '';
@@ -3101,7 +3117,9 @@ document.getElementById('csv').addEventListener('click', function(){
     lines.push([r.type, r.cat, r.code, chk, '"'+r.desc.replace(/"/g,'""')+'"',
       r.qA.toFixed(2), r.qB.toFixed(2), r.avgq.toFixed(2),
       r.vA.toFixed(2), r.vB.toFixed(2), pv===''?'':pv.toFixed(1),
-      r.delta.toFixed(2), STOCK ? r.stock.toFixed(0) : '', lt].join(','));
+      r.delta.toFixed(2), STOCK ? r.stock.toFixed(0) : '',
+      (r.astock === null || r.astock === undefined) ? '' : Math.round(r.astock),
+      lt].join(','));
   });
   var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
   var a = document.createElement('a');
@@ -3634,7 +3652,7 @@ document.getElementById('anCsv').addEventListener('click', function(){
   var head = ['Customer','Area','Customer Site','Category','Item Code','Item Description',
               state.yrA+' QTY', state.yrB+' QTY','QTY Difference',
               state.yrA+' Value', state.yrB+' Value','Difference',
-              'Warehouse Stock','Last Supplied','Months Since','Last Active Salesman'];
+              'Warehouse Stock','Area Stock','Last Supplied','Months Since','Last Active Salesman'];
   var lines = [head.join(',')];
   anRows.forEach(function(d){
     var e = effLast(d.lp, d.la);
@@ -3650,6 +3668,7 @@ document.getElementById('anCsv').addEventListener('click', function(){
       d.qA.toFixed(2), d.qB.toFixed(2), (d.qB-d.qA).toFixed(2),
       d.vA.toFixed(2), d.vB.toFixed(2), (d.vB-d.vA).toFixed(2),
       STOCK ? Math.round(stockOf(d.i)) : '',
+      (function(){ var v = areaStockSite(d.i, d.s); return v === null ? '' : Math.round(v); })(),
       lt, d.never ? '' : (A2.ref - e),
       '"'+String(SITES[d.s][5] || '').replace(/"/g,'""')+'"'
     ].join(','));
