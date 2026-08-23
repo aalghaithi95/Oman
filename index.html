@@ -360,6 +360,34 @@ body.imopen{overflow:hidden}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
+/* ---------- item month -> customer site drilldown ---------- */
+.imtbl td.mdcell{cursor:pointer;transition:background .12s,color .12s,box-shadow .12s}
+.imtbl td.mdcell:hover,.imtbl td.mdcell:focus{
+  background:#FFF6DF;color:var(--accent-2);box-shadow:inset 0 0 0 1px #E7C57F;outline:none}
+.imtbl td.mdcell:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+#mdWrap{position:fixed;inset:0;background:rgba(18,36,44,.68);backdrop-filter:blur(3px);
+  z-index:105;display:none;overflow:auto;padding:38px 16px}
+body.mdopen #mdWrap{display:block}
+.mdcard{max-width:860px}
+.mdcard .imbody{overflow-x:auto}
+.imtbl.mdlist{min-width:620px;table-layout:fixed}
+.imtbl.mdlist col.w-name{width:31%}
+.imtbl.mdlist col.w-site{width:34%}
+.imtbl.mdlist col.w-area{width:17%}
+.imtbl.mdlist col.w-val{width:18%}
+.imtbl.mdlist td.c-name,.imtbl.mdlist td.c-site{
+  white-space:normal;word-break:break-word;line-height:1.25;text-align:left}
+.imtbl.mdlist th{text-align:left}
+.imtbl.mdlist th.n,.imtbl.mdlist td.n{text-align:right}
+.imtbl.mdlist tfoot th{background:var(--paper-2);border:1px solid var(--line);
+  padding:6px 8px;font-size:11.5px;text-align:left}
+.imtbl.mdlist tfoot th.n{text-align:right}
+@media (max-width:760px){
+  #mdWrap{padding:10px 8px}
+  .mdcard{max-width:none}
+  .imtbl.mdlist{min-width:560px;font-size:11px}
+}
+
 
 
 /* ---------- tabs ---------- */
@@ -1087,6 +1115,19 @@ body.neopen .necard{transform:translateY(0)}
       <button class="imx" id="imClose" type="button" aria-label="Close">✕</button>
     </div>
     <div class="imbody" id="imBody"></div>
+  </div>
+</div>
+
+<div id="mdWrap">
+  <div class="imcard mdcard" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
+    <div class="imhead">
+      <div>
+        <div class="imt" id="mdTitle"></div>
+        <div class="ims" id="mdSub"></div>
+      </div>
+      <button class="imx" id="mdClose" type="button" aria-label="Close customer site list">✕</button>
+    </div>
+    <div class="imbody" id="mdBody"></div>
   </div>
 </div>
 
@@ -3141,11 +3182,14 @@ function perfNum(v, isValue){
 }
 function monthCells(i, arr, yi, upto, isValue){
   var out = '', span = NY*12, base = i*span + yi*12, total = 0;
+  var met = isValue ? 'value' : 'cases';
   for (var m=0;m<12;m++){
     if (m > upto){ out += '<td class="off"></td>'; continue; }
     var v = arr[base+m];
     total += v;
-    out += '<td>' + perfNum(v, isValue) + '</td>';
+    out += '<td class="mdcell" role="button" tabindex="0" title="View customer sites" ' +
+           'data-i="' + i + '" data-y="' + yi + '" data-m="' + m + '" data-met="' + met + '">' +
+           perfNum(v, isValue) + '</td>';
   }
   return {cells:out, total:total};
 }
@@ -3203,7 +3247,9 @@ function yearTableV(i, arr, title, isValue){
       if (beyond){ h += '<td class="off"></td>'; continue; }
       var v = arr[i*span + y2*12 + m];
       tot[y2] += v;
-      h += '<td class="n">' + perfNum(v, isValue) + '</td>';
+      h += '<td class="n mdcell" role="button" tabindex="0" title="View customer sites" ' +
+           'data-i="' + i + '" data-y="' + y2 + '" data-m="' + m + '" data-met="' +
+           (isValue ? 'value' : 'cases') + '">' + perfNum(v, isValue) + '</td>';
     }
     h += '</tr>';
   }
@@ -3235,13 +3281,93 @@ function openItem(i){
   document.body.classList.add('imopen');
   document.getElementById('imWrap').scrollTop = 0;
 }
-function closeItem(){ document.body.classList.remove('imopen'); }
+/* Sum the clicked item/month back to customer-site level using exactly the same
+   area, customer, site and department rules as the monthly item figure. */
+function monthSiteRows(i, yi, m, metric){
+  aggregate();                                  /* also rebuilds the current site mask */
+  var by = Object.create(null), pWant = yi*12 + m;
+  if (!F) return [];
+  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
+  for (var k=0;k<n;k++){
+    if (fi[k] !== i || fp[k] !== pWant) continue;
+    if (!mask[fs[k]]) continue;
+    if (!factCounted(fd[k], fi[k])) continue;
+    var s = fs[k], x = metric === 'value' ? fv[k] : fq[k];
+    by[s] = (by[s] || 0) + x;
+  }
+  return Object.keys(by).map(function(s){ return {s:+s, x:by[s]}; })
+    .filter(function(r){ return Math.abs(r.x) > 1e-9; })
+    .sort(function(a,b){ return b.x - a.x; });
+}
+function openMonthSites(i, yi, m, metric){
+  var rows = monthSiteRows(i, yi, m, metric);
+  var it = ITEMS[i], isValue = metric === 'value';
+  var metricTitle = isValue ? 'Sales in Value' : 'Sales in Volume (cases)';
+  var metricHead = isValue ? 'Value' : 'Cases';
+  var total = rows.reduce(function(a,r){ return a + r.x; }, 0);
+
+  document.getElementById('mdTitle').innerHTML =
+    esc(it[1]) + ' <span class="code">' + it[0] + '</span>';
+  document.getElementById('mdSub').textContent =
+    MONTHS[m] + ' ' + YEARS[yi] + ' · ' + metricTitle + ' · ' + depLabel() + ' · ' + scopeNames();
+
+  document.getElementById('mdBody').innerHTML =
+    '<table class="imtbl vhist mdlist">' +
+      '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>' +
+      '<thead>' +
+        '<tr class="cap"><th colspan="4">Customer site sales · ' + MONTHS[m] + ' ' + YEARS[yi] + '</th></tr>' +
+        '<tr><th>Customer</th><th>Customer Site</th><th>Area</th><th class="n">' + metricHead + '</th></tr>' +
+      '</thead><tbody>' +
+      (rows.length ? rows.map(function(r){
+        var x = isValue ? nf0.format(Math.round(r.x)) : nf2.format(r.x);
+        return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
+               '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+               '<td>' + esc(areaLabel(areaOf[r.s])) + '</td>' +
+               '<td class="n">' + x + '</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="empty">No sales for this item in this month under the current selection.</td></tr>') +
+      '</tbody>' +
+      '<tfoot><tr><th colspan="3">Total</th><th class="n">' +
+        (isValue ? nf0.format(Math.round(total)) : nf2.format(total)) +
+      '</th></tr></tfoot>' +
+    '</table>' +
+    '<div class="imnote">Customer sites are sorted from highest to lowest for the clicked month. ' +
+    'This list follows the same area, customer, customer site and department selection as the item monthly figure.</div>';
+
+  document.body.classList.add('mdopen');
+  document.getElementById('mdWrap').scrollTop = 0;
+}
+function closeMonthSites(){ document.body.classList.remove('mdopen'); }
+function openMonthCell(cell){
+  if (!cell || cell.dataset.i === undefined) return;
+  openMonthSites(+cell.dataset.i, +cell.dataset.y, +cell.dataset.m, cell.dataset.met);
+}
+
+function closeItem(){
+  document.body.classList.remove('mdopen');
+  document.body.classList.remove('imopen');
+}
 document.getElementById('imClose').addEventListener('click', closeItem);
 document.getElementById('imWrap').addEventListener('click', function(e){
   if (e.target === this) closeItem();
 });
+document.getElementById('mdClose').addEventListener('click', closeMonthSites);
+document.getElementById('mdWrap').addEventListener('click', function(e){
+  if (e.target === this) closeMonthSites();
+});
+document.getElementById('imBody').addEventListener('click', function(e){
+  var cell = e.target.closest('.mdcell');
+  if (cell) openMonthCell(cell);
+});
+document.getElementById('imBody').addEventListener('keydown', function(e){
+  var cell = e.target.closest('.mdcell');
+  if (!cell || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  openMonthCell(cell);
+});
 window.addEventListener('keydown', function(e){
-  if (e.key === 'Escape' && document.body.classList.contains('imopen')) closeItem();
+  if (e.key !== 'Escape') return;
+  if (document.body.classList.contains('mdopen')) closeMonthSites();
+  else if (document.body.classList.contains('imopen')) closeItem();
 });
 document.getElementById('tbody').addEventListener('click', function(e){
   if (e.target.closest('.nebtn')) return;          /* near expiry has its own window */
