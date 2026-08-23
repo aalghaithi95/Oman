@@ -221,7 +221,8 @@ tr.ok td.desc{color:var(--pos)}
   /* the item table becomes tappable two-line cards */
   #tbl thead{display:none}
   #tbl,#tbl tbody,#tbl tfoot,#tbl tr,#tbl td{display:block}
-  #tbl tbody tr{display:grid;grid-template-columns:38px repeat(5,1fr);gap:4px 5px;
+  /* the six figures get the width each actually needs, widest first */
+  #tbl tbody tr{display:grid;grid-template-columns:30px .92fr 1.16fr 1.1fr .9fr .9fr 1.02fr;gap:4px 3px;
     align-items:center;
     border:1px solid var(--line);border-left:3px solid var(--line);border-radius:4px;
     margin:0 0 6px;padding:8px 9px;background:#fff}
@@ -235,19 +236,21 @@ tr.ok td.desc{color:var(--pos)}
 
   /* line 1 — tick + item.  line 2 — all five figures across one row */
   #tbl tbody td.chkc{grid-column:1;grid-row:1/span 2;align-self:center;text-align:left}
-  #tbl .chk{width:34px;height:34px;font-size:17px;border-width:2px}
-  #tbl tbody td.desc{grid-column:2/7;grid-row:1;white-space:normal;max-width:none;
+  #tbl .chk{width:30px;height:30px;font-size:15px;border-width:2px}
+  #tbl tbody td.desc{grid-column:2/8;grid-row:1;white-space:normal;max-width:none;
     font-size:13px;font-weight:600;line-height:1.2}
   #tbl tbody td.d-q26{grid-column:2;grid-row:2}
   #tbl tbody td.d-v26{display:table-cell;grid-column:3;grid-row:2}
   #tbl tbody td.d-avgq{display:table-cell;grid-column:4;grid-row:2}
   #tbl tbody td.d-stock{display:table-cell;grid-column:5;grid-row:2}
-  #tbl tbody td.d-last{grid-column:6;grid-row:2}
+  #tbl tbody td.d-astock{display:table-cell;grid-column:6;grid-row:2}
+  #tbl tbody td.d-last{grid-column:7;grid-row:2}
   #tbl tbody td.c-type,#tbl tbody td.c-cat,#tbl tbody td.c-code,
   #tbl tbody td.d-q25,#tbl tbody td.d-v25,#tbl tbody td.d-dv,
   #tbl tbody td.d-delta,#tbl tbody td.d-avg{display:none!important}
   #tbl tbody td.num{text-align:left}
-  #tbl tbody td[data-l]{margin-top:2px;font-size:11.5px;white-space:nowrap;overflow:hidden}
+  #tbl tbody td[data-l]{margin-top:2px;font-size:10.5px;white-space:nowrap;overflow:hidden;
+    letter-spacing:-.2px}
   #tbl tbody td.d-last{font-size:10.5px}
   #tbl tbody td.d-avgq{font-size:11px}
   #tbl tbody td[data-l]::before{content:attr(data-l);display:block;
@@ -689,6 +692,21 @@ body.neopen .necard{transform:translateY(0)}
   .filters .fbar{flex-wrap:wrap}
   .filters .fbar .fbtns{width:100%}
 }
+
+#antbl td.a-astock,#antbl th.a-astock{white-space:nowrap}
+@media (max-width:760px){
+  #antbl th.a-astock,#antbl td.a-astock{font-size:11px}
+}
+
+/* fifteen columns on Market Visit: the numeric ones give back a little padding
+   so the table still fits without a horizontal scroll */
+@media (min-width:761px){
+  #tbl thead th{padding-left:7px;padding-right:7px}
+  #tbl tbody td{padding-left:7px;padding-right:7px}
+  #tbl td.num,#tbl th.r{padding-left:5px;padding-right:5px}
+  #tbl td.c-type,#tbl th.c-type{padding-left:8px}
+  #tbl td.desc{max-width:250px}
+}
 </style>
 </head>
 <body>
@@ -928,8 +946,9 @@ body.neopen .necard{transform:translateY(0)}
           <th class="r a-va" id="anYrA"></th>
           <th class="r a-vb" id="anYrB"></th>
           <th class="r a-diff">Difference</th>
-          <th class="a-last">Last Supplied</th>
           <th class="r a-stock">Stock</th>
+          <th class="r a-astock">Area Stock</th>
+          <th class="a-last">Last Supplied</th>
         </tr></thead>
         <tbody id="anBody"></tbody>
       </table>
@@ -1128,6 +1147,46 @@ function liveScan(){
 }
 function areaLabel(i){ return AREAS[i] || ''; }
 
+/* ---------- stock held in each area ---------- */
+var ASTOCK = null, ASTOCK_RAW = null;
+function buildAreaStock(){
+  if (!ASTOCK_RAW || !AREAS.length || !NI) return;
+  var n = NI * AREAS.length;
+  ASTOCK = new Float64Array(n);
+  var keys = {};
+  for (var a=0;a<AREAS.length;a++) keys[String(AREAS[a]).toUpperCase()] = a;
+  for (var k in ASTOCK_RAW){
+    var cut = k.lastIndexOf('|');
+    if (cut < 0) continue;
+    var code = cint(k.slice(0, cut)), ar = keys[k.slice(cut+1)];
+    if (ar === undefined) continue;
+    var ii = imap[code];
+    if (ii === undefined) continue;
+    ASTOCK[ii * AREAS.length + ar] = ASTOCK_RAW[k];
+  }
+}
+/* the area stock relevant to what is on screen: one area shows its own figure,
+   several show their sum */
+function areasInScope(){
+  if (state.area.size) return Array.from(state.area);
+  var seen = {}, out = [], scope = maskSites();
+  for (var i=0;i<scope.length;i++){
+    var a = areaOf[scope[i]];
+    if (!seen[a]){ seen[a] = 1; out.push(a); }
+  }
+  return out;
+}
+function areaStockOf(i, areas){
+  if (!ASTOCK) return null;
+  var t = 0, n = AREAS.length;
+  for (var k=0;k<areas.length;k++) t += ASTOCK[i*n + areas[k]];
+  return t;
+}
+function areaStockSite(i, s){
+  if (!ASTOCK) return null;
+  return ASTOCK[i*AREAS.length + areaOf[s]];
+}
+
 /* ALL / CPD / FSD ------------------------------------------------------------
    CPD is the retail business, FSD is food service (channel HOR). The food
    service assortment is a short active list of catering packs; those items are
@@ -1184,7 +1243,7 @@ function depLabel(){
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
 var loadedAt = null;
-var DATA_VERSION = 10;
+var DATA_VERSION = 11;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -1265,6 +1324,7 @@ function applySnapshot(snap){
   if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
   CUSTOMERS = []; sitesByCust = {};
   var seen = {};
+  ASTOCK = null; ASTOCK_RAW = (snap && snap.aStock) ? snap.aStock : null;
   AREAS = []; areaOf = new Int32Array(SITES.length);
   var seenArea = {};
   SITES.forEach(function(r, i){
@@ -1279,6 +1339,7 @@ function applySnapshot(snap){
     areaOf[i] = seenArea[akey];
     (sitesByCust[r[4]] = sitesByCust[r[4]] || []).push(i);
   });
+  buildAreaStock();
   DEPN = [0, 0];
   for (var dk=0; dk<F.d.length; dk++) DEPN[F.d[dk] ? 1 : 0]++;
   LASTM = 0;
@@ -1302,7 +1363,8 @@ function csvUrl(){
 /* column positions in the sheet */
 var C_DEP = 0, C_ITEM = 3, C_CUST = 6, C_CODE = 10, C_SITE = 11, C_CHAN = 13,
     C_YR = 14, C_MNTH = 15, C_SALES = 16, C_CASES = 17, C_STOCK = 18,   /* S = stock */
-    C_COLL = 8, C_CITY = 12;                        /* I = collector, M = city / area */
+    C_COLL = 8, C_CITY = 12,                        /* I = collector, M = city / area */
+    C_ASTOCK = 19;                                  /* T = stock held in the area */
 
 /* Warehouse stock, looked up VLOOKUP-style: the same figure repeats on every row
    of an item, so it is ASSIGNED per item code, never summed. */
@@ -1404,6 +1466,7 @@ function splitCsv(line){
 function loadAll(progress, ok, fail){
   var sites = [], codeIdx = {}, siteLastP = [], sitePosP = [], yearSeen = {}, B = new Buckets();
   var STOCK_FIRST = 18, STOCK_LAST = 25, stockMaps = [], stockHits = [];
+  var aStockMap = {}, aStockHits = 0;
   for (var sc=STOCK_FIRST; sc<=STOCK_LAST; sc++){ stockMaps[sc] = {}; stockHits[sc] = 0; }
   var headers = [], namedCol = -1, widest = 0;
   var rows = 0, bytes = 0, header = true, tail = '', badItems = 0;
@@ -1425,6 +1488,16 @@ function loadAll(progress, ok, fail){
     /* stock is read before any CPD / item-list filtering, so a value sitting on a
        row the dashboard otherwise skips is still picked up */
     var rawCode = cint(f[C_ITEM]);
+    /* column T holds the stock sitting in that row's own area, so it is kept per
+       item AND per area rather than as a single figure per item */
+    if (!isNaN(rawCode) && f.length > C_ASTOCK){
+      var aTxt = String(f[C_ASTOCK] == null ? '' : f[C_ASTOCK]).trim();
+      if (aTxt !== '' && /\d/.test(aTxt)){
+        var acity = (f[C_CITY] || '').replace(/\s+/g,' ').trim().toUpperCase() || 'UNSPECIFIED';
+        aStockMap[rawCode + '|' + acity] = cnum(aTxt);
+        aStockHits++;
+      }
+    }
     if (!isNaN(rawCode)){
       for (var cc=STOCK_FIRST; cc<=STOCK_LAST && cc<f.length; cc++){
         var sTxt = f[cc];
@@ -1531,7 +1604,10 @@ function loadAll(progress, ok, fail){
     if (namedCol >= 0 && stockHits[namedCol]) pick = namedCol;
     if (pick < 0){
       var best = 0;
-      for (var pc=STOCK_FIRST; pc<=STOCK_LAST; pc++) if (stockHits[pc] > best){ best = stockHits[pc]; pick = pc; }
+      for (var pc=STOCK_FIRST; pc<=STOCK_LAST; pc++){
+        if (pc === C_ASTOCK && aStockHits) continue;   /* that column is the area stock */
+        if (stockHits[pc] > best){ best = stockHits[pc]; pick = pc; }
+      }
     }
     var stockPending = false;
     if (pick >= 0){
@@ -1550,6 +1626,7 @@ function loadAll(progress, ok, fail){
       stockPending = true;
     }
     var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites,
+                aStock: aStockHits ? aStockMap : null,
                 f:{s:fs, i:fi, p:fp, v:fv, q:fq, d:fd}};
     function complete(){
       snap.stock = STOCK; snap.stockAt = stockAt;
@@ -2111,6 +2188,7 @@ var state = {
 var nf0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
 var nf1 = new Intl.NumberFormat('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
 function fmt(v){ if(!v) return '<span class="dash">–</span>'; return nf0.format(Math.round(v)); }
+function yy(y){ return String(y).slice(2) + "'"; }
 function fmtS(v){ return v ? nf0.format(Math.round(v)) : '–'; }
 var nf2 = new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 function fmtAvg(v){ return v ? nf2.format(v) : '<span class="dash">–</span>'; }
@@ -2122,6 +2200,11 @@ function arrowLY(a, b){
   if (b > a) return ' <span class="ly up m-only" title="up vs last year">\u25B2</span>';
   if (b < a) return ' <span class="ly down m-only" title="down vs last year">\u25BC</span>';
   return '';
+}
+function areaStockCell(v){
+  if (v === null || v === undefined) return '<span class="dash">–</span>';
+  if (v > 0) return nf0.format(Math.round(v));
+  return '<span class="nostock">0</span>';
 }
 function stockCell(v){
   if (!STOCK) return '<span class="dash">–</span>';
@@ -2190,15 +2273,16 @@ function COLS(){
     {k:'code',  t:'Item Code'},
     {k:'chk',   t:'✓', chk:1},
     {k:'desc',  t:'Item Description'},
-    {k:'qA',    t:state.yrA + ' QTY', r:1},
-    {k:'qB',    t:state.yrB + ' QTY', r:1},
+    {k:'qA',    t:yy(state.yrA) + ' QTY', r:1},
+    {k:'qB',    t:yy(state.yrB) + ' QTY', r:1},
     {k:'avgq',  t:'Avg QTY/Mo', r:1},
-    {k:'vA',    t:state.yrA + ' Value', r:1},
-    {k:'vB',    t:state.yrB + ' Value', r:1},
+    {k:'vA',    t:yy(state.yrA) + ' Value', r:1},
+    {k:'vB',    t:yy(state.yrB) + ' Value', r:1},
     {k:'dv',    t:'Change', r:1},
-    {k:'delta', t:'Value vs ' + state.yrA, r:1},
+    {k:'delta', t:'Vs ' + yy(state.yrA), r:1},
     {k:'stock', t:'Stock', r:1},
-    {k:'last',  t:'Last Supplied'}
+    {k:'astock',t:'Area Stock', r:1},
+    {k:'last',  t:'Last Supp'}
   ];
 }
 function renderHead(){
@@ -2217,7 +2301,9 @@ function lastLabel(p){
   var d = periodOf(p), old = d.year !== YEARS[NY-1];
   return '<span class="mono" style="font-size:11px'+(old?';color:var(--neg)':'')+'">'+MONTHS[d.month]+" '"+String(d.year).slice(2)+'</span>';
 }
+var AREA_SCOPE = [];
 function buildRows(){
+  AREA_SCOPE = areasInScope();
   var rows = [], q = state.q.trim().toLowerCase(), mo = monthsB();
   for (var i=0;i<NI;i++){
     var vA=A.vA[i], vB=A.vB[i], qA=A.qA[i], qB=A.qB[i];
@@ -2232,7 +2318,8 @@ function buildRows(){
       i:i, code:it[0], desc:it[1], cat:it[2], catI:catOf[i], type:it[3], promo:promo,
       qA:qA, qB:qB, dq:(qA? qB/qA-1 : (qB?Infinity:0)),
       vA:vA, vB:vB, dv:(vA? vB/vA-1 : (vB?Infinity:0)),
-      delta:vB-vA, avg:vB/mo, avgq:qB/mo, stock:stockOf(i), last:A.last[i]
+      delta:vB-vA, avg:vB/mo, avgq:qB/mo, stock:stockOf(i),
+      astock:areaStockOf(i, AREA_SCOPE), last:A.last[i]
     });
   }
   return rows;
@@ -2305,17 +2392,21 @@ function render(){
   renderAudit();
   renderAreaCards();
 
-  var out = [], lastCat = -1, totStock = 0;
-  for (i=0;i<rows.length;i++) totStock += rows[i].stock;
+  var out = [], lastCat = -1, totStock = 0, totAStock = 0;
+  for (i=0;i<rows.length;i++){
+    totStock += rows[i].stock;
+    totAStock += (rows[i].astock || 0);
+  }
   /* subtotals cover every item of this department in the category, including any
      hidden from the list, so the numbers still reconcile */
   var catT = {};
   for (i=0;i<NI;i++){
     var ci = catOf[i];
-    if (!catT[ci]) catT[ci] = {qA:0,qB:0,vA:0,vB:0,stock:0};
+    if (!catT[ci]) catT[ci] = {qA:0,qB:0,vA:0,vB:0,stock:0,astock:0};
     catT[ci].qA += A.qA[i]; catT[ci].qB += A.qB[i];
     catT[ci].vA += A.vA[i]; catT[ci].vB += A.vB[i];
     catT[ci].stock += stockOf(i);
+    catT[ci].astock += (areaStockOf(i, AREA_SCOPE) || 0);
   }
   function subRow(s){
     return '<tr class="cat"><td class="catname" colspan="5">'+esc(s.name)+' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">'+s.n+' SKU</span></td>'+
@@ -2323,14 +2414,16 @@ function render(){
       '<td class="num">'+fmtAvgS(s.qB/monthsB())+'</td>'+
       '<td class="num">'+fmtS(s.vA)+'</td><td class="num">'+fmtS(s.vB)+'</td><td class="num">'+pctCell(s.vB,s.vA)+'</td>'+
       '<td class="num">'+(s.vB-s.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(s.vB-s.vA)))+'</td>'+
-      '<td class="num d-stock">'+fmtS(s.stock)+'</td><td></td></tr>';
+      '<td class="num d-stock">'+fmtS(s.stock)+'</td>'+
+      '<td class="num d-astock">'+fmtS(s.astock)+'</td><td></td></tr>';
   }
   for (i=0;i<rows.length;i++){
     var r = rows[i];
     if (state.group && r.catI !== lastCat){
       lastCat = r.catI;
-      var src = catT[lastCat] || {qA:0,qB:0,vA:0,vB:0,stock:0};
-      var sub = {name:r.cat, qA:src.qA, qB:src.qB, vA:src.vA, vB:src.vB, stock:src.stock, n:0}, j = i;
+      var src = catT[lastCat] || {qA:0,qB:0,vA:0,vB:0,stock:0,astock:0};
+      var sub = {name:r.cat, qA:src.qA, qB:src.qB, vA:src.vA, vB:src.vB, stock:src.stock,
+                 astock:src.astock, n:0}, j = i;
       while (j<rows.length && rows[j].catI===lastCat){ sub.n++; j++; }
       out.push(subRow(sub));
     }
@@ -2356,6 +2449,7 @@ function render(){
       '<td class="num d-dv" data-l="Value change">'+pctCell(r.vB,r.vA)+'</td>'+
       '<td class="num d-delta" data-l="Vs '+state.yrA+'"><span class="'+(r.delta>0?'up':(r.delta<0?'down':'flat'))+'">'+(r.delta>=0?'+':'−')+nf0.format(Math.abs(Math.round(r.delta)))+'</span></td>'+
       '<td class="num d-stock" data-l="Stock">'+stockCell(r.stock)+'</td>'+
+      '<td class="num d-astock" data-l="Area st">'+areaStockCell(r.astock)+'</td>'+
       '<td class="d-last" data-l="Last supp">'+lastLabel(r.last)+'</td></tr>');
   }
   var hiddenN = 0;
@@ -2370,7 +2464,7 @@ function render(){
     emptyMsg = 'No CPD rows in the data on this device. Tap <b>Refresh</b> above to reload.';
   }
   document.getElementById('tbody').innerHTML = out.length ? out.join('') :
-    '<tr><td colspan="14" class="empty">' + emptyMsg + '</td></tr>';
+    '<tr><td colspan="15" class="empty">' + emptyMsg + '</td></tr>';
 
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items'+
@@ -2379,7 +2473,8 @@ function render(){
     '<td class="num">'+fmtAvgS(T.qB/monthsB())+'</td>'+
     '<td class="num">'+fmtS(T.vA)+'</td><td class="num">'+fmtS(T.vB)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
     '<td class="num">'+(T.vB-T.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(T.vB-T.vA)))+'</td>'+
-    '<td class="num d-stock">'+fmtS(totStock)+'</td><td></td></tr>';
+    '<td class="num d-stock">'+fmtS(totStock)+'</td>'+
+    '<td class="num d-astock">'+fmtS(totAStock)+'</td><td></td></tr>';
 
   /* with a single store selected, name the salesman who last served it */
   var oneSite = null;
@@ -3321,12 +3416,12 @@ function renderAnalysis(){
               '<td class="num">' + fmtS(gB) + '</td>' +
               '<td class="num"><span class="' + (cDiff>0?'up':(cDiff<0?'down':'flat')) + '">' +
                 (cDiff>=0?'+':'−') + nf0.format(Math.abs(Math.round(cDiff))) + '</span></td>' +
-              '<td></td><td></td></tr>';
+              '<td></td><td></td><td></td></tr>';
     }
     inCust++;
     if (inCust > AN_PER_CUST){
       if (inCust === AN_PER_CUST + 1){
-        html += '<tr class="more"><td colspan="10">' + (perCust[d.cid] - AN_PER_CUST) +
+        html += '<tr class="more"><td colspan="11">' + (perCust[d.cid] - AN_PER_CUST) +
                 ' more gaps for ' + esc(CUSTOMERS[d.cid]) + ' — filter to this customer, or export the CSV, to see them all</td></tr>';
       }
       continue;
@@ -3344,15 +3439,16 @@ function renderAnalysis(){
       '<td class="num a-vb">' + fmt(rB) + '</td>' +
       '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
         (rA || rB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
-      '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td>' +
-      '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td></tr>';
+      '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td>' +
+      '<td class="num a-astock">' + areaStockCell(areaStockSite(d.i, d.s)) + '</td>' +
+      '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td></tr>';
   }
   if (html) html += '</tbody>';
   var tbl = document.getElementById('antbl');
   var olds = tbl.querySelectorAll('tbody');
   for (var ob=0; ob<olds.length; ob++) olds[ob].parentNode.removeChild(olds[ob]);
   tbl.insertAdjacentHTML('beforeend', html ||
-    '<tbody id="anBody"><tr><td colspan="10" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
+    '<tbody id="anBody"><tr><td colspan="11" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
   document.getElementById('anCount').textContent =
     nf0.format(anRows.length) + ' opportunities · ' + Object.keys(perCust).length + ' customers' +
     (anRows.length > printed ? ' · showing the worst ' + AN_PER_CUST + ' per customer' : '');
