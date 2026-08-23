@@ -707,6 +707,18 @@ body.neopen .necard{transform:translateY(0)}
   #tbl td.c-type,#tbl th.c-type{padding-left:8px}
   #tbl td.desc{max-width:250px}
 }
+
+/* month figures open the outlets behind them */
+.imtbl td.drill{cursor:pointer}
+.imtbl td.drill:hover{background:var(--paper-2);box-shadow:inset 0 0 0 1px var(--line)}
+/* the breakdown scrolls inside its own box so the monthly tables stay in view */
+.imdrill{margin:14px 0 4px;max-height:44vh;overflow:auto;border:1px solid var(--line);
+  border-radius:var(--r)}
+.imdrill .imtbl{margin-top:0;border:none}
+.imdrill .imnote{margin:0;padding:12px 14px}
+.imdrill thead th{position:sticky;top:0;z-index:3}
+.imdrill .cap th{top:0}
+@media (max-width:760px){ .imdrill{max-height:50vh} }
 </style>
 </head>
 <body>
@@ -2318,6 +2330,8 @@ function buildRows(){
   for (var i=0;i<NI;i++){
     var vA=A.vA[i], vB=A.vB[i], qA=A.qA[i], qB=A.qB[i];
     var promo = ITEMS[i][3] === 'Promotion';
+    /* nothing but returns in both years — a credit line, not a product to look at */
+    if (vA < 0 && vB < 0){ hiddenN++; continue; }
     if (!itemVisible(i)) continue;
     if (state.hideZero && !vA && !vB && !qA && !qB && promo) continue;
     if (state.onlyUnchecked && (!itemAuditable(i) || state.checked.has(i))) continue;
@@ -3145,7 +3159,10 @@ function monthCells(i, arr, yi, upto, isValue){
     if (m > upto){ out += '<td class="off"></td>'; continue; }
     var v = arr[base+m];
     total += v;
-    out += '<td>' + perfNum(v, isValue) + '</td>';
+    /* a figure you can open: which outlets made up this month */
+    out += '<td class="drill" data-i="' + i + '" data-y="' + yi + '" data-m="' + m +
+           '" data-k="' + (isValue ? 'v' : 'q') + '" title="Tap for the outlets behind this figure">' +
+           perfNum(v, isValue) + '</td>';
   }
   return {cells:out, total:total};
 }
@@ -3203,7 +3220,8 @@ function yearTableV(i, arr, title, isValue){
       if (beyond){ h += '<td class="off"></td>'; continue; }
       var v = arr[i*span + y2*12 + m];
       tot[y2] += v;
-      h += '<td class="n">' + perfNum(v, isValue) + '</td>';
+      h += '<td class="n drill" data-i="' + i + '" data-y="' + y2 + '" data-m="' + m +
+           '" data-k="' + (isValue ? 'v' : 'q') + '">' + perfNum(v, isValue) + '</td>';
     }
     h += '</tr>';
   }
@@ -3212,6 +3230,59 @@ function yearTableV(i, arr, title, isValue){
   h += '</tr></tbody></table>';
   return h;
 }
+/* Which outlets bought this item in one particular month. Follows the customer
+   and site selection on the page, like the rest of the popup. */
+function monthSites(i, yi, m, isValue){
+  var out = [], p = yi*12 + m;
+  if (!F) return out;
+  buildMask();
+  var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
+  var per = {};
+  for (var k=0;k<n;k++){
+    if (fi[k] !== i || fp[k] !== p) continue;
+    if (!mask[fs[k]]) continue;
+    if (!factCounted(fd[k], fi[k])) continue;
+    var val = isValue ? fv[k] : fq[k];
+    if (!val) continue;
+    per[fs[k]] = (per[fs[k]] || 0) + val;
+  }
+  for (var s in per) out.push({s:+s, v:per[s]});
+  out.sort(function(a,b){ return b.v - a.v; });
+  return out;
+}
+function drillMonth(i, yi, m, isValue){
+  var rows = monthSites(i, yi, m, isValue);
+  var box = document.getElementById('imDrill');
+  if (!box) return;
+  var label = MONTHS[m] + ' ' + YEARS[yi] + ' · ' + (isValue ? 'value' : 'cases');
+  if (!rows.length){
+    box.innerHTML = '<div class="imnote">No outlets bought ' + esc(ITEMS[i][1]) +
+                    ' in ' + esc(label) + ' within this selection.</div>';
+    return;
+  }
+  var total = rows.reduce(function(s,r){ return s + r.v; }, 0);
+  box.innerHTML =
+    '<table class="imtbl vhist sitelist"><thead>' +
+      '<tr class="cap"><th colspan="4">' + esc(label) + ' — ' + rows.length +
+        ' outlet' + (rows.length>1?'s':'') + '</th></tr>' +
+      '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th>' +
+      '<th class="c-area">Area</th><th class="n c-val">' + (isValue ? 'Value' : 'Cases') + '</th></tr>' +
+    '</thead><tbody>' +
+    rows.map(function(r){
+      return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
+             '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+             '<td class="c-area">' + esc(areaLabel(areaOf[r.s])) + '</td>' +
+             '<td class="n c-val">' + perfNum(r.v, isValue) + '</td></tr>';
+    }).join('') +
+    '</tbody><tfoot><tr><th colspan="3">Total</th><th class="n">' +
+      perfNum(total, isValue) + '</th></tr></tfoot></table>';
+  box.scrollIntoView({block:'nearest'});
+}
+document.getElementById('imBody').addEventListener('click', function(e){
+  var cell = e.target.closest('td.drill');
+  if (!cell) return;
+  drillMonth(+cell.dataset.i, +cell.dataset.y, +cell.dataset.m, cell.dataset.k === 'v');
+});
 function openItem(i){
   aggregate();                                   /* make sure the grid matches the filters */
   var it = ITEMS[i];
@@ -3228,6 +3299,7 @@ function openItem(i){
       yearTableV(i, A.mq, 'Sales in Volume (cases)', false) +
       yearTableV(i, A.mv, 'Sales in Value', true) +
     '</div>' +
+    '<div class="imdrill" id="imDrill"><div class="imnote">Tap any monthly figure above to see the outlets behind it.</div></div>' +
     '<div class="imnote">' + YEARS[NY-1] + ' runs to ' + MONTHS[LASTM] +
     ', so its total is year-to-date and the % row compares the same months of ' +
     (NY > 1 ? YEARS[NY-2] : '') + '. Figures follow the customer and site selection above, ' +
@@ -3272,6 +3344,7 @@ function analysisScan(){
     siteCust = new Int32Array(NS);
     for (var si=0; si<NS; si++) siteCust[si] = SITES[si][4];
   }
+  var itemVA = new Float64Array(NI), itemVB = new Float64Array(NI);
   var custA = new Float64Array(CUSTOMERS.length), custB = new Float64Array(CUSTOMERS.length);
   var custLive = new Uint8Array(CUSTOMERS.length);
   var siteA = new Float64Array(NS), siteB = new Float64Array(NS);
@@ -3297,14 +3370,15 @@ function analysisScan(){
        outlets is still shipping. Judged on the whole year, not the month range. */
     if (yi === ib && fq[k] > 0){ siteLive[s] = 1; custLive[siteCust[s]] = 1; }
     if (m >= m1 && m <= m2){
-      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; siteA[s] += fv[k]; siteQA[s] += fq[k]; }
-      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; siteB[s] += fv[k]; siteQB[s] += fq[k]; }
+      if (yi === ia){ vA[idx] += fv[k]; qA[idx] += fq[k]; custA[siteCust[s]] += fv[k]; siteA[s] += fv[k]; siteQA[s] += fq[k]; itemVA[i] += fv[k]; }
+      else if (yi === ib){ vB[idx] += fv[k]; qB[idx] += fq[k]; custB[siteCust[s]] += fv[k]; siteB[s] += fv[k]; siteQB[s] += fq[k]; itemVB[i] += fv[k]; }
     }
   }
   var dormant = 0, closedSites = 0;
   for (var ci=0; ci<CUSTOMERS.length; ci++) if (!custLive[ci]) dormant++;
   for (var sj=0; sj<NS; sj++) if (!siteLive[sj]) closedSites++;
   AN = {key:key, lastP:lastP, lastAny:lastAny, vA:vA, vB:vB, qA:qA, qB:qB,
+        itemVA:itemVA, itemVB:itemVB,
         custA:custA, custB:custB, siteA:siteA, siteB:siteB, siteQA:siteQA, siteQB:siteQB,
         custLive:custLive, dormant:dormant,
         siteLive:siteLive, closedSites:closedSites, ref:(NY-1)*12 + LASTM};
@@ -4646,8 +4720,11 @@ function outletCustomerOptions(){
 }
 function outletItemOptions(){
   var out = [];
+  var A2 = (F && state.yrB) ? analysisScan() : null;
   for (var i=0;i<NI;i++){
     if (!analysisItemInDep(i)) continue;
+    /* a line that is negative in both years is returns only — keep it out of the picker */
+    if (A2 && A2.itemVA[i] < 0 && A2.itemVB[i] < 0) continue;
     if (state.oSales === 'promo' && ITEMS[i][3] !== 'Promotion') continue;
     if (state.oSales === 'reg' && ITEMS[i][3] === 'Promotion') continue;
     if (state.oCat !== null && catOf[i] !== state.oCat) continue;
