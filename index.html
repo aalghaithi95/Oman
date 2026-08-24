@@ -439,7 +439,6 @@ body.imopen{overflow:hidden}
   .ovmobtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
   .ovmobtbl tr.tot th,.ovmobtbl tr.tot td{background:#F7F9F8;font-weight:600}
   .ovmobtbl .z{color:var(--muted)}
-  .ovmobtbl .mvspct{display:block;font-size:7.5px;line-height:1.05;margin-top:2px;letter-spacing:-.2px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -3593,8 +3592,7 @@ function visitValueRundown(){
     return h;
   }
 
-  /* Mobile: Month rows, year columns. The 2026 cell also carries the Vs 2025 %
-     underneath, so all comparison information is retained without adding a wide column. */
+  /* Mobile: Month rows and year columns, with a clean no-comparison layout. */
   function mobileTable(title, data, isValue){
     var h = '<table class="ovmobtbl"><thead>' +
             '<tr class="cap"><th colspan="' + (years.length + 1) + '">' + title + '</th></tr>' +
@@ -3612,11 +3610,7 @@ function visitValueRundown(){
           h += '<td class="off"></td>';
           return;
         }
-        var extra = '';
-        if (y === latestYear && prevYear && data[prevYear] && m <= LASTM){
-          extra = '<span class="mvspct">' + pct(v, data[prevYear][m] || 0) + '</span>';
-        }
-        h += '<td>' + num(v, isValue) + extra + '</td>';
+        h += '<td>' + num(v, isValue) + '</td>';
       });
       h += '</tr>';
     }
@@ -3625,13 +3619,7 @@ function visitValueRundown(){
     years.forEach(function(y){
       var total = 0;
       data[y].forEach(function(v){ if (v !== null) total += v; });
-      var extra = '';
-      if (y === latestYear && prevYear && data[prevYear]){
-        var prevTotal = 0;
-        for (var k=0;k<=LASTM;k++) prevTotal += data[prevYear][k] || 0;
-        extra = '<span class="mvspct">' + pct(total, prevTotal) + '</span>';
-      }
-      h += '<td>' + num(total, isValue) + extra + '</td>';
+      h += '<td>' + num(total, isValue) + '</td>';
     });
     h += '</tr></tbody></table>';
     return h;
@@ -3651,7 +3639,7 @@ function visitValueRundown(){
            mobileTable('VALUE', valueSeries, true) +
          '</div></div></div>' +
 
-         '<div class="chnote">' + latestYear + ' totals are year-to-date, and the comparison uses the same months of ' + prevYear + '.</div>';
+         '<div class="chnote">' + latestYear + ' totals are year-to-date.</div>';
 }
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
