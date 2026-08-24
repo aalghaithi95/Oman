@@ -247,6 +247,7 @@ tr.ok td.desc{color:var(--pos)}
   font-weight:600;white-space:nowrap}
 .ovcatmonthly tbody td{border:1px solid var(--line);padding:8px 7px;text-align:center;
   font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.ovcatmonthly .ly{margin-left:3px;font-size:8px;vertical-align:1px}
 .ovcatmonthly td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;color:transparent}
 .ovcatmonthly .tot{font-weight:600;background:#F7F9F8}
 .ovcatmonthly .cont{font-weight:600}
@@ -2560,9 +2561,25 @@ function fmtAvgS(v){ return v ? nf2.format(v) : '–'; }
 /* mobile only: which way this year's value went against last year */
 function arrowLY(a, b){
   if (!a && !b) return '';
-  if (!a) return ' <span class="ly up m-only" title="new vs last year">\u25B2</span>';
+  if (!a){
+    if (b > 0) return ' <span class="ly up m-only" title="up vs last year">\u25B2</span>';
+    if (b < 0) return ' <span class="ly down m-only" title="down vs last year">\u25BC</span>';
+    return '';
+  }
   if (b > a) return ' <span class="ly up m-only" title="up vs last year">\u25B2</span>';
   if (b < a) return ' <span class="ly down m-only" title="down vs last year">\u25BC</span>';
+  return '';
+}
+
+function arrowLYCW(a, b){
+  if (!a && !b) return '';
+  if (!a){
+    if (b > 0) return ' <span class="ly up" title="up vs last year">\u25B2</span>';
+    if (b < 0) return ' <span class="ly down" title="down vs last year">\u25BC</span>';
+    return '';
+  }
+  if (b > a) return ' <span class="ly up" title="up vs last year">\u25B2</span>';
+  if (b < a) return ' <span class="ly down" title="down vs last year">\u25BC</span>';
   return '';
 }
 function areaStockCell(v){
@@ -4177,9 +4194,9 @@ function categoryWiseItemAllowed(i){
   if (state.cat !== null && catOf[i] !== state.cat) return false;
   return true;
 }
-function categoryWiseSeries(metric){
+function categoryWiseSeries(metric, yearOverride){
   var arr = metric === 'value' ? A.mv : A.mq;
-  var year = state.yrB, yi = yIdx(year), span = NY*12;
+  var year = yearOverride == null ? state.yrB : yearOverride, yi = yIdx(year), span = NY*12;
   var out={}, totalMonths=new Array(12).fill(0);
   CATWISE_BASE.forEach(function(c){ out[c]=new Array(12).fill(0); });
   if (yi < 0) return {year:year, rows:out, totals:totalMonths};
@@ -4202,9 +4219,16 @@ function categoryWiseSeries(metric){
 }
 function visitCategoryWise(){
   var metric=VISIT_CAT_METRIC, isValue=metric==='value', d=categoryWiseSeries(metric);
+  var prev=categoryWiseSeries(metric, state.yrA);
   var year=d.year, latest=(year===YEARS[NY-1]), title=isValue?'Sales in Value':'Sales in Cases';
-  var yearTotal=0;
-  for (var m=0;m<12;m++) if (!(latest && m>LASTM)) yearTotal += d.totals[m];
+  var startM = state.m1, endM = latest ? Math.min(state.m2, LASTM) : state.m2;
+  var yearTotal=0, prevYearTotal=0;
+
+  for (var m=0;m<12;m++){
+    if (m < startM || m > endM) continue;
+    yearTotal += d.totals[m];
+    prevYearTotal += (prev.totals[m]||0);
+  }
 
   function f(v){
     if (Math.abs(v) < 0.0000001) return '0';
@@ -4218,23 +4242,24 @@ function visitCategoryWise(){
   h += '<th>Total</th><th>Cont</th></tr></thead><tbody>';
 
   CATWISE_BASE.forEach(function(c){
-    var vals=d.rows[c], tot=0;
+    var vals=d.rows[c], prevVals=prev.rows[c], tot=0, prevTot=0;
     h += '<tr><th>'+esc(c)+'</th>';
     for (var m=0;m<12;m++){
-      if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
-      var v=vals[m]||0; tot+=v;
-      h += '<td>'+f(v)+'</td>';
+      if (m < startM || m > endM){ h += '<td class="off"></td>'; continue; }
+      var v=vals[m]||0, pv=prevVals[m]||0; tot+=v; prevTot+=pv;
+      h += '<td>'+f(v)+arrowLYCW(pv,v)+'</td>';
     }
     var cont=yearTotal ? tot/yearTotal*100 : 0;
-    h += '<td class="tot">'+f(tot)+'</td><td class="cont">'+nf2.format(cont)+'%</td></tr>';
+    var prevCont=prevYearTotal ? prevTot/prevYearTotal*100 : 0;
+    h += '<td class="tot">'+f(tot)+arrowLYCW(prevTot,tot)+'</td><td class="cont">'+nf2.format(cont)+'%'+arrowLYCW(prevCont,cont)+'</td></tr>';
   });
 
   h += '<tr class="grand"><th>Total</th>';
   for (var m=0;m<12;m++){
-    if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
-    h += '<td>'+f(d.totals[m])+'</td>';
+    if (m < startM || m > endM){ h += '<td class="off"></td>'; continue; }
+    h += '<td>'+f(d.totals[m])+arrowLYCW(prev.totals[m]||0,d.totals[m]||0)+'</td>';
   }
-  h += '<td class="tot">'+f(yearTotal)+'</td><td class="cont">100.00%</td></tr></tbody></table></div>';
+  h += '<td class="tot">'+f(yearTotal)+arrowLYCW(prevYearTotal,yearTotal)+'</td><td class="cont">100.00%</td></tr></tbody></table></div>';
 
   return visitViewButtons('category')+
     '<div class="ovmetricbar catmetric">'+
@@ -4361,15 +4386,30 @@ function visitValueRundown(){
   var latestYear = years.indexOf(2026) >= 0 ? 2026 : (years.length ? years[years.length-1] : YEARS[NY-1]);
   var prevYear = years.indexOf(2025) >= 0 ? 2025 : (years.length > 1 ? years[years.length-2] : null);
   var span = NY * 12;
+  var startM = state.m1;
+  var endM = Math.min(state.m2, latestYear === YEARS[NY-1] ? LASTM : 11);
+
+  function latestMonthActive(m){
+    return m >= startM && m <= endM;
+  }
+
+  function hasDataForYearMonth(y, m){
+    /* 2024 and 2025 always stay fully visible Jan-Dec.
+       The month-selection filter is applied only to 2026 YTD. */
+    if (y !== latestYear) return true;
+    if (!latestMonthActive(m)) return false;
+    if (y === YEARS[NY-1] && m > LASTM) return false;
+    return true;
+  }
 
   function monthlySeries(arr){
     var out = {};
     years.forEach(function(y){
       var yi = yIdx(y), vals = new Array(12);
-      for (var m=0;m<12;m++) vals[m] = (y === latestYear && m > LASTM) ? null : 0;
-      for (var i=0;i<NI;i++){
+      for (var m=0; m<12; m++) vals[m] = hasDataForYearMonth(y, m) ? 0 : null;
+      for (var i=0; i<NI; i++){
         var base = i * span + yi * 12;
-        for (var m2=0;m2<12;m2++){
+        for (var m2=0; m2<12; m2++){
           if (vals[m2] === null) continue;
           vals[m2] += arr[base + m2] || 0;
         }
@@ -4379,112 +4419,145 @@ function visitValueRundown(){
     return out;
   }
 
-  var casesSeries = monthlySeries(A.mq);
-  var valueSeries = monthlySeries(A.mv);
-
   function num(v, isValue){
-    if (!v) return '<span class="z">–</span>';
+    if (v == null) return '';
+    if (Math.abs(v) < 0.0000001) return '0';
     return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
   }
-  function pct(cur, prev){
-    if (!prev) return cur ? '<span class="up">NEW</span>' : '<span class="z">–</span>';
-    if (!cur) return '<span class="down">−100%</span>';
-    var p = cur/prev - 1, cls = p > 0.0005 ? 'up' : (p < -0.0005 ? 'down' : 'flat');
-    return '<span class="' + cls + '">' + (p>0?'+':'') + nf1.format(p*100) + '%</span>';
+
+  function pct(base, cur){
+    if (base == null || cur == null) return '';
+    if (Math.abs(base) < 0.0000001){
+      if (Math.abs(cur) < 0.0000001) return '0.0%';
+      return '—';
+    }
+    var p = (cur - base) / Math.abs(base) * 100;
+    return (p > 0 ? '+' : '') + nf1.format(p) + '%';
   }
 
-  /* Desktop keeps the horizontal Jan-Dec layout. */
-  function desktopTable(title, data, isValue){
+  function rowTotal(series, y){
+    var vals = series[y] || [], total = 0;
+
+    /* Historical years retain their full Jan-Dec total.
+       2026 total follows only the selected month filter. */
+    for (var m=0; m<12; m++){
+      if (y === latestYear && !latestMonthActive(m)) continue;
+      var v = vals[m];
+      if (v != null) total += v;
+    }
+    return total;
+  }
+
+  function selectedComparisonTotal(series){
+    /* Vs 25 total is strictly like-for-like for the months selected in the
+       filter, e.g. Jan-Jul 2026 vs Jan-Jul 2025. */
+    if (prevYear == null || !series[latestYear] || !series[prevYear]) return '';
+    var cur = 0, base = 0;
+    for (var m=startM; m<=endM; m++){
+      var cv = series[latestYear][m];
+      var bv = series[prevYear][m];
+      if (cv != null) cur += cv;
+      if (bv != null) base += bv;
+    }
+    return pct(base, cur);
+  }
+
+  function desktopTable(series, cap, isValue){
     var h = '<table class="ovtbl"><thead>' +
-            '<tr class="cap"><th colspan="14">' + title + '</th></tr>' +
-            '<tr><th></th>';
-    for (var m=0;m<12;m++) h += '<th>' + MONTHS[m] + '</th>';
+      '<tr class="cap"><th colspan="14">' + cap + '</th></tr><tr><th></th>';
+    for (var m=0; m<12; m++) h += '<th>' + MONTHS[m] + '</th>';
     h += '<th class="tot">Total</th></tr></thead><tbody>';
 
     years.forEach(function(y){
-      var vals = data[y], total = 0;
       h += '<tr><th>' + y + (y === latestYear ? ' YTD' : '') + '</th>';
-      for (var m2=0;m2<12;m2++){
-        var v = vals[m2];
-        if (v === null){
-          h += '<td class="off"></td>';
-        } else {
-          total += v;
-          h += '<td>' + num(v, isValue) + '</td>';
-        }
+      for (var m=0; m<12; m++){
+        var v = series[y] ? series[y][m] : null;
+        h += (v == null) ? '<td class="off"></td>' : '<td>' + num(v, isValue) + '</td>';
       }
-      h += '<td class="tot">' + num(total, isValue) + '</td></tr>';
+      h += '<td class="tot">' + num(rowTotal(series, y), isValue) + '</td></tr>';
     });
 
-    if (data[latestYear] && prevYear && data[prevYear]){
-      var curTotal = 0, prevTotal = 0;
-      h += '<tr class="vs"><th>% Vs ' + String(prevYear).slice(2) + '</th>';
-      for (var m3=0;m3<12;m3++){
-        var cv = data[latestYear][m3];
-        if (cv === null){
+    if (prevYear != null && series[latestYear] && series[prevYear]){
+      h += '<tr class="vs"><th>% Vs ' + String(prevYear).slice(-2) + '</th>';
+
+      for (var m=0; m<12; m++){
+        /* Comparison row only evaluates the months selected for 2026. */
+        if (!latestMonthActive(m)){
           h += '<td class="off"></td>';
-        } else {
-          var pv = data[prevYear][m3] || 0;
-          curTotal += cv; prevTotal += pv;
-          h += '<td>' + pct(cv, pv) + '</td>';
+          continue;
         }
+
+        var cur = series[latestYear][m];
+        var base = series[prevYear][m];
+        var p = pct(base, cur);
+        var cls = '';
+        if (p && p !== '—' && p !== '0.0%'){
+          cls = parseFloat(p) >= 0 ? ' class="pos"' : ' class="neg"';
+        }
+        h += '<td' + cls + '>' + p + '</td>';
       }
-      h += '<td class="tot">' + pct(curTotal, prevTotal) + '</td></tr>';
+
+      var tp = selectedComparisonTotal(series);
+      var tcls = ' class="tot"';
+      if (tp && tp !== '—' && tp !== '0.0%'){
+        tcls = parseFloat(tp) >= 0 ? ' class="tot pos"' : ' class="tot neg"';
+      }
+      h += '<td' + tcls + '>' + tp + '</td></tr>';
     }
 
     h += '</tbody></table>';
     return h;
   }
 
-  /* Mobile: Month rows and year columns, with a clean no-comparison layout. */
-  function mobileTable(title, data, isValue){
+  function mobileTable(series, cap, isValue){
     var h = '<table class="ovmobtbl"><thead>' +
-            '<tr class="cap"><th colspan="' + (years.length + 1) + '">' + title + '</th></tr>' +
-            '<tr><th>Month</th>';
+      '<tr class="cap"><th colspan="' + (years.length + 1) + '">' + cap + '</th></tr><tr><th>Month</th>';
+
     years.forEach(function(y){
       h += '<th>' + y + (y === latestYear ? ' YTD' : '') + '</th>';
     });
     h += '</tr></thead><tbody>';
 
-    for (var m=0;m<12;m++){
+    for (var m=0; m<12; m++){
       h += '<tr><th>' + MONTHS[m] + '</th>';
       years.forEach(function(y){
-        var v = data[y][m];
-        if (v === null){
-          h += '<td class="off"></td>';
-          return;
-        }
-        h += '<td>' + num(v, isValue) + '</td>';
+        var v = series[y] ? series[y][m] : null;
+        h += (v == null) ? '<td class="off"></td>' : '<td>' + num(v, isValue) + '</td>';
       });
       h += '</tr>';
     }
 
     h += '<tr class="tot"><th>Total</th>';
     years.forEach(function(y){
-      var total = 0;
-      data[y].forEach(function(v){ if (v !== null) total += v; });
-      h += '<td>' + num(total, isValue) + '</td>';
+      h += '<td>' + num(rowTotal(series, y), isValue) + '</td>';
     });
     h += '</tr></tbody></table>';
     return h;
   }
 
+  var qtySeries = monthlySeries(A.mq);
+  var valSeries = monthlySeries(A.mv);
+
+  var desktop =
+    '<div class="ovrd-desktop"><div class="ovrundown">' +
+      desktopTable(qtySeries, 'SALES IN VOLUME (CASES)', false) +
+      desktopTable(valSeries, 'SALES IN VALUE', true) +
+    '</div></div>';
+
+  var mobile =
+    '<div class="ovrd-mobile"><div class="ovrundown"><div class="ovmobgrid">' +
+      mobileTable(qtySeries, 'SALES IN VOLUME (CASES)', false) +
+      mobileTable(valSeries, 'SALES IN VALUE', true) +
+    '</div></div></div>';
+
   return visitViewButtons('rundown') +
-         '<div class="cht">Monthly run down</div>' +
-         '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · 2024–2026 YTD</div>' +
-
-         '<div class="ovrd-desktop"><div class="ovrundown">' +
-           desktopTable('SALES IN VOLUME (CASES)', casesSeries, false) +
-           desktopTable('SALES IN VALUE', valueSeries, true) +
-         '</div></div>' +
-
-         '<div class="ovrd-mobile"><div class="ovrundown"><div class="ovmobgrid">' +
-           mobileTable('CASES', casesSeries, false) +
-           mobileTable('VALUE', valueSeries, true) +
-         '</div></div></div>' +
-
-         '<div class="chnote">' + latestYear + ' totals are year-to-date.</div>';
+    '<div class="cht">Monthly run down</div>' +
+    '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · 2024–2026 YTD</div>' +
+    desktop + mobile +
+    '<div class="ovcatnote">2024 and 2025 remain full-year views. The month filter applies only to 2026, and % Vs 25 compares the selected 2026 months with the same months of 2025.</div>';
 }
+
+
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
   if (!box) return;
