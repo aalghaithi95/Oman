@@ -3836,7 +3836,7 @@ function svgDots(vals, xAt, yAt, cls){
 }
 function itemCasesChart(i){
   var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
-  var valsPrev = [], valsCurr = [], valPrev = [], valCurr = [], maxV = 0;
+  var valsPrev = [], valsCurr = [], valPrev = [], valCurr = [], maxV = 0, minV = 0;
 
   for (var m=0;m<12;m++){
     var pv = A.mq[i*span + prev*12 + m] || 0;
@@ -3850,19 +3850,37 @@ function itemCasesChart(i){
     valCurr.push(cval);
 
     if (pv > maxV) maxV = pv;
+    if (pv < minV) minV = pv;
     if (cv !== null && cv > maxV) maxV = cv;
+    if (cv !== null && cv < minV) minV = cv;
   }
 
-  var step = niceStep(maxV || 1, 5), top = step * Math.max(1, Math.ceil((maxV || 1) / step));
+  /* Build a Y-axis that includes both positive and negative values.
+     Zero is always kept inside the range so returns / negative sales plot
+     below the zero line instead of falling outside the SVG. */
+  var rawRange = maxV - minV;
+  var step = niceStep(rawRange || Math.max(Math.abs(maxV), Math.abs(minV), 1), 5);
+  var top = Math.ceil(Math.max(0, maxV) / step) * step;
+  var bottom = Math.floor(Math.min(0, minV) / step) * step;
+
+  if (top === bottom){
+    top += step;
+    bottom -= step;
+  }
+  if (top === 0 && bottom < 0) top = step;
+  if (bottom === 0 && top > 0) bottom = 0;
+
   var W = 760, H = 270, L = 58, R = 12, T = 16, B = 38;
   var PW = W - L - R, PH = H - T - B;
   var xAt = function(idx){ return L + (PW * idx / 11); };
-  var yAt = function(v){ return T + PH - ((v / top) * PH); };
+  var yAt = function(v){ return T + ((top - v) / (top - bottom)) * PH; };
   var grid = '', xlabs = '', ylabs = '';
 
-  for (var g=0; g<=5; g++){
-    var gv = top * g / 5, y = yAt(gv);
-    grid += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '" stroke="#E3E7E5" stroke-width="1"></line>';
+  var tickCount = Math.max(1, Math.round((top - bottom) / step));
+  for (var g=0; g<=tickCount; g++){
+    var gv = bottom + step * g, y = yAt(gv);
+    var zero = Math.abs(gv) < step / 1000;
+    grid += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '" stroke="' + (zero ? '#8FA0A6' : '#E3E7E5') + '" stroke-width="' + (zero ? '1.5' : '1') + '"></line>';
     ylabs += '<text x="' + (L-8) + '" y="' + (y+4).toFixed(1) + '" text-anchor="end" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + nf0.format(Math.round(gv)) + '</text>';
   }
 
