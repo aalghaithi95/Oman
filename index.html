@@ -3373,18 +3373,23 @@ function visitValueChart(){
   var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
   var valsPrev = new Float64Array(12), valsCurr = new Array(12), maxV = 0;
   for (var m=0;m<12;m++) valsCurr[m] = (m <= LASTM ? 0 : null);
+
+  /* A.mv already contains the current Market Visit scope after aggregate():
+     Area / Customer / Customer Site plus All, CPD or FSD. First build the
+     TOTAL monthly values, then calculate the axis maximum from those totals. */
   for (var i=0;i<NI;i++){
     var base = i * span;
     for (var m2=0;m2<12;m2++){
-      var pv = A.mv[base + prev*12 + m2] || 0;
-      valsPrev[m2] += pv;
-      if (pv > maxV) maxV = pv;
+      valsPrev[m2] += A.mv[base + prev*12 + m2] || 0;
       if (m2 <= LASTM){
-        var cv = A.mv[base + latest*12 + m2] || 0;
-        valsCurr[m2] += cv;
-        if (cv > maxV) maxV = cv;
+        valsCurr[m2] += A.mv[base + latest*12 + m2] || 0;
       }
     }
+  }
+
+  for (var mx=0; mx<12; mx++){
+    if (valsPrev[mx] > maxV) maxV = valsPrev[mx];
+    if (valsCurr[mx] !== null && valsCurr[mx] > maxV) maxV = valsCurr[mx];
   }
   var step = niceStep(maxV || 1, 5), top = step * Math.max(1, Math.ceil((maxV || 1) / step));
   var W = 980, H = 280, L = 64, R = 14, T = 18, B = 42;
