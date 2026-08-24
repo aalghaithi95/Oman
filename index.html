@@ -223,30 +223,43 @@ tr.ok td.desc{color:var(--pos)}
 /* ---------- Tab 1 category-wise view ---------- */
 .ovtools{display:flex;gap:6px;align-items:center}
 .ovmetricbar{display:flex;justify-content:center;align-items:center;gap:5px;margin:7px 0 9px}
-.ovmetricbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:6px 12px;border-radius:var(--r);
-  cursor:pointer;font-size:10.5px;font-weight:600}
-.ovmetricbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
-.ovmetricbtn:hover:not(.on){background:#F4F7F5;border-color:var(--ink-3)}
-.ovcatwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:3px}
-.ovcattbl{width:100%;min-width:930px;border-collapse:collapse;table-layout:fixed;margin-top:3px;font-size:11px}
-.ovcattbl th,.ovcattbl td{border:1px solid var(--line);padding:6px 6px}
-.ovcattbl thead .cap th{background:#FBEDE4;color:var(--ink);font-size:12px;font-weight:600;text-align:center;letter-spacing:.01em}
-.ovcattbl thead .mh th{background:#fff;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:9.5px;
-  letter-spacing:.06em;text-transform:uppercase;text-align:center;white-space:nowrap}
-.ovcattbl thead .mh th:first-child{text-align:left;width:128px;color:var(--ink)}
-.ovcattbl tbody th{background:#FAFAF8;color:var(--ink);text-align:left;font-weight:600;white-space:nowrap}
-.ovcattbl tbody td{text-align:center;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
-.ovcattbl .sel{background:#E7F2E9!important}
-.ovcattbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;color:transparent}
-.ovcattbl .tot{font-weight:600;background:#F7F9F8}
-.ovcattbl .cont{font-weight:600}
-.ovcattbl tr.grand th,.ovcattbl tr.grand td{font-weight:700;background:#F1F4F2;border-top:1.5px solid var(--ink-3)}
-.ovcatnote{font-size:10px;color:var(--muted);text-align:center;margin-top:7px}
+.ovmetricbar.catmetric{
+  position:absolute;top:10px;right:48%;z-index:5;margin:0;
+  gap:2px;padding:3px;border:1px solid var(--line);border-radius:4px;background:#fff
+}
+.ovmetricbtn{
+  min-width:66px;height:28px;padding:0 14px;border:0;border-radius:3px;background:transparent;color:#7D8B92;
+  cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:28px
+}
+.ovmetricbtn.on{background:var(--ink);color:#fff}
+.ovmetricbtn:hover:not(.on){background:#F3F5F4;color:var(--ink)}
+
+/* Category Wise follows the same visual language as Monthly Run Down. */
+.ovcatwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:5px}
+.ovcatmonthly{width:100%;min-width:1080px;border-collapse:collapse;table-layout:fixed;font-size:12px;margin-top:8px}
+.ovcatmonthly .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:12px;text-align:center;
+  padding:8px 6px;border:1px solid #E4CDBE;letter-spacing:.03em}
+.ovcatmonthly thead tr:last-child th{background:#fff;border:1px solid var(--line);padding:8px 6px;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);text-align:center;white-space:nowrap}
+.ovcatmonthly thead tr:last-child th:first-child{text-align:left;width:132px;color:var(--ink)}
+.ovcatmonthly tbody th{background:#FFF9D6;border:1px solid var(--line);padding:8px 8px;text-align:left;
+  font-weight:600;white-space:nowrap}
+.ovcatmonthly tbody td{border:1px solid var(--line);padding:8px 7px;text-align:center;
+  font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.ovcatmonthly td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;color:transparent}
+.ovcatmonthly .tot{font-weight:600;background:#F7F9F8}
+.ovcatmonthly .cont{font-weight:600}
+.ovcatmonthly tr.grand th,.ovcatmonthly tr.grand td{font-weight:700;background:#F1F4F2;border-top:1.5px solid var(--ink-3)}
+.ovcatnote{font-size:10px;color:var(--muted);text-align:center;margin-top:8px}
+
 @media (max-width:760px){
   .ovtools{gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:68%}
   .ovviewbtn{padding:6px 8px;font-size:9.5px}
-  .ovmetricbtn{padding:6px 10px;font-size:10px}
-  .ovcattbl{min-width:860px;font-size:10px}
+  .ovmetricbar.catmetric{position:static;margin:6px 0 8px;justify-content:center}
+  .ovmetricbtn{min-width:62px;height:28px;padding:0 12px;font-size:10px;line-height:28px}
+  .ovcatmonthly{min-width:900px;font-size:10px}
+  .ovcatmonthly tbody th,.ovcatmonthly tbody td{padding:7px 5px}
 }
 
 /* ---------- phone: the aisle-walk layout ---------- */
@@ -4198,10 +4211,10 @@ function visitCategoryWise(){
     return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
   }
 
-  var h='<div class="ovcatwrap"><table class="ovcattbl"><thead>'+
+  var h='<div class="ovcatwrap"><table class="ovcatmonthly"><thead>'+
         '<tr class="cap"><th colspan="15">'+title+' ('+year+(latest?' YTD':'')+')</th></tr>'+
-        '<tr class="mh"><th>Category</th>';
-  for (var m=0;m<12;m++) h += '<th class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+MONTHS[m]+'</th>';
+        '<tr><th>Category</th>';
+  for (var m=0;m<12;m++) h += '<th>'+MONTHS[m]+'</th>';
   h += '<th>Total</th><th>Cont</th></tr></thead><tbody>';
 
   CATWISE_BASE.forEach(function(c){
@@ -4210,7 +4223,7 @@ function visitCategoryWise(){
     for (var m=0;m<12;m++){
       if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
       var v=vals[m]||0; tot+=v;
-      h += '<td class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+f(v)+'</td>';
+      h += '<td>'+f(v)+'</td>';
     }
     var cont=yearTotal ? tot/yearTotal*100 : 0;
     h += '<td class="tot">'+f(tot)+'</td><td class="cont">'+nf0.format(Math.round(cont))+'%</td></tr>';
@@ -4219,18 +4232,19 @@ function visitCategoryWise(){
   h += '<tr class="grand"><th>Total</th>';
   for (var m=0;m<12;m++){
     if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
-    h += '<td class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+f(d.totals[m])+'</td>';
+    h += '<td>'+f(d.totals[m])+'</td>';
   }
   h += '<td class="tot">'+f(yearTotal)+'</td><td class="cont">100%</td></tr></tbody></table></div>';
 
   return visitViewButtons('category')+
-    '<div class="cht">Category Wise</div>'+
-    '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+year+(latest?' YTD':'')+'</div>'+
-    '<div class="ovmetricbar">'+
+    '<div class="ovmetricbar catmetric">'+
       '<button class="ovmetricbtn '+(metric==='cases'?'on':'')+'" type="button" data-metric="cases">Volume</button>'+
       '<button class="ovmetricbtn '+(metric==='value'?'on':'')+'" type="button" data-metric="value">Value</button>'+
-    '</div>'+h+
-    '<div class="ovcatnote">Selected period columns are highlighted. Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.</div>';
+    '</div>'+
+    '<div class="cht">Category Wise</div>'+
+    '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+year+(latest?' YTD':'')+'</div>'+
+    h+
+    '<div class="ovcatnote">Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.</div>';
 }
 
 
