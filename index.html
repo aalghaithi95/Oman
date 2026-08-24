@@ -3389,18 +3389,30 @@ function exportMonthlyDetailXlsx(){
   aggregate();  /* current Area / Customer / Site / All-CPD-FSD scope */
 
   var exportYears=[2024,2025,2026], span=NY*12, areaScope=areasInScope();
-  var regularIds=[], promoIds=[];
+  var regularIds=[], promoIds=[], fsdGallonIds=[], fsdRetailIds=[];
 
   for (var i=0;i<NI;i++){
     if (!itemVisible(i)) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
+
     if (ITEMS[i][3] === 'Promotion') promoIds.push(i);
     else regularIds.push(i);
+
+    /* In the FSD export, the useful split is pack type rather than sales type:
+       Food Service/Gallon packs are kept together, while all retail packs
+       (Regular + Promo) are kept together below them. */
+    if (isFsdItem(i)) fsdGallonIds.push(i);
+    else fsdRetailIds.push(i);
   }
+
+  var primaryIds   = state.dep === 'FSD' ? fsdGallonIds : regularIds;
+  var secondaryIds = state.dep === 'FSD' ? fsdRetailIds : promoIds;
+  var primaryLabel = state.dep === 'FSD' ? 'FOOD SERVICE (GALLON) TOTAL' : 'REGULAR TOTAL';
+  var secondaryLabel = state.dep === 'FSD' ? 'RETAIL ITEMS TOTAL' : 'PROMO TOTAL';
 
   /* Category order is driven by 2026 YTD VALUE sales, highest category first.
      Items stay together by category; within each category, items are ranked by
-     2026 YTD value. Regular remains above Promo. */
+     2026 YTD value. */
   var y26=yIdx(2026);
   function ytdValue(i){
     var v=0;
@@ -3424,8 +3436,8 @@ function exportMonthlyDetailXlsx(){
       return vb-va || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
     });
   }
-  sortGroup(regularIds);
-  sortGroup(promoIds);
+  sortGroup(primaryIds);
+  sortGroup(secondaryIds);
 
   function xmlEsc(v){
     return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
@@ -3481,7 +3493,7 @@ function exportMonthlyDetailXlsx(){
     );
 
     /* Row 2: GRAND TOTAL = Regular + Promo, below years and above month headers. */
-    var allIds=regularIds.concat(promoIds);
+    var allIds=primaryIds.concat(secondaryIds);
     var allStock=groupStock(allIds);
     var grand='<Row ss:Height="21">' +
       cellString('GRAND TOTAL','Grand',1,2);
@@ -3550,13 +3562,15 @@ function exportMonthlyDetailXlsx(){
       return r;
     }
 
-    /* No separate "REGULAR ITEMS" or "PROMO ITEMS" header rows.
-       The trailing totals identify where each section ends. */
-    regularIds.forEach(function(i){ rows.push(itemRow(i)); });
-    rows.push(groupTotalRow('REGULAR TOTAL',regularIds));
+    /* No separate section-heading rows. The trailing totals identify the split.
+       All/CPD: Regular above Promo.
+       FSD: Food Service (Gallon) packs above Retail packs, with Retail Regular
+       and Promo items intentionally kept together. */
+    primaryIds.forEach(function(i){ rows.push(itemRow(i)); });
+    rows.push(groupTotalRow(primaryLabel,primaryIds));
 
-    promoIds.forEach(function(i){ rows.push(itemRow(i)); });
-    rows.push(groupTotalRow('PROMO TOTAL',promoIds));
+    secondaryIds.forEach(function(i){ rows.push(itemRow(i)); });
+    rows.push(groupTotalRow(secondaryLabel,secondaryIds));
 
     return '<Worksheet ss:Name="'+xmlEsc(name)+'">' +
       '<Table ss:ExpandedColumnCount="41" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
