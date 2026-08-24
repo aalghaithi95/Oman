@@ -211,6 +211,44 @@ tr.nsup{background:#FDF4F2}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 tr.ok td.desc{color:var(--pos)}
 
+/* ---------- Tab 1 decline highlight ---------- */
+#tbl tbody tr.declinerow td{background:#FFF1EE}
+#tbl tbody tr.declinerow:hover td{background:#FCE7E2}
+#tbl tbody tr.declinerow td.desc{color:var(--neg);font-weight:600}
+#tbl tbody tr.declinerow td.d-delta,#tbl tbody tr.declinerow td.d-dv{box-shadow:inset 0 -2px 0 rgba(161,7,22,.24)}
+@media (max-width:760px){
+  #tbl tbody tr.declinerow{border-left-color:var(--neg);background:#FFF1EE}
+}
+
+/* ---------- Tab 1 category-wise view ---------- */
+.ovtools{display:flex;gap:6px;align-items:center}
+.ovmetricbar{display:flex;justify-content:center;align-items:center;gap:5px;margin:7px 0 9px}
+.ovmetricbtn{border:1px solid var(--line);background:#fff;color:var(--muted);padding:6px 12px;border-radius:var(--r);
+  cursor:pointer;font-size:10.5px;font-weight:600}
+.ovmetricbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.ovmetricbtn:hover:not(.on){background:#F4F7F5;border-color:var(--ink-3)}
+.ovcatwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-top:3px}
+.ovcattbl{width:100%;min-width:930px;border-collapse:collapse;table-layout:fixed;margin-top:3px;font-size:11px}
+.ovcattbl th,.ovcattbl td{border:1px solid var(--line);padding:6px 6px}
+.ovcattbl thead .cap th{background:#FBEDE4;color:var(--ink);font-size:12px;font-weight:600;text-align:center;letter-spacing:.01em}
+.ovcattbl thead .mh th{background:#fff;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+  letter-spacing:.06em;text-transform:uppercase;text-align:center;white-space:nowrap}
+.ovcattbl thead .mh th:first-child{text-align:left;width:128px;color:var(--ink)}
+.ovcattbl tbody th{background:#FAFAF8;color:var(--ink);text-align:left;font-weight:600;white-space:nowrap}
+.ovcattbl tbody td{text-align:center;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.ovcattbl .sel{background:#E7F2E9!important}
+.ovcattbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;color:transparent}
+.ovcattbl .tot{font-weight:600;background:#F7F9F8}
+.ovcattbl .cont{font-weight:600}
+.ovcattbl tr.grand th,.ovcattbl tr.grand td{font-weight:700;background:#F1F4F2;border-top:1.5px solid var(--ink-3)}
+.ovcatnote{font-size:10px;color:var(--muted);text-align:center;margin-top:7px}
+@media (max-width:760px){
+  .ovtools{gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:68%}
+  .ovviewbtn{padding:6px 8px;font-size:9.5px}
+  .ovmetricbtn{padding:6px 10px;font-size:10px}
+  .ovcattbl{min-width:860px;font-size:10px}
+}
+
 /* ---------- phone: the aisle-walk layout ---------- */
 @media (max-width:760px){
   body{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:rgba(14,124,99,.15);
@@ -995,6 +1033,7 @@ body.neopen .necard{transform:translateY(0)}
         <span class="headslot" id="histSlot"></span>
         <label class="toggle"><input type="checkbox" id="showRegular" checked> Regular</label>
         <label class="toggle"><input type="checkbox" id="showPromo" checked> Promo</label>
+        <label class="toggle"><input type="checkbox" id="showDecline"> Decline</label>
         <label class="toggle"><input type="checkbox" id="grp" checked> Group by category</label>
         <label class="toggle"><input type="checkbox" id="hideZero" checked> Hide unsold promo packs</label>
         <label class="toggle"><input type="checkbox" id="onlyUn"> Only unchecked</label>
@@ -2492,7 +2531,7 @@ var state = {
   oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
   pArea: new Set(), pCust: new Set(), pCat: null, pItems: new Set(), pRet: 10,
   sort: {key:'vB', dir:-1},
-  showRegular: true, showPromo: true,
+  showRegular: true, showPromo: true, showDecline: false,
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
 };
@@ -2747,6 +2786,7 @@ function render(){
     var cl = stopped ? 'stopped' : (r.promo ? '' : (hit ? 'ok' : 'missing'));
     if (r.promo) cl += (cl?' ':'') + 'promorow';
     if (r.last < 0) cl += (cl?' ':'') + 'nsup';
+    if (state.showDecline && r.delta < 0) cl += (cl?' ':'') + 'declinerow';
     out.push('<tr'+(cl?' class="'+cl+'"':'')+'>'+
       '<td class="c-type"><span class="pill '+(r.promo?'promo':'reg')+'">'+(r.promo?'Promo':'Reg')+'</span></td>'+
       '<td class="c-cat" style="white-space:nowrap">'+esc(r.cat)+'</td>'+
@@ -3378,6 +3418,7 @@ function buildCatFilter(){
 }
 document.getElementById('showRegular').addEventListener('change', function(){ state.showRegular = this.checked; render(); });
 document.getElementById('showPromo').addEventListener('change', function(){ state.showPromo = this.checked; render(); });
+document.getElementById('showDecline').addEventListener('change', function(){ state.showDecline = this.checked; render(); });
 document.getElementById('grp').addEventListener('change', function(){ state.group = this.checked; render(); });
 document.getElementById('hideZero').addEventListener('change', function(){ state.hideZero = this.checked; render(); });
 document.getElementById('onlyUn').addEventListener('change', function(){ state.onlyUnchecked = this.checked; render(); });
@@ -3395,6 +3436,7 @@ document.getElementById('reset').addEventListener('click', function(){
   document.getElementById('catSel').value = '';
   state.showRegular = true; document.getElementById('showRegular').checked = true;
   state.showPromo = true; document.getElementById('showPromo').checked = true;
+  state.showDecline = false; document.getElementById('showDecline').checked = false;
   state.onlyUnchecked = false; document.getElementById('onlyUn').checked = false;
   msArea.refresh(); msCust.refresh(); msSite.refresh(); syncPresets(); loadChecks(); render();
 });
@@ -4091,6 +4133,106 @@ function itemCasesChart(i){
 
 
 var VISIT_VALUE_VIEW = 'chart';
+var VISIT_CAT_METRIC = 'cases';
+
+function visitViewButtons(active){
+  var a=[];
+  if (active !== 'chart') a.push('<button class="ovviewbtn" type="button" data-view="chart">Graph view</button>');
+  if (active !== 'rundown') a.push('<button class="ovviewbtn" type="button" data-view="rundown">Monthly run down</button>');
+  if (active !== 'category') a.push('<button class="ovviewbtn" type="button" data-view="category">Category Wise</button>');
+  return '<div class="ovtools">'+a.join('')+'</div>';
+}
+
+/* Category conversion follows the uploaded workbook:
+   Dressing + Sauce   = 50% Salad Dressing + 50% Sauces
+   Dressing + Ketchup = 66.666% Salad Dressing + 33.333% Ketchup
+   Dressing + Mayo    = 50% Salad Dressing + 50% Mayonnaise
+   Normal categories remain unchanged. */
+var CATWISE_BASE = ['Salad Dressing','Mayonnaise','C&E','Hot Sauce','Sauces','Ketchup','Pasta','Jam'];
+function categoryWiseAlloc(cat){
+  if (CATWISE_BASE.indexOf(cat) >= 0) return [[cat,1]];
+  if (cat === 'Dressing + Sauce') return [['Salad Dressing',0.5],['Sauces',0.5]];
+  if (cat === 'Dressing + Ketchup') return [['Salad Dressing',2/3],['Ketchup',1/3]];
+  if (cat === 'Dressing + Mayo') return [['Salad Dressing',0.5],['Mayonnaise',0.5]];
+  return [];
+}
+function categoryWiseItemAllowed(i){
+  if (isOther(i)) return false;
+  var promo = ITEMS[i][3] === 'Promotion';
+  if (promo && !state.showPromo) return false;
+  if (!promo && !state.showRegular) return false;
+  if (state.cat !== null && catOf[i] !== state.cat) return false;
+  return true;
+}
+function categoryWiseSeries(metric){
+  var arr = metric === 'value' ? A.mv : A.mq;
+  var year = state.yrB, yi = yIdx(year), span = NY*12;
+  var out={}, totalMonths=new Array(12).fill(0);
+  CATWISE_BASE.forEach(function(c){ out[c]=new Array(12).fill(0); });
+  if (yi < 0) return {year:year, rows:out, totals:totalMonths};
+
+  for (var i=0;i<NI;i++){
+    if (!categoryWiseItemAllowed(i)) continue;
+    var alloc = categoryWiseAlloc(ITEMS[i][2]);
+    if (!alloc.length) continue;
+    for (var m=0;m<12;m++){
+      if (year === YEARS[NY-1] && m > LASTM) continue;
+      var v = arr[i*span + yi*12 + m] || 0;
+      if (!v) continue;
+      for (var a=0;a<alloc.length;a++) out[alloc[a][0]][m] += v*alloc[a][1];
+    }
+  }
+  CATWISE_BASE.forEach(function(c){
+    for (var m=0;m<12;m++) totalMonths[m] += out[c][m];
+  });
+  return {year:year, rows:out, totals:totalMonths};
+}
+function visitCategoryWise(){
+  var metric=VISIT_CAT_METRIC, isValue=metric==='value', d=categoryWiseSeries(metric);
+  var year=d.year, latest=(year===YEARS[NY-1]), title=isValue?'Sales in Value':'Sales in Cases';
+  var yearTotal=0;
+  for (var m=0;m<12;m++) if (!(latest && m>LASTM)) yearTotal += d.totals[m];
+
+  function f(v){
+    if (Math.abs(v) < 0.0000001) return '0';
+    return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
+  }
+
+  var h='<div class="ovcatwrap"><table class="ovcattbl"><thead>'+
+        '<tr class="cap"><th colspan="15">'+title+' ('+year+(latest?' YTD':'')+')</th></tr>'+
+        '<tr class="mh"><th>Category</th>';
+  for (var m=0;m<12;m++) h += '<th class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+MONTHS[m]+'</th>';
+  h += '<th>Total</th><th>Cont</th></tr></thead><tbody>';
+
+  CATWISE_BASE.forEach(function(c){
+    var vals=d.rows[c], tot=0;
+    h += '<tr><th>'+esc(c)+'</th>';
+    for (var m=0;m<12;m++){
+      if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
+      var v=vals[m]||0; tot+=v;
+      h += '<td class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+f(v)+'</td>';
+    }
+    var cont=yearTotal ? tot/yearTotal*100 : 0;
+    h += '<td class="tot">'+f(tot)+'</td><td class="cont">'+nf0.format(Math.round(cont))+'%</td></tr>';
+  });
+
+  h += '<tr class="grand"><th>Total</th>';
+  for (var m=0;m<12;m++){
+    if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
+    h += '<td class="'+(m>=state.m1 && m<=state.m2?'sel':'')+'">'+f(d.totals[m])+'</td>';
+  }
+  h += '<td class="tot">'+f(yearTotal)+'</td><td class="cont">100%</td></tr></tbody></table></div>';
+
+  return visitViewButtons('category')+
+    '<div class="cht">Category Wise</div>'+
+    '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+year+(latest?' YTD':'')+'</div>'+
+    '<div class="ovmetricbar">'+
+      '<button class="ovmetricbtn '+(metric==='cases'?'on':'')+'" type="button" data-metric="cases">Volume</button>'+
+      '<button class="ovmetricbtn '+(metric==='value'?'on':'')+'" type="button" data-metric="value">Value</button>'+
+    '</div>'+h+
+    '<div class="ovcatnote">Selected period columns are highlighted. Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.</div>';
+}
+
 
 function visitMonthlyValueSeries(){
   var span = NY * 12, out = {};
@@ -4186,7 +4328,7 @@ function visitValueChart(){
     points(valsCurr, currYear, '#A10716') +
     '</svg>';
 
-  return '<div class="ovtools"><button class="ovviewbtn" type="button" data-view="rundown">Monthly run down</button></div>' +
+  return visitViewButtons('chart') +
     '<div class="cht">Monthly value trend, OMR (Jan–Dec)</div>' +
     '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · ' + prevYear + ' vs ' + currYear + ' YTD</div>' +
     svg +
@@ -4313,7 +4455,7 @@ function visitValueRundown(){
     return h;
   }
 
-  return '<div class="ovtools"><button class="ovviewbtn" type="button" data-view="chart">Graph view</button></div>' +
+  return visitViewButtons('rundown') +
          '<div class="cht">Monthly run down</div>' +
          '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · 2024–2026 YTD</div>' +
 
@@ -4332,7 +4474,8 @@ function visitValueRundown(){
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
   if (!box) return;
-  box.innerHTML = VISIT_VALUE_VIEW === 'rundown' ? visitValueRundown() : visitValueChart();
+  box.innerHTML = VISIT_VALUE_VIEW === 'rundown' ? visitValueRundown() :
+                  (VISIT_VALUE_VIEW === 'category' ? visitCategoryWise() : visitValueChart());
 }
 
 (function wireVisitValueChart(){
@@ -4340,9 +4483,15 @@ function renderVisitValueChart(){
   if (!box) return;
 
   box.addEventListener('click', function(e){
+    var mb = e.target.closest('.ovmetricbtn');
+    if (mb){
+      VISIT_CAT_METRIC = mb.dataset.metric === 'value' ? 'value' : 'cases';
+      renderVisitValueChart();
+      return;
+    }
     var b = e.target.closest('.ovviewbtn');
     if (!b) return;
-    VISIT_VALUE_VIEW = b.dataset.view === 'rundown' ? 'rundown' : 'chart';
+    VISIT_VALUE_VIEW = (b.dataset.view === 'rundown' || b.dataset.view === 'category') ? b.dataset.view : 'chart';
     renderVisitValueChart();
   });
 
