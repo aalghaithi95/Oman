@@ -358,6 +358,19 @@ body.imopen{overflow:hidden}
 .imchart .sw.prev{color:#C6B2B0;border-top-color:#C6B2B0}
 .imchart .sw.curr{color:#A10716;border-top-color:#A10716}
 .imchart .chnote{font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px}
+
+/* ---------- visit overview value chart ---------- */
+.ovchart{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-top:14px;padding:14px 16px 12px}
+.ovchart .cht{font-size:13px;font-weight:600;text-align:center;color:var(--text);margin-bottom:2px}
+.ovchart .chs{font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px}
+.ovchart .chsvg{width:100%;height:auto;display:block}
+.ovchart .chlegend{display:flex;justify-content:center;gap:18px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.ovchart .lg{display:inline-flex;align-items:center;gap:7px}
+.ovchart .sw{width:24px;height:0;border-top:3px solid;border-radius:999px;display:inline-block;position:relative}
+.ovchart .sw::after{content:'';position:absolute;right:-1px;top:-4px;width:7px;height:7px;border-radius:50%;background:currentColor}
+.ovchart .sw.prev{color:#C6B2B0;border-top-color:#C6B2B0}
+.ovchart .sw.curr{color:#A10716;border-top-color:#A10716}
+.ovchart .chnote{font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
@@ -372,6 +385,10 @@ body.imopen{overflow:hidden}
   .imchart .cht{font-size:12px}
   .imchart .chs,.imchart .chnote{font-size:10px}
   .imchart .chlegend{gap:12px;font-size:10.5px}
+  .ovchart{padding:12px 10px 10px}
+  .ovchart .cht{font-size:12px}
+  .ovchart .chs,.ovchart .chnote{font-size:10px}
+  .ovchart .chlegend{gap:12px;font-size:10.5px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -839,6 +856,8 @@ body.neopen .necard{transform:translateY(0)}
   </div>
 
   <div class="status loading" id="status"><span class="dot"></span><span class="msg" id="statusMsg">Connecting…</span><button id="refreshBtn" type="button">Refresh</button></div>
+
+  <div class="ovchart" id="visitValueChart"></div>
 
   <div class="kpis" id="kpis"></div>
   <div class="areacards" id="areaCards"></div>
@@ -2455,6 +2474,7 @@ function render(){
                 : 'billed in ' + state.yrA + ', nothing in ' + state.yrB,
         lostSites?'down':'flat', lostSites ? 'lost' : '');
 
+  renderVisitValueChart();
   renderAudit();
   renderAreaCards();
 
@@ -3347,6 +3367,64 @@ function itemCasesChart(i){
     '</div>' +
     '<div class="chnote">' + YEARS[latest] + ' continues through ' + MONTHS[LASTM] + '; later months stay blank until data is available.</div>' +
   '</div>';
+}
+
+function visitValueChart(){
+  var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
+  var valsPrev = new Float64Array(12), valsCurr = new Array(12), maxV = 0;
+  for (var m=0;m<12;m++) valsCurr[m] = (m <= LASTM ? 0 : null);
+  for (var i=0;i<NI;i++){
+    var base = i * span;
+    for (var m2=0;m2<12;m2++){
+      var pv = A.mv[base + prev*12 + m2] || 0;
+      valsPrev[m2] += pv;
+      if (pv > maxV) maxV = pv;
+      if (m2 <= LASTM){
+        var cv = A.mv[base + latest*12 + m2] || 0;
+        valsCurr[m2] += cv;
+        if (cv > maxV) maxV = cv;
+      }
+    }
+  }
+  var step = niceStep(maxV || 1, 5), top = step * Math.max(1, Math.ceil((maxV || 1) / step));
+  var W = 980, H = 280, L = 64, R = 14, T = 18, B = 42;
+  var PW = W - L - R, PH = H - T - B;
+  var xAt = function(idx){ return L + (PW * idx / 11); };
+  var yAt = function(v){ return T + PH - ((v / top) * PH); };
+  var grid = '', xlabs = '', ylabs = '';
+  for (var g=0; g<=5; g++){
+    var gv = top * g / 5, y = yAt(gv);
+    grid += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '" stroke="#E3E7E5" stroke-width="1"></line>';
+    ylabs += '<text x="' + (L-10) + '" y="' + (y+4).toFixed(1) + '" text-anchor="end" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + nf0.format(Math.round(gv)) + '</text>';
+  }
+  for (var x=0; x<12; x++){
+    xlabs += '<text x="' + xAt(x).toFixed(1) + '" y="' + (H-14) + '" text-anchor="middle" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + MONTHS[x] + '</text>';
+  }
+  var pathPrev = svgLinePath(Array.from(valsPrev), xAt, yAt), pathCurr = svgLinePath(valsCurr, xAt, yAt);
+  var svg = '<svg class="chsvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Monthly value trend for tab 1">' +
+    '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#FFFFFF"></rect>' +
+    grid +
+    '<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H-B) + '" stroke="#8FA0A6" stroke-width="1.2"></line>' +
+    '<line x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B) + '" stroke="#8FA0A6" stroke-width="1.2"></line>' +
+    ylabs + xlabs +
+    '<path d="' + pathPrev + '" fill="none" stroke="#C6B2B0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    '<path d="' + pathCurr + '" fill="none" stroke="#A10716" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    svgDots(Array.from(valsPrev), xAt, yAt, 'dotp').replace(/<circle/g, '<circle fill="#C6B2B0"') +
+    svgDots(valsCurr, xAt, yAt, 'dotc').replace(/<circle/g, '<circle fill="#A10716"') +
+    '</svg>';
+  return '<div class="cht">Monthly value trend, OMR (Jan–Dec)</div>' +
+    '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · ' + YEARS[prev] + ' vs ' + YEARS[latest] + ' YTD</div>' +
+    svg +
+    '<div class="chlegend">' +
+      '<span class="lg"><span class="sw prev"></span>' + YEARS[prev] + '</span>' +
+      '<span class="lg"><span class="sw curr"></span>' + YEARS[latest] + ' YTD</span>' +
+    '</div>' +
+    '<div class="chnote">The chart follows the current customer/site scope and the selected department (All, CPD or FSD). ' + YEARS[latest] + ' continues through ' + MONTHS[LASTM] + ' and later months remain blank.</div>';
+}
+function renderVisitValueChart(){
+  var box = document.getElementById('visitValueChart');
+  if (!box) return;
+  box.innerHTML = visitValueChart();
 }
 function openItem(i){
   aggregate();                                   /* make sure the grid matches the filters */
