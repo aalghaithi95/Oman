@@ -834,7 +834,7 @@ body.neopen .necard{transform:translateY(0)}
 #ptbl th.p-site,#ptbl td.p-site{width:22%}
 #ptbl th.p-item,#ptbl td.p-item{width:24%}
 #ptbl th.p-cat,#ptbl td.p-cat{width:11%}
-#ptbl th.p-last,#ptbl td.p-last{width:10%}
+#ptbl th.p-last,#ptbl td.p-last{width:11%}
 @media (max-width:760px){
   .tabs .tab{font-size:10.5px;line-height:1.1;white-space:normal}
   .promoformula{width:100%;font-size:10px}
@@ -1299,7 +1299,7 @@ body.neopen .necard{transform:translateY(0)}
 
     <div class="fbar">
       <div class="promoformula">
-        Return % = returned cases ÷ cases supplied in the immediately previous month.
+        Return % = total returned cases ÷ total positive supplied cases within the selected 2026 period.
       </div>
       <div class="fbtns">
         <button class="btn ghost" id="pReset">Reset filters</button>
@@ -1327,7 +1327,6 @@ body.neopen .necard{transform:translateY(0)}
           <th class="r p-supply">Supplied Cases</th>
           <th class="r p-return">Returned Cases</th>
           <th class="r p-rate">Return %</th>
-          <th class="r p-max">Max Return %</th>
           <th class="p-last">Last Return</th>
         </tr></thead>
       </table>
@@ -4960,12 +4959,22 @@ function promoItemOk(i){
 }
 function promoPairKey(s,i){ return s * NI + i; }
 
+function promoAnalysisYear(){
+  return yIdx(2026) >= 0 ? 2026 : state.yrB;
+}
+
+function promoSelectedEndMonth(){
+  var y = promoAnalysisYear();
+  return y === YEARS[NY-1] ? Math.min(state.m2, LASTM) : state.m2;
+}
+
 function promotionScan(){
-  var key = state.dep + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' +
+  var py = promoAnalysisYear();
+  var key = state.dep + '|' + py + '|' + state.m1 + '|' + state.m2 + '|' +
             SITES.length + '|' + (F ? F.s.length : 0);
   if (PRSCAN && PRSCAN.key === key) return PRSCAN;
 
-  var span = NY * 12, ib = yIdx(state.yrB);
+  var span = NY * 12, ib = yIdx(py);
   var pairs = {};
   var fs = F.s, fi = F.i, fp = F.p, fq = F.q, fv = F.v, fd = F.d, N = fs.length;
 
@@ -4977,12 +4986,17 @@ function promotionScan(){
     var s = fs[k], p = fp[k], pk = promoPairKey(s,i);
     var d = pairs[pk];
     if (!d){
-      d = pairs[pk] = {s:s, i:i, q:new Float64Array(span), sales:0};
+      d = pairs[pk] = {
+        s:s, i:i,
+        q:new Float64Array(span),
+        sales:0,
+        supply:0, ret:0, events:0, rate:0, last:-1
+      };
     }
     d.q[p] += fq[k];
 
     var yi = (p/12)|0, m = p%12;
-    if (yi === ib && m >= state.m1 && m <= state.m2){
+    if (yi === ib && m >= state.m1 && m <= promoSelectedEndMonth()){
       d.sales += fv[k];
     }
   }
@@ -4990,29 +5004,50 @@ function promotionScan(){
   var events = [], siteAny = {}, custAny = {}, areaAny = {};
   Object.keys(pairs).forEach(function(pk){
     var d = pairs[pk], q = d.q;
-    for (var p=1;p<span;p++){
-      var yi = (p/12)|0, m = p%12;
-      if (yi !== ib || m < state.m1 || m > state.m2) continue;
-      if (state.yrB === YEARS[NY-1] && m > LASTM) continue;
+    var startP = ib*12 + state.m1;
+    var endP = ib*12 + promoSelectedEndMonth();
 
-      var supplied = q[p-1], returned = q[p];
-      if (!(supplied > 0 && returned < 0)) continue;
+    for (var p=startP; p<=endP; p++){
+      var qty = q[p] || 0;
+      if (qty > 0){
+        d.supply += qty;
+      } else if (qty < 0){
+        d.ret += -qty;
+        d.events++;
+        d.last = p;
+      }
+    }
 
-      var pct = (-returned / supplied) * 100;
+    d.rate = d.supply > 0 ? (d.ret / d.supply * 100) : 0;
+
+    if (d.ret > 0){
       var cid = SITES[d.s][4];
-      events.push({
-        s:d.s, i:d.i, cid:cid, a:areaOf[d.s],
-        supplyP:p-1, returnP:p,
-        supply:supplied, ret:-returned, pct:pct,
-        sales:d.sales
-      });
       siteAny[d.s] = 1;
       custAny[cid] = 1;
       areaAny[areaOf[d.s]] = 1;
+
+      /* Keep one event record for every negative monthly value. The event count
+         therefore remains the number of negative values, while Return % is
+         calculated once across the full selected period. */
+      for (var ep=startP; ep<=endP; ep++){
+        var eq = q[ep] || 0;
+        if (eq >= 0) continue;
+        events.push({
+          s:d.s, i:d.i, cid:cid, a:areaOf[d.s],
+          returnP:ep, ret:-eq,
+          supply:d.supply, pct:d.rate,
+          sales:d.sales
+        });
+      }
     }
   });
 
-  PRSCAN = {key:key, events:events, pairs:pairs, siteAny:siteAny, custAny:custAny, areaAny:areaAny};
+  PRSCAN = {
+    key:key, year:py,
+    startMonth:state.m1, endMonth:promoSelectedEndMonth(),
+    events:events, pairs:pairs,
+    siteAny:siteAny, custAny:custAny, areaAny:areaAny
+  };
   return PRSCAN;
 }
 
@@ -5099,71 +5134,76 @@ function promoRate(p){
 function buildPromoGroups(){
   var S = promotionScan(), minPct = state.pRet, itemMap = {};
 
-  S.events.forEach(function(e){
-    if (e.pct + 1e-9 < minPct) return;
-    if (state.pArea.size && !state.pArea.has(e.a)) return;
-    if (state.pCust.size && !state.pCust.has(e.cid)) return;
-    if (state.pCat !== null && catOf[e.i] !== state.pCat) return;
-    if (state.pItems.size && !state.pItems.has(e.i)) return;
+  Object.keys(S.pairs).forEach(function(pk){
+    var d = S.pairs[pk];
+    if (!(d.ret > 0)) return;
+    if (!(d.supply > 0)) return;
+    if (d.rate + 1e-9 < minPct) return;
 
-    var key = e.s + ':' + e.i;
-    var x = itemMap[key];
-    if (!x){
-      var pair = S.pairs[promoPairKey(e.s,e.i)];
-      x = itemMap[key] = {
-        s:e.s, i:e.i, cid:e.cid, a:e.a,
-        events:0, supply:0, ret:0, maxPct:0, last:-1,
-        sales:pair ? pair.sales : 0
-      };
-    }
-    x.events++;
-    x.supply += e.supply;
-    x.ret += e.ret;
-    if (e.pct > x.maxPct) x.maxPct = e.pct;
-    if (e.returnP > x.last) x.last = e.returnP;
+    var cid = SITES[d.s][4], a = areaOf[d.s];
+    if (state.pArea.size && !state.pArea.has(a)) return;
+    if (state.pCust.size && !state.pCust.has(cid)) return;
+    if (state.pCat !== null && catOf[d.i] !== state.pCat) return;
+    if (state.pItems.size && !state.pItems.has(d.i)) return;
+
+    var key = d.s + ':' + d.i;
+    itemMap[key] = {
+      s:d.s, i:d.i, cid:cid, a:a,
+      events:d.events, supply:d.supply, ret:d.ret,
+      rate:d.rate, last:d.last, sales:d.sales
+    };
   });
 
   var byCust = {}, groups = [];
   Object.keys(itemMap).forEach(function(k){
     var it = itemMap[k];
-    it.rate = it.supply ? (it.ret / it.supply * 100) : 0;
 
     var c = byCust[it.cid] || (byCust[it.cid] = {
-      cid:it.cid, sales:0, events:0, supply:0, ret:0, maxPct:0, last:-1,
+      cid:it.cid, sales:0, events:0, supply:0, ret:0, last:-1,
       sitesMap:{}, sites:[]
     });
     var st = c.sitesMap[it.s] || (c.sitesMap[it.s] = {
-      s:it.s, sales:0, events:0, supply:0, ret:0, maxPct:0, last:-1, items:[]
+      s:it.s, sales:0, events:0, supply:0, ret:0, last:-1, items:[]
     });
 
     st.items.push(it);
-    st.sales += it.sales; st.events += it.events; st.supply += it.supply; st.ret += it.ret;
-    if (it.maxPct > st.maxPct) st.maxPct = it.maxPct;
+    st.sales += it.sales;
+    st.events += it.events;
+    st.supply += it.supply;
+    st.ret += it.ret;
     if (it.last > st.last) st.last = it.last;
 
-    c.sales += it.sales; c.events += it.events; c.supply += it.supply; c.ret += it.ret;
-    if (it.maxPct > c.maxPct) c.maxPct = it.maxPct;
+    c.sales += it.sales;
+    c.events += it.events;
+    c.supply += it.supply;
+    c.ret += it.ret;
     if (it.last > c.last) c.last = it.last;
   });
 
   Object.keys(byCust).forEach(function(k){
     var c = byCust[k];
+
     Object.keys(c.sitesMap).forEach(function(s){
       var st = c.sitesMap[s];
       st.rate = st.supply ? st.ret/st.supply*100 : 0;
       st.items.sort(function(a,b){
-        return b.events-a.events || b.maxPct-a.maxPct || b.sales-a.sales ||
+        return b.events-a.events || b.rate-a.rate || b.sales-a.sales ||
                String(ITEMS[a.i][1]).localeCompare(String(ITEMS[b.i][1]));
       });
       c.sites.push(st);
     });
+
     c.rate = c.supply ? c.ret/c.supply*100 : 0;
-    c.sites.sort(function(a,b){ return b.sales-a.sales || b.events-a.events || b.maxPct-a.maxPct; });
+    c.sites.sort(function(a,b){
+      return b.sales-a.sales || b.events-a.events || b.rate-a.rate;
+    });
     groups.push(c);
   });
 
-  /* Bigger customers stay at the top, then return frequency breaks ties. */
-  groups.sort(function(a,b){ return b.sales-a.sales || b.events-a.events || b.maxPct-a.maxPct; });
+  /* Bigger customers stay at the top, followed by return-event frequency. */
+  groups.sort(function(a,b){
+    return b.sales-a.sales || b.events-a.events || b.rate-a.rate;
+  });
   return groups;
 }
 
@@ -5183,16 +5223,16 @@ function renderPromo(){
   }
 
   document.getElementById('pKpis').innerHTML =
-    kpi('Return Events', nf0.format(events), 'monthly returns at ' + state.pRet + '% or more', events?'down':'flat') +
+    kpi('Return Events', nf0.format(events), 'negative monthly values in qualifying promotions', events?'down':'flat') +
     kpi('Affected Outlets', nf0.format(sites), customers + ' customer' + (customers===1?'':'s'), sites?'down':'flat') +
     kpi('Returned Cases', nf2.format(ret), 'cases returned in qualifying events', ret?'down':'flat') +
-    kpi('Return %', supply ? nf1.format(ret/supply*100)+'%' : '—', 'weighted across qualifying events', ret?'down':'flat');
+    kpi('Return %', supply ? nf1.format(ret/supply*100)+'%' : '—', 'returned ÷ positive supply for selected period', ret?'down':'flat');
 
-  document.getElementById('pSalesHead').textContent = state.yrB + ' ' + periodLabel() + ' Sales';
+  document.getElementById('pSalesHead').textContent = promoAnalysisYear() + ' ' + periodLabel() + ' Sales';
   document.getElementById('pCount').textContent =
     items + ' promotion item' + (items===1?'':'s') + ' · ' + sites + ' site' + (sites===1?'':'s');
   document.getElementById('pScope').textContent =
-    state.yrB + ' ' + periodLabel() + ' · ' + state.pRet + '% or more';
+    promoAnalysisYear() + ' ' + periodLabel() + ' · ' + state.pRet + '% or more';
 
   var html = '', printed = 0;
   for (var gi=0; gi<groups.length && printed<PROMO_CAP; gi++){
@@ -5207,12 +5247,11 @@ function renderPromo(){
       '<td class="num p-supply">' + nf2.format(g.supply) + '</td>' +
       '<td class="num p-return">' + nf2.format(g.ret) + '</td>' +
       '<td class="num p-rate">' + promoRate(g.rate) + '</td>' +
-      '<td class="num p-max">' + promoRate(g.maxPct) + '</td>' +
       '<td class="p-last">' + promoLast(g.last) + '</td></tr>';
 
     for (var si=0; si<g.sites.length && printed<PROMO_CAP; si++){
       if (si >= PROMO_PER_CUST){
-        html += '<tr class="more"><td colspan="10">' + (g.sites.length-PROMO_PER_CUST) +
+        html += '<tr class="more"><td colspan="9">' + (g.sites.length-PROMO_PER_CUST) +
                 ' more outlets for ' + esc(CUSTOMERS[g.cid]) +
                 ' — use the Customer filter to focus on this customer.</td></tr>';
         break;
@@ -5230,7 +5269,6 @@ function renderPromo(){
         '<td class="num p-supply">' + nf2.format(st.supply) + '</td>' +
         '<td class="num p-return">' + nf2.format(st.ret) + '</td>' +
         '<td class="num p-rate">' + promoRate(st.rate) + '</td>' +
-        '<td class="num p-max">' + promoRate(st.maxPct) + '</td>' +
         '<td class="p-last">' + promoLast(st.last) + '</td></tr>';
 
       if (open){
@@ -5245,7 +5283,6 @@ function renderPromo(){
             '<td class="num p-supply">' + nf2.format(it.supply) + '</td>' +
             '<td class="num p-return">' + nf2.format(it.ret) + '</td>' +
             '<td class="num p-rate">' + promoRate(it.rate) + '</td>' +
-            '<td class="num p-max">' + promoRate(it.maxPct) + '</td>' +
             '<td class="p-last">' + promoLast(it.last) + '</td></tr>';
         });
       }
@@ -5254,8 +5291,8 @@ function renderPromo(){
   }
 
   if (!html){
-    html = '<tbody><tr><td colspan="10" class="empty">No promotion return events match the current filters. ' +
-           'A return event requires positive cases in one month and a negative quantity in the immediately following month.</td></tr></tbody>';
+    html = '<tbody><tr><td colspan="9" class="empty">No promotion return outliers match the current filters. ' +
+           'Return % is calculated from total returned cases divided by total positive supplied cases across the selected period.</td></tr></tbody>';
   }
   document.getElementById('ptbl').querySelectorAll('tbody').forEach(function(t){ t.remove(); });
   document.getElementById('ptbl').insertAdjacentHTML('beforeend', html);
@@ -5303,8 +5340,9 @@ function exportPromotionAnalysisExcel(){
 
   var S = promotionScan();
   var span = NY * 12;
-  var exportYears = [2024, 2025, 2026].filter(function(y){ return yIdx(y) >= 0; });
-  var ib = yIdx(state.yrB);
+  var py = promoAnalysisYear();
+  var selectedMonths = [];
+  for (var sm=state.m1; sm<=S.endMonth; sm++) selectedMonths.push(sm);
 
   function xmlEsc(v){
     return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
@@ -5327,79 +5365,28 @@ function exportPromotionAnalysisExcel(){
       (style ? ' ss:StyleID="'+style+'"' : '') + '/>';
   }
 
-  /* Collect every promotion site-item pair in the current Area / Customer /
-     Category / Item filters. A row is kept if it has any value, quantity,
-     or return activity in the exported years. */
+  /* Only promotions impacted by returns AND meeting the current Return %
+     threshold are exported. Normal/no-return promotions are intentionally
+     excluded. */
   var pairs = [];
   Object.keys(S.pairs).forEach(function(pk){
-    var d = S.pairs[pk], i = d.i, s = d.s, cid = SITES[s][4], a = areaOf[s];
+    var d = S.pairs[pk], i = d.i, s = d.s;
+    if (!(d.ret > 0 && d.supply > 0 && d.rate + 1e-9 >= state.pRet)) return;
 
+    var cid = SITES[s][4], a = areaOf[s];
     if (state.pArea.size && !state.pArea.has(a)) return;
     if (state.pCust.size && !state.pCust.has(cid)) return;
     if (state.pCat !== null && catOf[i] !== state.pCat) return;
     if (state.pItems.size && !state.pItems.has(i)) return;
 
-    var hasActivity = false;
-    for (var yi0=0; yi0<NY && !hasActivity; yi0++){
-      for (var m0=0;m0<12;m0++){
-        if (d.q[yi0*12+m0] !== 0){ hasActivity = true; break; }
-      }
-    }
-    if (!hasActivity && !d.sales) return;
-
     pairs.push({
       s:s, i:i, cid:cid, a:a, q:d.q, sales:d.sales,
-      events:0, supply:0, ret:0, rate:0, maxPct:0, last:-1,
-      qualifies:false
+      events:d.events, supply:d.supply, ret:d.ret,
+      rate:d.rate, last:d.last
     });
   });
 
-  var byKey = {};
-  pairs.forEach(function(r){ byKey[promoPairKey(r.s,r.i)] = r; });
-
-  /* Apply return metrics to every pair, but preserve rows with zero returns. */
-  S.events.forEach(function(e){
-    var r = byKey[promoPairKey(e.s,e.i)];
-    if (!r) return;
-    r.events++;
-    r.supply += e.supply;
-    r.ret += e.ret;
-    if (e.pct > r.maxPct) r.maxPct = e.pct;
-    if (e.returnP > r.last) r.last = e.returnP;
-  });
-
-  pairs.forEach(function(r){
-    r.rate = r.supply ? r.ret/r.supply*100 : 0;
-    r.qualifies = r.maxPct + 1e-9 >= state.pRet;
-  });
-
-  /* Keep bigger customers first, then bigger sites, then the strongest promotion
-     items. This mirrors the Promotion Analysis screen hierarchy. */
-  var custSales = {}, siteSales = {};
-  pairs.forEach(function(r){
-    var ck = r.cid, sk = r.cid + ':' + r.s;
-    custSales[ck] = (custSales[ck]||0) + (r.sales||0);
-    siteSales[sk] = (siteSales[sk]||0) + (r.sales||0);
-  });
-  pairs.sort(function(a,b){
-    var ca=custSales[a.cid]||0, cb=custSales[b.cid]||0;
-    if (ca!==cb) return cb-ca;
-    var sa=siteSales[a.cid+':'+a.s]||0, sb=siteSales[b.cid+':'+b.s]||0;
-    if (sa!==sb) return sb-sa;
-    if (a.qualifies!==b.qualifies) return a.qualifies ? -1 : 1;
-    if (a.maxPct!==b.maxPct) return b.maxPct-a.maxPct;
-    if (a.sales!==b.sales) return b.sales-a.sales;
-    return String(ITEMS[a.i][1]).localeCompare(String(ITEMS[b.i][1]));
-  });
-
-  function monthlyQty(r,y,m){
-    var yi=yIdx(y);
-    if (yi<0 || (y===2026 && m>LASTM)) return null;
-    return r.q[yi*12+m] || 0;
-  }
-
-  /* Build a value series at site-item level from raw facts, matching the same
-     scope and department logic used by the dashboard. */
+  /* Build site-item monthly sales value series for the same selected scope. */
   var valueMap = {};
   (function(){
     var fs=F.s, fi=F.i, fp=F.p, fv=F.v, fd=F.d, N=fs.length;
@@ -5407,84 +5394,106 @@ function exportPromotionAnalysisExcel(){
       var i=fi[k], s=fs[k];
       if (!promoItemOk(i)) continue;
       if (!factCounted(fd[k],i)) continue;
+
       var cid=SITES[s][4], a=areaOf[s];
       if (state.pArea.size && !state.pArea.has(a)) continue;
       if (state.pCust.size && !state.pCust.has(cid)) continue;
       if (state.pCat !== null && catOf[i] !== state.pCat) continue;
       if (state.pItems.size && !state.pItems.has(i)) continue;
+
       var key=promoPairKey(s,i), arr=valueMap[key];
       if (!arr) arr=valueMap[key]=new Float64Array(span);
       arr[fp[k]] += fv[k];
     }
   })();
 
+  function monthlyQty(r,y,m){
+    var yi=yIdx(y);
+    if (yi<0) return null;
+    if (y===YEARS[NY-1] && m>LASTM) return null;
+    return r.q[yi*12+m] || 0;
+  }
   function monthlyValue(r,y,m){
     var yi=yIdx(y);
-    if (yi<0 || (y===2026 && m>LASTM)) return null;
+    if (yi<0) return null;
+    if (y===YEARS[NY-1] && m>LASTM) return null;
     var arr=valueMap[promoPairKey(r.s,r.i)];
     return arr ? (arr[yi*12+m] || 0) : 0;
   }
-
+  function selectedTotal(r,y,isValue){
+    var total=0;
+    selectedMonths.forEach(function(m){
+      var v=isValue ? monthlyValue(r,y,m) : monthlyQty(r,y,m);
+      if (v!==null) total += v;
+    });
+    return total;
+  }
   function lastReturnLabel(p){
     if (p < 0) return '';
     var o = periodOf(p);
     return MONTHS[o.month] + ' ' + o.year;
   }
 
+  /* Bigger customers first, drilled down by customer site, then promotion item. */
+  var custSales={}, siteSales={};
+  pairs.forEach(function(r){
+    custSales[r.cid]=(custSales[r.cid]||0)+(r.sales||0);
+    var sk=r.cid+':'+r.s;
+    siteSales[sk]=(siteSales[sk]||0)+(r.sales||0);
+  });
+  pairs.sort(function(a,b){
+    var ca=custSales[a.cid]||0, cb=custSales[b.cid]||0;
+    if (ca!==cb) return cb-ca;
+    var sa=siteSales[a.cid+':'+a.s]||0, sb=siteSales[b.cid+':'+b.s]||0;
+    if (sa!==sb) return sb-sa;
+    if (a.events!==b.events) return b.events-a.events;
+    if (a.rate!==b.rate) return b.rate-a.rate;
+    return String(ITEMS[a.i][1]).localeCompare(String(ITEMS[b.i][1]));
+  });
+
   function sheetAnalysis(){
-    var rows = [];
-    var cols = [
+    var rows=[];
+    var periodText = MONTHS[state.m1] + '–' + MONTHS[S.endMonth] + ' ' + py;
+    var cols=[
       'Area','Customer','Customer Site','Category','Item Code','Promotion Item',
-      state.yrB+' Sales Value',state.yrB+' Cases',
-      'Return Events','Supplied Cases Before Return','Returned Cases',
-      'Weighted Return %','Max Return %','Last Return',
-      'Outlier at '+state.pRet+'%+'
+      'Selected Period','Sales Value','Net Cases',
+      'Positive Supply Cases','Returned Cases','Return Events',
+      'Return %','Last Return'
     ];
 
     var h='<Row ss:Height="24">';
-    cols.forEach(function(c){ h += sCell(c,'Head'); });
-    h += '</Row>';
+    cols.forEach(function(c){ h+=sCell(c,'Head'); });
+    h+='</Row>';
     rows.push(h);
 
     pairs.forEach(function(r){
-      var qty=0, val=0;
-      if (ib>=0){
-        var maxM = (state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
-        for (var m=state.m1;m<=maxM;m++){
-          qty += monthlyQty(r,state.yrB,m) || 0;
-          val += monthlyValue(r,state.yrB,m) || 0;
-        }
-      }
-      var style = r.qualifies ? 'OutlierText' : 'Text';
-      var nstyle = r.qualifies ? 'OutlierNum' : 'Num';
-      var pstyle = r.qualifies ? 'OutlierPct' : 'Pct';
-
+      var val=selectedTotal(r,py,true);
+      var qty=selectedTotal(r,py,false);
       var row='<Row>' +
-        sCell(areaLabel(r.a),style) +
-        sCell(CUSTOMERS[r.cid],style) +
-        sCell(SITES[r.s][1],style) +
-        sCell(ITEMS[r.i][2],style) +
-        sCell(String(ITEMS[r.i][0]),style) +
-        sCell(ITEMS[r.i][1],style) +
-        nCell(val,nstyle) +
-        nCell(qty,nstyle) +
-        nCell(r.events,nstyle) +
-        nCell(r.supply,nstyle) +
-        nCell(r.ret,nstyle) +
-        nCell(r.rate/100,pstyle) +
-        nCell(r.maxPct/100,pstyle) +
-        sCell(lastReturnLabel(r.last),style) +
-        sCell(r.qualifies ? 'OUTLIER' : 'Normal / No return',style) +
+        sCell(areaLabel(r.a),'OutlierText') +
+        sCell(CUSTOMERS[r.cid],'OutlierText') +
+        sCell(SITES[r.s][1],'OutlierText') +
+        sCell(ITEMS[r.i][2],'OutlierText') +
+        sCell(String(ITEMS[r.i][0]),'OutlierText') +
+        sCell(ITEMS[r.i][1],'OutlierText') +
+        sCell(periodText,'OutlierText') +
+        nCell(val,'OutlierNum') +
+        nCell(qty,'OutlierNum') +
+        nCell(r.supply,'OutlierNum') +
+        nCell(r.ret,'OutlierNum') +
+        nCell(r.events,'OutlierNum') +
+        nCell(r.rate/100,'OutlierPct') +
+        sCell(lastReturnLabel(r.last),'OutlierText') +
       '</Row>';
       rows.push(row);
     });
 
     return '<Worksheet ss:Name="Return Analysis">' +
-      '<Table ss:ExpandedColumnCount="15" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
+      '<Table ss:ExpandedColumnCount="14" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
         '<Column ss:Index="1" ss:Width="90"/><Column ss:Index="2" ss:Width="150"/>' +
         '<Column ss:Index="3" ss:Width="170"/><Column ss:Index="4" ss:Width="105"/>' +
         '<Column ss:Index="5" ss:Width="78"/><Column ss:Index="6" ss:Width="270"/>' +
-        '<Column ss:Index="7" ss:Span="7" ss:Width="96"/><Column ss:Index="15" ss:Width="105"/>' +
+        '<Column ss:Index="7" ss:Width="110"/><Column ss:Index="8" ss:Span="6" ss:Width="100"/>' +
         rows.join('') +
       '</Table>' +
       '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
@@ -5495,67 +5504,65 @@ function exportPromotionAnalysisExcel(){
   }
 
   function monthlySheet(name,isValue){
-    var rows=[];
+    var years=[2024,2025,2026].filter(function(y){ return yIdx(y)>=0; });
+    var rows=[], yearRow='<Row ss:Height="20">', startCol=7;
+    var bandWidth=selectedMonths.length+1; /* selected months + Total */
 
-    /* year bands */
-    var yearRow='<Row ss:Height="20">';
-    var startCol=7;  /* after Area, Customer, Site, Category, Code, Item */
-    exportYears.forEach(function(y){
-      yearRow += '<Cell ss:Index="'+startCol+'" ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">'+y+(y===2026?' YTD':'')+'</Data></Cell>';
-      startCol += 12;
+    years.forEach(function(y){
+      yearRow += '<Cell ss:Index="'+startCol+'" ss:MergeAcross="'+(bandWidth-1)+'" ss:StyleID="Year">' +
+                 '<Data ss:Type="String">'+y+(y===2026?' YTD':'')+'</Data></Cell>';
+      startCol += bandWidth;
     });
-    yearRow += '</Row>';
+    yearRow+='</Row>';
     rows.push(yearRow);
 
-    /* headers */
     var h='<Row ss:Height="23">' +
       sCell('Area','Head') + sCell('Customer','Head') + sCell('Customer Site','Head') +
       sCell('Category','Head') + sCell('Item Code','Head') + sCell('Promotion Item','Head');
-    exportYears.forEach(function(){
-      for (var m=0;m<12;m++) h += sCell(MONTHS[m],'Head');
+
+    years.forEach(function(){
+      selectedMonths.forEach(function(m){ h+=sCell(MONTHS[m],'Head'); });
+      h+=sCell('Total','Head');
     });
-    h += sCell('Return Events','Head') + sCell('Weighted Return %','Head') +
-         sCell('Max Return %','Head') + sCell('Last Return','Head') + sCell('Outlier','Head') +
+
+    h += sCell('Positive Supply','Head') + sCell('Returned Cases','Head') +
+         sCell('Return Events','Head') + sCell('Return %','Head') + sCell('Last Return','Head') +
          '</Row>';
     rows.push(h);
 
     pairs.forEach(function(r){
-      var tstyle=r.qualifies?'OutlierText':'Text';
-      var nstyle=r.qualifies?'OutlierNum':'Num';
-      var pstyle=r.qualifies?'OutlierPct':'Pct';
-
       var row='<Row>' +
-        sCell(areaLabel(r.a),tstyle) +
-        sCell(CUSTOMERS[r.cid],tstyle) +
-        sCell(SITES[r.s][1],tstyle) +
-        sCell(ITEMS[r.i][2],tstyle) +
-        sCell(String(ITEMS[r.i][0]),tstyle) +
-        sCell(ITEMS[r.i][1],tstyle);
+        sCell(areaLabel(r.a),'OutlierText') +
+        sCell(CUSTOMERS[r.cid],'OutlierText') +
+        sCell(SITES[r.s][1],'OutlierText') +
+        sCell(ITEMS[r.i][2],'OutlierText') +
+        sCell(String(ITEMS[r.i][0]),'OutlierText') +
+        sCell(ITEMS[r.i][1],'OutlierText');
 
-      exportYears.forEach(function(y){
-        for (var m=0;m<12;m++){
+      years.forEach(function(y){
+        selectedMonths.forEach(function(m){
           var v=isValue ? monthlyValue(r,y,m) : monthlyQty(r,y,m);
-          row += (v===null) ? blank(nstyle) : nCell(v,nstyle);
-        }
+          row += (v===null) ? blank('OutlierNum') : nCell(v,'OutlierNum');
+        });
+        row += nCell(selectedTotal(r,y,isValue),'OutlierNum');
       });
 
-      row += nCell(r.events,nstyle) +
-             nCell(r.rate/100,pstyle) +
-             nCell(r.maxPct/100,pstyle) +
-             sCell(lastReturnLabel(r.last),tstyle) +
-             sCell(r.qualifies?'OUTLIER':'Normal / No return',tstyle) +
+      row += nCell(r.supply,'OutlierNum') +
+             nCell(r.ret,'OutlierNum') +
+             nCell(r.events,'OutlierNum') +
+             nCell(r.rate/100,'OutlierPct') +
+             sCell(lastReturnLabel(r.last),'OutlierText') +
              '</Row>';
       rows.push(row);
     });
 
-    var totalCols=6 + exportYears.length*12 + 5;
+    var totalCols=6 + years.length*bandWidth + 5;
     return '<Worksheet ss:Name="'+xmlEsc(name)+'">' +
       '<Table ss:ExpandedColumnCount="'+totalCols+'" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
         '<Column ss:Index="1" ss:Width="90"/><Column ss:Index="2" ss:Width="150"/>' +
         '<Column ss:Index="3" ss:Width="170"/><Column ss:Index="4" ss:Width="105"/>' +
         '<Column ss:Index="5" ss:Width="78"/><Column ss:Index="6" ss:Width="270"/>' +
-        '<Column ss:Index="7" ss:Span="35" ss:Width="72"/>' +
-        '<Column ss:Index="43" ss:Span="4" ss:Width="96"/>' +
+        '<Column ss:Index="7" ss:Span="'+(years.length*bandWidth-1)+'" ss:Width="72"/>' +
         rows.join('') +
       '</Table>' +
       '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
@@ -5585,11 +5592,6 @@ function exportPromotionAnalysisExcel(){
           '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
           '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
           '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
-        '<Style ss:ID="Text"><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
-        '<Style ss:ID="Num"><Alignment ss:Horizontal="Center"/><NumberFormat ss:Format="#,##0.00"/>' +
-          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
-        '<Style ss:ID="Pct"><Alignment ss:Horizontal="Center"/><NumberFormat ss:Format="0.0%"/>' +
-          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
         '<Style ss:ID="OutlierText"><Font ss:Bold="1" ss:Color="#A10716"/><Interior ss:Color="#FDECEC" ss:Pattern="Solid"/>' +
           '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
         '<Style ss:ID="OutlierNum"><Alignment ss:Horizontal="Center"/><Font ss:Bold="1" ss:Color="#A10716"/>' +
