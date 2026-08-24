@@ -347,6 +347,17 @@ body.imopen{overflow:hidden}
 .imtbl tr.imvs td,.imtbl tr.imvs th{background:#F4F7F6}
 .imtbl .z{color:var(--muted)}
 .imnote{font-size:11px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:10px}
+.imchart{margin:0 0 16px;border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:12px 12px 10px}
+.imchart .cht{font-size:12.5px;font-weight:600;text-align:center;color:var(--text);margin-bottom:2px}
+.imchart .chs{font-size:10.5px;color:var(--muted);text-align:center;margin-bottom:8px}
+.imchart .chsvg{width:100%;height:auto;display:block}
+.imchart .chlegend{display:flex;justify-content:center;gap:18px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.imchart .lg{display:inline-flex;align-items:center;gap:7px}
+.imchart .sw{width:24px;height:0;border-top:3px solid;border-radius:999px;display:inline-block;position:relative}
+.imchart .sw::after{content:'';position:absolute;right:-1px;top:-4px;width:7px;height:7px;border-radius:50%;background:currentColor}
+.imchart .sw.prev{color:#C6B2B0;border-top-color:#C6B2B0}
+.imchart .sw.curr{color:#A10716;border-top-color:#A10716}
+.imchart .chnote{font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
@@ -357,6 +368,10 @@ body.imopen{overflow:hidden}
   .imtbl thead tr:last-child th:first-child{width:60px}
   .imtbl thead tr:last-child th.tot{width:62px}
   .imtbl tbody th{padding:5px 6px;font-size:10.5px}
+  .imchart{padding:10px 8px 8px}
+  .imchart .cht{font-size:12px}
+  .imchart .chs,.imchart .chnote{font-size:10px}
+  .imchart .chlegend{gap:12px;font-size:10.5px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -3258,6 +3273,81 @@ function yearTableV(i, arr, title, isValue){
   h += '</tr></tbody></table>';
   return h;
 }
+
+function niceStep(maxV, ticks){
+  if (!maxV || maxV <= 0) return 1;
+  var rough = maxV / Math.max(1, ticks), mag = Math.pow(10, Math.floor(Math.log(rough) / Math.LN10));
+  var norm = rough / mag;
+  var step = norm <= 1 ? 1 : (norm <= 2 ? 2 : (norm <= 5 ? 5 : 10));
+  return step * mag;
+}
+function svgLinePath(vals, xAt, yAt){
+  var d = '', on = false;
+  for (var i=0;i<vals.length;i++){
+    var v = vals[i];
+    if (v === null || v === undefined || isNaN(v)){ on = false; continue; }
+    d += (on ? ' L ' : 'M ') + xAt(i).toFixed(1) + ' ' + yAt(v).toFixed(1);
+    on = true;
+  }
+  return d;
+}
+function svgDots(vals, xAt, yAt, cls){
+  var out = '';
+  for (var i=0;i<vals.length;i++){
+    var v = vals[i];
+    if (v === null || v === undefined || isNaN(v)) continue;
+    out += '<circle class="' + cls + '" cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(v).toFixed(1) + '" r="4"></circle>';
+  }
+  return out;
+}
+function itemCasesChart(i){
+  var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
+  var valsPrev = [], valsCurr = [], maxV = 0;
+  for (var m=0;m<12;m++){
+    var pv = A.mq[i*span + prev*12 + m] || 0;
+    var cv = (m <= LASTM) ? (A.mq[i*span + latest*12 + m] || 0) : null;
+    valsPrev.push(pv);
+    valsCurr.push(cv);
+    if (pv > maxV) maxV = pv;
+    if (cv !== null && cv > maxV) maxV = cv;
+  }
+  var step = niceStep(maxV || 1, 5), top = step * Math.max(1, Math.ceil((maxV || 1) / step));
+  var W = 760, H = 270, L = 58, R = 12, T = 16, B = 38;
+  var PW = W - L - R, PH = H - T - B;
+  var xAt = function(idx){ return L + (PW * idx / 11); };
+  var yAt = function(v){ return T + PH - ((v / top) * PH); };
+  var grid = '', xlabs = '', ylabs = '';
+  for (var g=0; g<=5; g++){
+    var gv = top * g / 5, y = yAt(gv);
+    grid += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '" stroke="#E3E7E5" stroke-width="1"></line>';
+    ylabs += '<text x="' + (L-8) + '" y="' + (y+4).toFixed(1) + '" text-anchor="end" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + nf0.format(Math.round(gv)) + '</text>';
+  }
+  for (var x=0; x<12; x++){
+    xlabs += '<text x="' + xAt(x).toFixed(1) + '" y="' + (H-12) + '" text-anchor="middle" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + MONTHS[x] + '</text>';
+  }
+  var pathPrev = svgLinePath(valsPrev, xAt, yAt), pathCurr = svgLinePath(valsCurr, xAt, yAt);
+  var svg = '<svg class="chsvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Monthly cases trend for ' + esc(ITEMS[i][1]) + '">' +
+    '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#FFFFFF"></rect>' +
+    grid +
+    '<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H-B) + '" stroke="#8FA0A6" stroke-width="1.2"></line>' +
+    '<line x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B) + '" stroke="#8FA0A6" stroke-width="1.2"></line>' +
+    ylabs + xlabs +
+    '<path d="' + pathPrev + '" fill="none" stroke="#C6B2B0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    '<path d="' + pathCurr + '" fill="none" stroke="#A10716" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
+    svgDots(valsPrev, xAt, yAt, 'dotp').replace(/<circle/g, '<circle fill="#C6B2B0"') +
+    svgDots(valsCurr, xAt, yAt, 'dotc').replace(/<circle/g, '<circle fill="#A10716"') +
+    '</svg>';
+  return '<div class="imchart">' +
+    '<div class="cht">Monthly cases trend, Jan–Dec</div>' +
+    '<div class="chs">Last two years · ' + YEARS[prev] + ' vs ' + YEARS[latest] + '</div>' +
+    svg +
+    '<div class="chlegend">' +
+      '<span class="lg"><span class="sw prev"></span>' + YEARS[prev] + '</span>' +
+      '<span class="lg"><span class="sw curr"></span>' + YEARS[latest] + '</span>' +
+    '</div>' +
+    '<div class="chnote">' + YEARS[latest] + ' continues through ' + MONTHS[LASTM] + '; later months stay blank until data is available.</div>' +
+  '</div>';
+}
 function openItem(i){
   aggregate();                                   /* make sure the grid matches the filters */
   var it = ITEMS[i];
@@ -3266,6 +3356,7 @@ function openItem(i){
   document.getElementById('imSub').textContent =
     it[2] + ' · ' + (it[3] === 'Promotion' ? 'Promo pack' : 'Regular') + ' · ' + scopeNames();
   document.getElementById('imBody').innerHTML =
+    itemCasesChart(i) +
     '<div class="d-only">' +
       yearTable(i, A.mq, 'Sales in Volume (cases)', false) +
       yearTable(i, A.mv, 'Sales in Value', true) +
