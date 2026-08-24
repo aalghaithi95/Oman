@@ -395,6 +395,8 @@ body.imopen{overflow:hidden}
 .ovtbl tr.vs th,.ovtbl tr.vs td{background:#F4F7F6}
 .ovtbl .z{color:var(--muted)}
 .ovtbl + .ovtbl{margin-top:20px}
+.ovrd-desktop{display:block}
+.ovrd-mobile{display:none}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
@@ -416,6 +418,28 @@ body.imopen{overflow:hidden}
   .ovtools{right:10px;top:9px}
   .ovviewbtn{padding:7px 10px;font-size:10.5px}
   .ovtip{font-size:10.5px}
+
+  /* Monthly run down: mobile uses months vertically and years as columns.
+     Cases and Value stay as two separate tables next to each other. */
+  .ovrd-desktop{display:none}
+  .ovrd-mobile{display:block}
+  .ovrd-mobile .ovrundown{overflow-x:auto;padding:4px 0 2px;-webkit-overflow-scrolling:touch}
+  .ovmobgrid{display:grid;grid-template-columns:repeat(2,minmax(255px,1fr));gap:8px;min-width:518px}
+  .ovmobtbl{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed;font-size:9px;margin:0}
+  .ovmobtbl .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:9.5px;text-align:center;
+    padding:6px 3px;border:1px solid #E4CDBE;letter-spacing:.02em}
+  .ovmobtbl thead tr:last-child th{background:#fff;border:1px solid var(--line);padding:5px 2px;
+    font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.02em;text-transform:none;
+    color:var(--muted);text-align:right;white-space:nowrap}
+  .ovmobtbl thead tr:last-child th:first-child{text-align:left;width:46px}
+  .ovmobtbl tbody th{background:#FFF9D6;border:1px solid var(--line);padding:5px 3px;text-align:left;
+    font-weight:600;font-size:8.5px;white-space:nowrap}
+  .ovmobtbl td{border:1px solid var(--line);padding:5px 3px;text-align:right;
+    font-family:'IBM Plex Mono',monospace;font-size:8.5px;white-space:nowrap;letter-spacing:-.25px}
+  .ovmobtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
+  .ovmobtbl tr.tot th,.ovmobtbl tr.tot td{background:#F7F9F8;font-weight:600}
+  .ovmobtbl .z{color:var(--muted)}
+  .ovmobtbl .mvspct{display:block;font-size:7.5px;line-height:1.05;margin-top:2px;letter-spacing:-.2px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -3488,6 +3512,7 @@ function visitValueChart(){
 }
 
 
+
 function visitValueRundown(){
   var years = [2024, 2025, 2026].filter(function(y){ return yIdx(y) >= 0; });
   var latestYear = years.indexOf(2026) >= 0 ? 2026 : (years.length ? years[years.length-1] : YEARS[NY-1]);
@@ -3525,7 +3550,8 @@ function visitValueRundown(){
     return '<span class="' + cls + '">' + (p>0?'+':'') + nf1.format(p*100) + '%</span>';
   }
 
-  function tableHtml(title, data, isValue){
+  /* Desktop keeps the horizontal Jan-Dec layout. */
+  function desktopTable(title, data, isValue){
     var h = '<table class="ovtbl"><thead>' +
             '<tr class="cap"><th colspan="14">' + title + '</th></tr>' +
             '<tr><th></th>';
@@ -3556,8 +3582,7 @@ function visitValueRundown(){
           h += '<td class="off"></td>';
         } else {
           var pv = data[prevYear][m3] || 0;
-          curTotal += cv;
-          prevTotal += pv;
+          curTotal += cv; prevTotal += pv;
           h += '<td>' + pct(cv, pv) + '</td>';
         }
       }
@@ -3568,14 +3593,65 @@ function visitValueRundown(){
     return h;
   }
 
+  /* Mobile: Month rows, year columns. The 2026 cell also carries the Vs 2025 %
+     underneath, so all comparison information is retained without adding a wide column. */
+  function mobileTable(title, data, isValue){
+    var h = '<table class="ovmobtbl"><thead>' +
+            '<tr class="cap"><th colspan="' + (years.length + 1) + '">' + title + '</th></tr>' +
+            '<tr><th>Month</th>';
+    years.forEach(function(y){
+      h += '<th>' + y + (y === latestYear ? ' YTD' : '') + '</th>';
+    });
+    h += '</tr></thead><tbody>';
+
+    for (var m=0;m<12;m++){
+      h += '<tr><th>' + MONTHS[m] + '</th>';
+      years.forEach(function(y){
+        var v = data[y][m];
+        if (v === null){
+          h += '<td class="off"></td>';
+          return;
+        }
+        var extra = '';
+        if (y === latestYear && prevYear && data[prevYear] && m <= LASTM){
+          extra = '<span class="mvspct">' + pct(v, data[prevYear][m] || 0) + '</span>';
+        }
+        h += '<td>' + num(v, isValue) + extra + '</td>';
+      });
+      h += '</tr>';
+    }
+
+    h += '<tr class="tot"><th>Total</th>';
+    years.forEach(function(y){
+      var total = 0;
+      data[y].forEach(function(v){ if (v !== null) total += v; });
+      var extra = '';
+      if (y === latestYear && prevYear && data[prevYear]){
+        var prevTotal = 0;
+        for (var k=0;k<=LASTM;k++) prevTotal += data[prevYear][k] || 0;
+        extra = '<span class="mvspct">' + pct(total, prevTotal) + '</span>';
+      }
+      h += '<td>' + num(total, isValue) + extra + '</td>';
+    });
+    h += '</tr></tbody></table>';
+    return h;
+  }
+
   return '<div class="ovtools"><button class="ovviewbtn" type="button" data-view="chart">Graph view</button></div>' +
          '<div class="cht">Monthly run down</div>' +
          '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · 2024–2026 YTD</div>' +
-         '<div class="ovrundown">' +
-           tableHtml('SALES IN VOLUME (CASES)', casesSeries, false) +
-           tableHtml('SALES IN VALUE', valueSeries, true) +
-         '</div>' +
-         '<div class="chnote">' + latestYear + ' totals are year-to-date, and the % rows compare the same months of ' + prevYear + '.</div>';
+
+         '<div class="ovrd-desktop"><div class="ovrundown">' +
+           desktopTable('SALES IN VOLUME (CASES)', casesSeries, false) +
+           desktopTable('SALES IN VALUE', valueSeries, true) +
+         '</div></div>' +
+
+         '<div class="ovrd-mobile"><div class="ovrundown"><div class="ovmobgrid">' +
+           mobileTable('CASES', casesSeries, false) +
+           mobileTable('VALUE', valueSeries, true) +
+         '</div></div></div>' +
+
+         '<div class="chnote">' + latestYear + ' totals are year-to-date, and the comparison uses the same months of ' + prevYear + '.</div>';
 }
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
