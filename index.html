@@ -835,6 +835,11 @@ body.neopen .necard{transform:translateY(0)}
 #ptbl th.p-item,#ptbl td.p-item{width:24%}
 #ptbl th.p-cat,#ptbl td.p-cat{width:11%}
 #ptbl th.p-last,#ptbl td.p-last{width:11%}
+
+@media (max-width:760px){
+  #paneVisit .panel-head .right{gap:7px;row-gap:6px}
+  #paneVisit .panel-head .toggle{white-space:nowrap}
+}
 @media (max-width:760px){
   .tabs .tab{font-size:10.5px;line-height:1.1;white-space:normal}
   .promoformula{width:100%;font-size:10px}
@@ -988,6 +993,8 @@ body.neopen .necard{transform:translateY(0)}
       <span class="count" id="rowCount"></span>
       <div class="right">
         <span class="headslot" id="histSlot"></span>
+        <label class="toggle"><input type="checkbox" id="showRegular" checked> Regular</label>
+        <label class="toggle"><input type="checkbox" id="showPromo" checked> Promo</label>
         <label class="toggle"><input type="checkbox" id="grp" checked> Group by category</label>
         <label class="toggle"><input type="checkbox" id="hideZero" checked> Hide unsold promo packs</label>
         <label class="toggle"><input type="checkbox" id="onlyUn"> Only unchecked</label>
@@ -2485,6 +2492,7 @@ var state = {
   oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
   pArea: new Set(), pCust: new Set(), pCat: null, pItems: new Set(), pRet: 10,
   sort: {key:'vB', dir:-1},
+  showRegular: true, showPromo: true,
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
 };
@@ -2613,6 +2621,8 @@ function buildRows(){
     var vA=A.vA[i], vB=A.vB[i], qA=A.qA[i], qB=A.qB[i];
     var promo = ITEMS[i][3] === 'Promotion';
     if (!itemVisible(i)) continue;
+    if (promo && !state.showPromo) continue;
+    if (!promo && !state.showRegular) continue;
     if (state.hideZero && !vA && !vB && !qA && !qB && promo) continue;
     if (state.onlyUnchecked && (!itemAuditable(i) || state.checked.has(i))) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
@@ -3366,6 +3376,8 @@ function buildCatFilter(){
     asel.value = state.aCat === null ? '' : String(state.aCat);
   }
 }
+document.getElementById('showRegular').addEventListener('change', function(){ state.showRegular = this.checked; render(); });
+document.getElementById('showPromo').addEventListener('change', function(){ state.showPromo = this.checked; render(); });
 document.getElementById('grp').addEventListener('change', function(){ state.group = this.checked; render(); });
 document.getElementById('hideZero').addEventListener('change', function(){ state.hideZero = this.checked; render(); });
 document.getElementById('onlyUn').addEventListener('change', function(){ state.onlyUnchecked = this.checked; render(); });
@@ -3381,6 +3393,8 @@ document.getElementById('reset').addEventListener('click', function(){
   state.m1 = 0; state.m2 = LASTM;
   document.getElementById('m1').value = 0; document.getElementById('m2').value = LASTM;
   document.getElementById('catSel').value = '';
+  state.showRegular = true; document.getElementById('showRegular').checked = true;
+  state.showPromo = true; document.getElementById('showPromo').checked = true;
   state.onlyUnchecked = false; document.getElementById('onlyUn').checked = false;
   msArea.refresh(); msCust.refresh(); msSite.refresh(); syncPresets(); loadChecks(); render();
 });
@@ -3542,7 +3556,11 @@ function exportMonthlyDetailXlsx(){
     if (!itemVisible(i)) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
 
-    if (ITEMS[i][3] === 'Promotion') promoIds.push(i);
+    var isPromo = ITEMS[i][3] === 'Promotion';
+    if (isPromo && !state.showPromo) continue;
+    if (!isPromo && !state.showRegular) continue;
+
+    if (isPromo) promoIds.push(i);
     else regularIds.push(i);
 
     /* In the FSD export, the useful split is pack type rather than sales type:
