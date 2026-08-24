@@ -62,6 +62,23 @@ button,select,input{font-family:inherit;font-size:inherit;color:inherit}
 .btn.ghost{background:#fff;color:var(--ink);border-color:var(--line)}
 .btn.ghost:hover{background:#F3F6F4;border-color:var(--ink-3)}
 
+/* ---------- export menu ---------- */
+.expwrap{position:relative;display:inline-flex;align-items:flex-end}
+.expwrap>.btn{white-space:nowrap}
+.expmenu{position:absolute;right:0;top:calc(100% + 5px);z-index:75;display:none;min-width:190px;
+  background:#fff;border:1px solid var(--ink-3);border-radius:var(--r);
+  box-shadow:0 10px 26px rgba(18,36,44,.18);overflow:hidden}
+.expwrap.open .expmenu{display:block}
+.expmenu button{display:block;width:100%;border:0;border-bottom:1px solid var(--line-2);
+  background:#fff;color:var(--ink);padding:9px 11px;text-align:left;cursor:pointer;font-size:11.5px}
+.expmenu button:last-child{border-bottom:0}
+.expmenu button:hover{background:#F3F6F4}
+@media (max-width:760px){
+  .filters .expwrap{flex:1 1 45%}
+  .filters .expwrap>.btn{width:100%}
+  .expmenu{left:0;right:0;min-width:0}
+}
+
 /* multiselect */
 .ms{position:relative}
 .ms-btn{width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:8px 28px 8px 10px;cursor:pointer;position:relative;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -902,7 +919,13 @@ body.neopen .necard{transform:translateY(0)}
       <select id="catSel" style="padding:8px 8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
     </div>
     <button class="btn ghost" id="reset">Reset filters</button>
-    <button class="btn" id="csv">Export CSV</button>
+    <div class="expwrap">
+      <button class="btn" id="csv" type="button" aria-haspopup="true" aria-expanded="false">Export</button>
+      <div class="expmenu" id="expMenu" role="menu">
+        <button type="button" role="menuitem" data-exp="summary">Summary CSV</button>
+        <button type="button" role="menuitem" data-exp="monthly">Monthly detail Excel</button>
+      </div>
+    </div>
   </div>
 
   <div class="status loading" id="status"><span class="dot"></span><span class="msg" id="statusMsg">Connecting…</span><button id="refreshBtn" type="button">Refresh</button></div>
@@ -3228,8 +3251,8 @@ document.getElementById('refreshBtn').addEventListener('click', function(){
   });
 });
 
-/* ---------- CSV ---------- */
-document.getElementById('csv').addEventListener('click', function(){
+/* ---------- exports ---------- */
+function exportSummaryCsv(){
   aggregate();
   var rows = sortRows(buildRows());
   var head = ['Sales Type','Category','Item Code','Store Check','Item Description',
@@ -3252,6 +3275,244 @@ document.getElementById('csv').addEventListener('click', function(){
   a.href = URL.createObjectURL(blob);
   a.download = 'delicio_oman_' + siteScopeLabel().replace(/\W+/g,'_') + '_' + periodLabel() + '.csv';
   a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ---- small self-contained XLSX writer: no external library required ---- */
+function xEsc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'})[c];
+  });
+}
+function xCol(n){
+  var s = '';
+  while (n > 0){ n--; s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26); }
+  return s;
+}
+function xCell(ref, v, style, forceString){
+  if (v === null || v === undefined || v === '') return '';
+  if (!forceString && typeof v === 'number' && isFinite(v)){
+    return '<c r="'+ref+'" s="'+style+'"><v>'+v+'</v></c>';
+  }
+  return '<c r="'+ref+'" s="'+style+'" t="inlineStr"><is><t>'+xEsc(v)+'</t></is></c>';
+}
+function xSheetXml(rows, merges){
+  var out = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="2" topLeftCell="C3" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>' +
+    '<sheetFormatPr defaultRowHeight="15"/>' +
+    '<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="48" customWidth="1"/>' +
+    '<col min="3" max="38" width="12" customWidth="1"/><col min="39" max="40" width="14" customWidth="1"/></cols>' +
+    '<sheetData>';
+  rows.forEach(function(cells, ri){
+    var rn = ri + 1, r = '<row r="'+rn+'">';
+    cells.forEach(function(c){ r += xCell(c.ref, c.v, c.s, c.str); });
+    out += r + '</row>';
+  });
+  out += '</sheetData>';
+  if (merges && merges.length){
+    out += '<mergeCells count="'+merges.length+'">' +
+      merges.map(function(m){ return '<mergeCell ref="'+m+'"/>'; }).join('') +
+      '</mergeCells>';
+  }
+  out += '<autoFilter ref="A2:AN2"/><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>' +
+         '</worksheet>';
+  return out;
+}
+function xStylesXml(){
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+  '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+  '<fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><name val="Calibri"/></font></fonts>' +
+  '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+  '<fill><patternFill patternType="solid"><fgColor rgb="FFFBEDE4"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+  '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
+  '<border><left style="thin"><color rgb="FFD2DAD6"/></left><right style="thin"><color rgb="FFD2DAD6"/></right>' +
+  '<top style="thin"><color rgb="FFD2DAD6"/></top><bottom style="thin"><color rgb="FFD2DAD6"/></bottom><diagonal/></border></borders>' +
+  '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+  '<cellXfs count="7">' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0"/>' +
+    '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>' +
+    '<xf numFmtId="3" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>' +
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>' +
+  '</cellXfs>' +
+  '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+  '</styleSheet>';
+}
+function xU32(a, o, v){ a[o]=v&255; a[o+1]=(v>>>8)&255; a[o+2]=(v>>>16)&255; a[o+3]=(v>>>24)&255; }
+function xU16(a, o, v){ a[o]=v&255; a[o+1]=(v>>>8)&255; }
+var XCRC = null;
+function xCrc32(bytes){
+  if (!XCRC){
+    XCRC = new Uint32Array(256);
+    for (var n=0;n<256;n++){
+      var c=n;
+      for (var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);
+      XCRC[n]=c>>>0;
+    }
+  }
+  var crc=0xFFFFFFFF;
+  for (var i=0;i<bytes.length;i++) crc=XCRC[(crc^bytes[i])&255]^(crc>>>8);
+  return (crc^0xFFFFFFFF)>>>0;
+}
+function xCat(parts){
+  var len=0; parts.forEach(function(p){len+=p.length;});
+  var out=new Uint8Array(len), off=0;
+  parts.forEach(function(p){out.set(p,off);off+=p.length;});
+  return out;
+}
+function xZip(files){
+  var enc=new TextEncoder(), locals=[], centrals=[], offset=0;
+  files.forEach(function(f){
+    var name=enc.encode(f.name), data=enc.encode(f.data), crc=xCrc32(data);
+    var lh=new Uint8Array(30+name.length);
+    xU32(lh,0,0x04034b50); xU16(lh,4,20); xU16(lh,6,0x0800); xU16(lh,8,0);
+    xU16(lh,10,0); xU16(lh,12,0); xU32(lh,14,crc); xU32(lh,18,data.length); xU32(lh,22,data.length);
+    xU16(lh,26,name.length); xU16(lh,28,0); lh.set(name,30);
+    locals.push(lh,data);
+
+    var ch=new Uint8Array(46+name.length);
+    xU32(ch,0,0x02014b50); xU16(ch,4,20); xU16(ch,6,20); xU16(ch,8,0x0800); xU16(ch,10,0);
+    xU16(ch,12,0); xU16(ch,14,0); xU32(ch,16,crc); xU32(ch,20,data.length); xU32(ch,24,data.length);
+    xU16(ch,28,name.length); xU16(ch,30,0); xU16(ch,32,0); xU16(ch,34,0); xU16(ch,36,0);
+    xU32(ch,38,0); xU32(ch,42,offset); ch.set(name,46);
+    centrals.push(ch);
+    offset += lh.length + data.length;
+  });
+  var central=xCat(centrals), body=xCat(locals), eocd=new Uint8Array(22);
+  xU32(eocd,0,0x06054b50); xU16(eocd,4,0); xU16(eocd,6,0);
+  xU16(eocd,8,files.length); xU16(eocd,10,files.length); xU32(eocd,12,central.length); xU32(eocd,16,body.length); xU16(eocd,20,0);
+  return xCat([body,central,eocd]);
+}
+function exportMonthlyDetailXlsx(){
+  aggregate();  /* A.mq / A.mv become the current Area / Customer / Site / All-CPD-FSD scope */
+
+  var exportYears=[2024,2025,2026], span=NY*12, areaScope=areasInScope();
+  var itemIds=[];
+  for (var i=0;i<NI;i++){
+    if (!itemVisible(i)) continue;
+    if (state.cat !== null && catOf[i] !== state.cat) continue;
+    itemIds.push(i);
+  }
+
+  /* Sort like the example: highest 2026 YTD cases first, then item name. */
+  var y26=yIdx(2026);
+  itemIds.sort(function(a,b){
+    var qa=0,qb=0;
+    if (y26>=0){
+      for (var m=0;m<=LASTM;m++){ qa+=A.mq[a*span+y26*12+m]; qb+=A.mq[b*span+y26*12+m]; }
+    }
+    return qb-qa || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
+  });
+
+  function makeRows(arr,isValue){
+    var rows=[], merges=['C1:N1','O1:Z1','AA1:AL1'];
+
+    rows.push([
+      {ref:'C1',v:'2024',s:1,str:1},
+      {ref:'O1',v:'2025',s:1,str:1},
+      {ref:'AA1',v:'2026 YTD',s:1,str:1}
+    ]);
+
+    var h=[{ref:'A2',v:'Item Code',s:2,str:1},{ref:'B2',v:'Item Name',s:2,str:1}];
+    var col=3;
+    exportYears.forEach(function(y){
+      for (var m=0;m<12;m++,col++) h.push({ref:xCol(col)+'2',v:MONTHS[m],s:2,str:1});
+    });
+    h.push({ref:'AM2',v:'Stock',s:2,str:1},{ref:'AN2',v:'Area Stock',s:2,str:1});
+    rows.push(h);
+
+    itemIds.forEach(function(i,idx){
+      var rn=idx+3, r=[
+        {ref:'A'+rn,v:String(ITEMS[i][0]),s:3,str:1},
+        {ref:'B'+rn,v:ITEMS[i][1],s:3,str:1}
+      ];
+      var c=3;
+      exportYears.forEach(function(y){
+        var yi=yIdx(y);
+        for (var m=0;m<12;m++,c++){
+          var v=null;
+          if (yi>=0 && !(y===2026 && m>LASTM)) v=arr[i*span+yi*12+m] || 0;
+          if (v!==null) r.push({ref:xCol(c)+rn,v:v,s:isValue?5:4});
+        }
+      });
+      var st=STOCK ? stockOf(i) : null;
+      var ast=areaStockOf(i,areaScope);
+      if (st!==null && st!==undefined) r.push({ref:'AM'+rn,v:Math.round(st),s:5});
+      if (ast!==null && ast!==undefined) r.push({ref:'AN'+rn,v:Math.round(ast),s:5});
+      rows.push(r);
+    });
+    return {rows:rows,merges:merges};
+  }
+
+  var cases=makeRows(A.mq,false), values=makeRows(A.mv,true);
+  var now=new Date().toISOString();
+
+  var files=[
+    {name:'[Content_Types].xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
+      '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' +
+      '</Types>'},
+    {name:'_rels/.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>' +
+      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>' +
+      '</Relationships>'},
+    {name:'xl/workbook.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="Cases" sheetId="1" r:id="rId1"/><sheet name="Values" sheetId="2" r:id="rId2"/></sheets></workbook>'},
+    {name:'xl/_rels/workbook.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>' +
+      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>'},
+    {name:'xl/styles.xml',data:xStylesXml()},
+    {name:'xl/worksheets/sheet1.xml',data:xSheetXml(cases.rows,cases.merges)},
+    {name:'xl/worksheets/sheet2.xml',data:xSheetXml(values.rows,values.merges)},
+    {name:'docProps/core.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+      '<dc:title>Delicio Oman Monthly Item Detail</dc:title><dc:creator>Delicio Dashboard</dc:creator>' +
+      '<dcterms:created xsi:type="dcterms:W3CDTF">'+now+'</dcterms:created></cp:coreProperties>'},
+    {name:'docProps/app.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' +
+      '<Application>Delicio Dashboard</Application></Properties>'}
+  ];
+
+  var bytes=xZip(files), blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var a=document.createElement('a'), dep=(state.dep||'ALL').replace(/\W+/g,'_'), scope=siteScopeLabel().replace(/\W+/g,'_');
+  a.href=URL.createObjectURL(blob);
+  a.download='delicio_monthly_item_detail_'+dep+'_'+scope+'.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* Export button: keep the existing CSV and add the detailed two-sheet workbook. */
+var expWrap=document.querySelector('.expwrap'), expMenu=document.getElementById('expMenu'), expBtn=document.getElementById('csv');
+expBtn.addEventListener('click',function(e){
+  e.stopPropagation();
+  var open=expWrap.classList.toggle('open');
+  expBtn.setAttribute('aria-expanded',open?'true':'false');
+});
+expMenu.addEventListener('click',function(e){
+  var b=e.target.closest('button[data-exp]'); if(!b) return;
+  expWrap.classList.remove('open'); expBtn.setAttribute('aria-expanded','false');
+  if(b.dataset.exp==='monthly') exportMonthlyDetailXlsx();
+  else exportSummaryCsv();
+});
+document.addEventListener('click',function(e){
+  if(!expWrap.contains(e.target)){ expWrap.classList.remove('open'); expBtn.setAttribute('aria-expanded','false'); }
+});
+window.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ expWrap.classList.remove('open'); expBtn.setAttribute('aria-expanded','false'); }
 });
 
 /* ================= item detail popup =================
