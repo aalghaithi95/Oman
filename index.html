@@ -360,9 +360,9 @@ body.imopen{overflow:hidden}
 .imchart .chnote{font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px}
 
 /* ---------- visit overview value chart ---------- */
-.ovchart{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-top:14px;padding:14px 16px 12px}
-.ovchart .cht{font-size:13px;font-weight:600;text-align:center;color:var(--text);margin-bottom:2px}
-.ovchart .chs{font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px}
+.ovchart{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-top:14px;padding:14px 16px 12px}
+.ovchart .cht{font-size:13px;font-weight:600;text-align:center;color:var(--text);margin-bottom:2px;padding:0 150px}
+.ovchart .chs{font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px;padding:0 150px}
 .ovchart .chsvg{width:100%;height:auto;display:block}
 .ovchart .chlegend{display:flex;justify-content:center;gap:18px;align-items:center;margin:8px 0 0;font-size:11px;color:var(--muted);flex-wrap:wrap}
 .ovchart .lg{display:inline-flex;align-items:center;gap:7px}
@@ -371,6 +371,30 @@ body.imopen{overflow:hidden}
 .ovchart .sw.prev{color:#C6B2B0;border-top-color:#C6B2B0}
 .ovchart .sw.curr{color:#A10716;border-top-color:#A10716}
 .ovchart .chnote{font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px}
+.ovtools{position:absolute;right:14px;top:13px;z-index:4}
+.ovviewbtn{background:#fff;border:1px solid var(--line);color:var(--ink);padding:7px 11px;border-radius:var(--r);
+  cursor:pointer;font-size:11px;font-weight:600;box-shadow:0 1px 2px rgba(18,36,44,.04)}
+.ovviewbtn:hover{background:#F4F7F5;border-color:var(--ink-3)}
+.ovtip{position:absolute;z-index:8;display:none;pointer-events:none;background:var(--ink);color:#fff;border-radius:4px;
+  padding:7px 9px;box-shadow:0 7px 20px rgba(18,36,44,.22);font-size:11px;line-height:1.3;white-space:nowrap}
+.ovtip b{display:block;font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:2px}
+.ovhit{cursor:crosshair;fill:transparent;pointer-events:all}
+.ovdot{transition:r .1s ease}
+.ovpoint:hover .ovdot{r:6}
+.ovrundown{overflow-x:auto;padding-top:4px}
+.ovtbl{width:100%;min-width:930px;border-collapse:collapse;table-layout:fixed;font-size:11.5px;margin-top:6px}
+.ovtbl .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:12px;text-align:center;
+  padding:7px;border:1px solid #E4CDBE;letter-spacing:.03em}
+.ovtbl thead tr:last-child th{background:#fff;border:1px solid var(--line);padding:6px 6px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right}
+.ovtbl thead tr:last-child th:first-child{text-align:left;width:84px}
+.ovtbl tbody th{background:#FFF9D6;border:1px solid var(--line);padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap}
+.ovtbl td{border:1px solid var(--line);padding:6px 7px;text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+.ovtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
+.ovtbl td.tot,.ovtbl th.tot{font-weight:600;background:#F7F9F8}
+.ovtbl tr.vs th,.ovtbl tr.vs td{background:#F4F7F6}
+.ovtbl .z{color:var(--muted)}
+.ovtbl + .ovtbl{margin-top:20px}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
@@ -385,10 +409,13 @@ body.imopen{overflow:hidden}
   .imchart .cht{font-size:12px}
   .imchart .chs,.imchart .chnote{font-size:10px}
   .imchart .chlegend{gap:12px;font-size:10.5px}
-  .ovchart{padding:12px 10px 10px}
-  .ovchart .cht{font-size:12px}
-  .ovchart .chs,.ovchart .chnote{font-size:10px}
+  .ovchart{padding:48px 10px 10px}
+  .ovchart .cht{font-size:12px;padding:0}
+  .ovchart .chs,.ovchart .chnote{font-size:10px;padding:0}
   .ovchart .chlegend{gap:12px;font-size:10.5px}
+  .ovtools{right:10px;top:9px}
+  .ovviewbtn{padding:7px 10px;font-size:10.5px}
+  .ovtip{font-size:10.5px}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -3369,34 +3396,48 @@ function itemCasesChart(i){
   '</div>';
 }
 
-function visitValueChart(){
-  var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
-  var valsPrev = new Float64Array(12), valsCurr = new Array(12), maxV = 0;
-  for (var m=0;m<12;m++) valsCurr[m] = (m <= LASTM ? 0 : null);
 
-  /* A.mv already contains the current Market Visit scope after aggregate():
-     Area / Customer / Customer Site plus All, CPD or FSD. First build the
-     TOTAL monthly values, then calculate the axis maximum from those totals. */
-  for (var i=0;i<NI;i++){
-    var base = i * span;
-    for (var m2=0;m2<12;m2++){
-      valsPrev[m2] += A.mv[base + prev*12 + m2] || 0;
-      if (m2 <= LASTM){
-        valsCurr[m2] += A.mv[base + latest*12 + m2] || 0;
+var VISIT_VALUE_VIEW = 'chart';
+
+function visitMonthlyValueSeries(){
+  var span = NY * 12, out = {};
+  [2024, 2025, 2026].forEach(function(y){
+    var yi = yIdx(y);
+    if (yi < 0) return;
+    var a = new Array(12);
+    for (var m=0;m<12;m++) a[m] = (y === YEARS[NY-1] && m > LASTM) ? null : 0;
+    for (var i=0;i<NI;i++){
+      var base = i * span + yi * 12;
+      for (var m2=0;m2<12;m2++){
+        if (a[m2] === null) continue;
+        a[m2] += A.mv[base + m2] || 0;
       }
     }
-  }
+    out[y] = a;
+  });
+  return out;
+}
+
+function visitValueChart(){
+  var series = visitMonthlyValueSeries();
+  var prevYear = series[2025] ? 2025 : YEARS[Math.max(0, NY-2)];
+  var currYear = series[2026] ? 2026 : YEARS[NY-1];
+  var valsPrev = series[prevYear] || new Array(12).fill(0);
+  var valsCurr = series[currYear] || new Array(12).fill(0);
+  var maxV = 0;
 
   for (var mx=0; mx<12; mx++){
-    if (valsPrev[mx] > maxV) maxV = valsPrev[mx];
+    if (valsPrev[mx] !== null && valsPrev[mx] > maxV) maxV = valsPrev[mx];
     if (valsCurr[mx] !== null && valsCurr[mx] > maxV) maxV = valsCurr[mx];
   }
+
   var step = niceStep(maxV || 1, 5), top = step * Math.max(1, Math.ceil((maxV || 1) / step));
   var W = 980, H = 280, L = 64, R = 14, T = 18, B = 42;
   var PW = W - L - R, PH = H - T - B;
   var xAt = function(idx){ return L + (PW * idx / 11); };
   var yAt = function(v){ return T + PH - ((v / top) * PH); };
   var grid = '', xlabs = '', ylabs = '';
+
   for (var g=0; g<=5; g++){
     var gv = top * g / 5, y = yAt(gv);
     grid += '<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '" stroke="#E3E7E5" stroke-width="1"></line>';
@@ -3405,7 +3446,23 @@ function visitValueChart(){
   for (var x=0; x<12; x++){
     xlabs += '<text x="' + xAt(x).toFixed(1) + '" y="' + (H-14) + '" text-anchor="middle" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">' + MONTHS[x] + '</text>';
   }
-  var pathPrev = svgLinePath(Array.from(valsPrev), xAt, yAt), pathCurr = svgLinePath(valsCurr, xAt, yAt);
+
+  function points(vals, yr, fill){
+    var s = '';
+    for (var m=0;m<12;m++){
+      var v = vals[m];
+      if (v === null || v === undefined || isNaN(v)) continue;
+      var cx = xAt(m).toFixed(1), cy = yAt(v).toFixed(1);
+      s += '<g class="ovpoint">' +
+             '<circle class="ovdot" cx="' + cx + '" cy="' + cy + '" r="4" fill="' + fill + '"></circle>' +
+             '<circle class="ovhit" cx="' + cx + '" cy="' + cy + '" r="13" ' +
+               'data-year="' + yr + '" data-month="' + m + '" data-value="' + Math.round(v) + '"></circle>' +
+           '</g>';
+    }
+    return s;
+  }
+
+  var pathPrev = svgLinePath(valsPrev, xAt, yAt), pathCurr = svgLinePath(valsCurr, xAt, yAt);
   var svg = '<svg class="chsvg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Monthly value trend for tab 1">' +
     '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#FFFFFF"></rect>' +
     grid +
@@ -3414,23 +3471,154 @@ function visitValueChart(){
     ylabs + xlabs +
     '<path d="' + pathPrev + '" fill="none" stroke="#C6B2B0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
     '<path d="' + pathCurr + '" fill="none" stroke="#A10716" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
-    svgDots(Array.from(valsPrev), xAt, yAt, 'dotp').replace(/<circle/g, '<circle fill="#C6B2B0"') +
-    svgDots(valsCurr, xAt, yAt, 'dotc').replace(/<circle/g, '<circle fill="#A10716"') +
+    points(valsPrev, prevYear, '#C6B2B0') +
+    points(valsCurr, currYear, '#A10716') +
     '</svg>';
-  return '<div class="cht">Monthly value trend, OMR (Jan–Dec)</div>' +
-    '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · ' + YEARS[prev] + ' vs ' + YEARS[latest] + ' YTD</div>' +
+
+  return '<div class="ovtools"><button class="ovviewbtn" type="button" data-view="rundown">Monthly run down</button></div>' +
+    '<div class="cht">Monthly value trend, OMR (Jan–Dec)</div>' +
+    '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · ' + prevYear + ' vs ' + currYear + ' YTD</div>' +
     svg +
     '<div class="chlegend">' +
-      '<span class="lg"><span class="sw prev"></span>' + YEARS[prev] + '</span>' +
-      '<span class="lg"><span class="sw curr"></span>' + YEARS[latest] + ' YTD</span>' +
+      '<span class="lg"><span class="sw prev"></span>' + prevYear + '</span>' +
+      '<span class="lg"><span class="sw curr"></span>' + currYear + ' YTD</span>' +
     '</div>' +
-    '<div class="chnote">The chart follows the current customer/site scope and the selected department (All, CPD or FSD). ' + YEARS[latest] + ' continues through ' + MONTHS[LASTM] + ' and later months remain blank.</div>';
+    '<div class="chnote">Hover around any monthly dot to see its sales value. The chart follows the current customer/site scope and the selected department.</div>' +
+    '<div class="ovtip" id="ovTip"></div>';
+}
+
+
+function visitValueRundown(){
+  var years = [2024, 2025, 2026].filter(function(y){ return yIdx(y) >= 0; });
+  var latestYear = years.indexOf(2026) >= 0 ? 2026 : (years.length ? years[years.length-1] : YEARS[NY-1]);
+  var prevYear = years.indexOf(2025) >= 0 ? 2025 : (years.length > 1 ? years[years.length-2] : null);
+  var span = NY * 12;
+
+  function monthlySeries(arr){
+    var out = {};
+    years.forEach(function(y){
+      var yi = yIdx(y), vals = new Array(12);
+      for (var m=0;m<12;m++) vals[m] = (y === latestYear && m > LASTM) ? null : 0;
+      for (var i=0;i<NI;i++){
+        var base = i * span + yi * 12;
+        for (var m2=0;m2<12;m2++){
+          if (vals[m2] === null) continue;
+          vals[m2] += arr[base + m2] || 0;
+        }
+      }
+      out[y] = vals;
+    });
+    return out;
+  }
+
+  var casesSeries = monthlySeries(A.mq);
+  var valueSeries = monthlySeries(A.mv);
+
+  function num(v, isValue){
+    if (!v) return '<span class="z">–</span>';
+    return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
+  }
+  function pct(cur, prev){
+    if (!prev) return cur ? '<span class="up">NEW</span>' : '<span class="z">–</span>';
+    if (!cur) return '<span class="down">−100%</span>';
+    var p = cur/prev - 1, cls = p > 0.0005 ? 'up' : (p < -0.0005 ? 'down' : 'flat');
+    return '<span class="' + cls + '">' + (p>0?'+':'') + nf1.format(p*100) + '%</span>';
+  }
+
+  function tableHtml(title, data, isValue){
+    var h = '<table class="ovtbl"><thead>' +
+            '<tr class="cap"><th colspan="14">' + title + '</th></tr>' +
+            '<tr><th></th>';
+    for (var m=0;m<12;m++) h += '<th>' + MONTHS[m] + '</th>';
+    h += '<th class="tot">Total</th></tr></thead><tbody>';
+
+    years.forEach(function(y){
+      var vals = data[y], total = 0;
+      h += '<tr><th>' + y + (y === latestYear ? ' YTD' : '') + '</th>';
+      for (var m2=0;m2<12;m2++){
+        var v = vals[m2];
+        if (v === null){
+          h += '<td class="off"></td>';
+        } else {
+          total += v;
+          h += '<td>' + num(v, isValue) + '</td>';
+        }
+      }
+      h += '<td class="tot">' + num(total, isValue) + '</td></tr>';
+    });
+
+    if (data[latestYear] && prevYear && data[prevYear]){
+      var curTotal = 0, prevTotal = 0;
+      h += '<tr class="vs"><th>% Vs ' + String(prevYear).slice(2) + '</th>';
+      for (var m3=0;m3<12;m3++){
+        var cv = data[latestYear][m3];
+        if (cv === null){
+          h += '<td class="off"></td>';
+        } else {
+          var pv = data[prevYear][m3] || 0;
+          curTotal += cv;
+          prevTotal += pv;
+          h += '<td>' + pct(cv, pv) + '</td>';
+        }
+      }
+      h += '<td class="tot">' + pct(curTotal, prevTotal) + '</td></tr>';
+    }
+
+    h += '</tbody></table>';
+    return h;
+  }
+
+  return '<div class="ovtools"><button class="ovviewbtn" type="button" data-view="chart">Graph view</button></div>' +
+         '<div class="cht">Monthly run down</div>' +
+         '<div class="chs">' + depLabel() + ' · ' + scopeNames() + ' · 2024–2026 YTD</div>' +
+         '<div class="ovrundown">' +
+           tableHtml('SALES IN VOLUME (CASES)', casesSeries, false) +
+           tableHtml('SALES IN VALUE', valueSeries, true) +
+         '</div>' +
+         '<div class="chnote">' + latestYear + ' totals are year-to-date, and the % rows compare the same months of ' + prevYear + '.</div>';
 }
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
   if (!box) return;
-  box.innerHTML = visitValueChart();
+  box.innerHTML = VISIT_VALUE_VIEW === 'rundown' ? visitValueRundown() : visitValueChart();
 }
+
+(function wireVisitValueChart(){
+  var box = document.getElementById('visitValueChart');
+  if (!box) return;
+
+  box.addEventListener('click', function(e){
+    var b = e.target.closest('.ovviewbtn');
+    if (!b) return;
+    VISIT_VALUE_VIEW = b.dataset.view === 'rundown' ? 'rundown' : 'chart';
+    renderVisitValueChart();
+  });
+
+  box.addEventListener('mousemove', function(e){
+    var p = e.target.closest('.ovhit');
+    var tip = box.querySelector('#ovTip');
+    if (!tip) return;
+    if (!p){
+      tip.style.display = 'none';
+      return;
+    }
+    tip.innerHTML = MONTHS[+p.dataset.month] + ' ' + p.dataset.year +
+      '<b>OMR ' + nf0.format(+p.dataset.value) + '</b>';
+    var r = box.getBoundingClientRect();
+    var left = e.clientX - r.left + 12;
+    var top = e.clientY - r.top - 48;
+    if (left > box.clientWidth - 140) left = box.clientWidth - 145;
+    if (top < 4) top = e.clientY - r.top + 14;
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.display = 'block';
+  });
+
+  box.addEventListener('mouseleave', function(){
+    var tip = box.querySelector('#ovTip');
+    if (tip) tip.style.display = 'none';
+  });
+})();
 function openItem(i){
   aggregate();                                   /* make sure the grid matches the filters */
   var it = ITEMS[i];
