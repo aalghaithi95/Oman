@@ -224,12 +224,12 @@ tr.ok td.desc{color:var(--pos)}
 .ovtools{display:flex;gap:6px;align-items:center}
 .ovmetricbar{display:flex;justify-content:center;align-items:center;gap:5px;margin:7px 0 9px}
 .ovmetricbar.catmetric{
-  position:absolute;top:10px;right:48%;z-index:5;margin:0;
-  gap:2px;padding:3px;border:1px solid var(--line);border-radius:4px;background:#fff
+  position:absolute;top:12px;left:14px;right:auto;z-index:5;margin:0;
+  gap:1px;padding:2px;border:1px solid var(--line);border-radius:4px;background:#fff
 }
 .ovmetricbtn{
-  min-width:66px;height:28px;padding:0 14px;border:0;border-radius:3px;background:transparent;color:#7D8B92;
-  cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:28px
+  min-width:54px;height:28px;padding:0 8px;border:0;border-radius:3px;background:transparent;color:#7D8B92;
+  cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.035em;text-transform:uppercase;line-height:28px
 }
 .ovmetricbtn.on{background:var(--ink);color:#fff}
 .ovmetricbtn:hover:not(.on){background:#F3F5F4;color:var(--ink)}
@@ -257,7 +257,7 @@ tr.ok td.desc{color:var(--pos)}
   .ovtools{gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:68%}
   .ovviewbtn{padding:6px 8px;font-size:9.5px}
   .ovmetricbar.catmetric{position:static;margin:6px 0 8px;justify-content:center}
-  .ovmetricbtn{min-width:62px;height:28px;padding:0 12px;font-size:10px;line-height:28px}
+  .ovmetricbtn{min-width:54px;height:28px;padding:0 8px;font-size:9.5px;line-height:28px}
   .ovcatmonthly{min-width:900px;font-size:10px}
   .ovcatmonthly tbody th,.ovcatmonthly tbody td{padding:7px 5px}
 }
@@ -4226,7 +4226,7 @@ function visitCategoryWise(){
       h += '<td>'+f(v)+'</td>';
     }
     var cont=yearTotal ? tot/yearTotal*100 : 0;
-    h += '<td class="tot">'+f(tot)+'</td><td class="cont">'+nf0.format(Math.round(cont))+'%</td></tr>';
+    h += '<td class="tot">'+f(tot)+'</td><td class="cont">'+nf2.format(cont)+'%</td></tr>';
   });
 
   h += '<tr class="grand"><th>Total</th>';
@@ -4234,7 +4234,7 @@ function visitCategoryWise(){
     if (latest && m>LASTM){ h += '<td class="off"></td>'; continue; }
     h += '<td>'+f(d.totals[m])+'</td>';
   }
-  h += '<td class="tot">'+f(yearTotal)+'</td><td class="cont">100%</td></tr></tbody></table></div>';
+  h += '<td class="tot">'+f(yearTotal)+'</td><td class="cont">100.00%</td></tr></tbody></table></div>';
 
   return visitViewButtons('category')+
     '<div class="ovmetricbar catmetric">'+
