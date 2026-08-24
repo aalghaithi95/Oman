@@ -3386,113 +3386,178 @@ function xZip(files){
   return xCat([body,central,eocd]);
 }
 function exportMonthlyDetailXlsx(){
-  aggregate();  /* A.mq / A.mv become the current Area / Customer / Site / All-CPD-FSD scope */
+  aggregate();  /* current Area / Customer / Site / All-CPD-FSD scope */
 
   var exportYears=[2024,2025,2026], span=NY*12, areaScope=areasInScope();
   var itemIds=[];
+
   for (var i=0;i<NI;i++){
     if (!itemVisible(i)) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
     itemIds.push(i);
   }
 
-  /* Sort like the example: highest 2026 YTD cases first, then item name. */
+  /* Sort by 2026 YTD cases, highest to lowest, matching the requested layout. */
   var y26=yIdx(2026);
   itemIds.sort(function(a,b){
     var qa=0,qb=0;
     if (y26>=0){
-      for (var m=0;m<=LASTM;m++){ qa+=A.mq[a*span+y26*12+m]; qb+=A.mq[b*span+y26*12+m]; }
+      for (var m=0;m<=LASTM;m++){
+        qa += A.mq[a*span+y26*12+m] || 0;
+        qb += A.mq[b*span+y26*12+m] || 0;
+      }
     }
     return qb-qa || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
   });
 
-  function makeRows(arr,isValue){
-    var rows=[], merges=['C1:N1','O1:Z1','AA1:AL1'];
-
-    rows.push([
-      {ref:'C1',v:'2024',s:1,str:1},
-      {ref:'O1',v:'2025',s:1,str:1},
-      {ref:'AA1',v:'2026 YTD',s:1,str:1}
-    ]);
-
-    var h=[{ref:'A2',v:'Item Code',s:2,str:1},{ref:'B2',v:'Item Name',s:2,str:1}];
-    var col=3;
-    exportYears.forEach(function(y){
-      for (var m=0;m<12;m++,col++) h.push({ref:xCol(col)+'2',v:MONTHS[m],s:2,str:1});
+  function xmlEsc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'})[c];
     });
-    h.push({ref:'AM2',v:'Stock',s:2,str:1},{ref:'AN2',v:'Area Stock',s:2,str:1});
-    rows.push(h);
-
-    itemIds.forEach(function(i,idx){
-      var rn=idx+3, r=[
-        {ref:'A'+rn,v:String(ITEMS[i][0]),s:3,str:1},
-        {ref:'B'+rn,v:ITEMS[i][1],s:3,str:1}
-      ];
-      var c=3;
-      exportYears.forEach(function(y){
-        var yi=yIdx(y);
-        for (var m=0;m<12;m++,c++){
-          var v=null;
-          if (yi>=0 && !(y===2026 && m>LASTM)) v=arr[i*span+yi*12+m] || 0;
-          if (v!==null) r.push({ref:xCol(c)+rn,v:v,s:isValue?5:4});
-        }
-      });
-      var st=STOCK ? stockOf(i) : null;
-      var ast=areaStockOf(i,areaScope);
-      if (st!==null && st!==undefined) r.push({ref:'AM'+rn,v:Math.round(st),s:5});
-      if (ast!==null && ast!==undefined) r.push({ref:'AN'+rn,v:Math.round(ast),s:5});
-      rows.push(r);
-    });
-    return {rows:rows,merges:merges};
+  }
+  function cellString(v,style,index){
+    return '<Cell' + (index ? ' ss:Index="'+index+'"' : '') +
+      (style ? ' ss:StyleID="'+style+'"' : '') +
+      '><Data ss:Type="String">'+xmlEsc(v)+'</Data></Cell>';
+  }
+  function cellNumber(v,style,index){
+    return '<Cell' + (index ? ' ss:Index="'+index+'"' : '') +
+      (style ? ' ss:StyleID="'+style+'"' : '') +
+      '><Data ss:Type="Number">'+Number(v || 0)+'</Data></Cell>';
+  }
+  function blankCell(style,index){
+    return '<Cell' + (index ? ' ss:Index="'+index+'"' : '') +
+      (style ? ' ss:StyleID="'+style+'"' : '') + '/>';
   }
 
-  var cases=makeRows(A.mq,false), values=makeRows(A.mv,true);
-  var now=new Date().toISOString();
+  function sheetXml(name,arr,isValue){
+    var rows=[];
 
-  var files=[
-    {name:'[Content_Types].xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
-      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
-      '<Default Extension="xml" ContentType="application/xml"/>' +
-      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
-      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
-      '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
-      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
-      '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' +
-      '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' +
-      '</Types>'},
-    {name:'_rels/.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
-      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>' +
-      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>' +
-      '</Relationships>'},
-    {name:'xl/workbook.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-      '<sheets><sheet name="Cases" sheetId="1" r:id="rId1"/><sheet name="Values" sheetId="2" r:id="rId2"/></sheets></workbook>'},
-    {name:'xl/_rels/workbook.xml.rels',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
-      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>' +
-      '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-      '</Relationships>'},
-    {name:'xl/styles.xml',data:xStylesXml()},
-    {name:'xl/worksheets/sheet1.xml',data:xSheetXml(cases.rows,cases.merges)},
-    {name:'xl/worksheets/sheet2.xml',data:xSheetXml(values.rows,values.merges)},
-    {name:'docProps/core.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
-      '<dc:title>Delicio Oman Monthly Item Detail</dc:title><dc:creator>Delicio Dashboard</dc:creator>' +
-      '<dcterms:created xsi:type="dcterms:W3CDTF">'+now+'</dcterms:created></cp:coreProperties>'},
-    {name:'docProps/app.xml',data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' +
-      '<Application>Delicio Dashboard</Application></Properties>'}
-  ];
+    /* Row 1: merged year bands */
+    rows.push(
+      '<Row ss:Height="20">' +
+        '<Cell ss:Index="3" ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2024</Data></Cell>' +
+        '<Cell ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2025</Data></Cell>' +
+        '<Cell ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2026 YTD</Data></Cell>' +
+      '</Row>'
+    );
 
-  var bytes=xZip(files), blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  var a=document.createElement('a'), dep=(state.dep||'ALL').replace(/\W+/g,'_'), scope=siteScopeLabel().replace(/\W+/g,'_');
-  a.href=URL.createObjectURL(blob);
-  a.download='delicio_monthly_item_detail_'+dep+'_'+scope+'.xlsx';
-  a.click(); URL.revokeObjectURL(a.href);
+    /* Row 2: column headers */
+    var h='<Row ss:Height="23">' +
+      cellString('Item Code','Head') +
+      cellString('Item Name','Head');
+    exportYears.forEach(function(){
+      for (var m=0;m<12;m++) h += cellString(MONTHS[m],'Head');
+    });
+    h += cellString('Stock','Head') + cellString('Area Stock','Head') + '</Row>';
+    rows.push(h);
+
+    itemIds.forEach(function(i){
+      var r='<Row>' +
+        cellString(String(ITEMS[i][0]),'Text') +
+        cellString(ITEMS[i][1],'Text');
+
+      exportYears.forEach(function(y){
+        var yi=yIdx(y);
+        for (var m=0;m<12;m++){
+          if (yi<0 || (y===2026 && m>LASTM)){
+            r += blankCell(isValue?'Int':'Dec');
+          } else {
+            var v=arr[i*span+yi*12+m] || 0;
+            r += cellNumber(v,isValue?'Int':'Dec');
+          }
+        }
+      });
+
+      var st=STOCK ? stockOf(i) : null;
+      var ast=areaStockOf(i,areaScope);
+
+      r += (st===null || st===undefined) ? blankCell('Int') : cellNumber(Math.round(st),'Int');
+      r += (ast===null || ast===undefined) ? blankCell('Int') : cellNumber(Math.round(ast),'Int');
+      r += '</Row>';
+      rows.push(r);
+    });
+
+    return '<Worksheet ss:Name="'+xmlEsc(name)+'">' +
+      '<Table ss:ExpandedColumnCount="40" ss:ExpandedRowCount="'+(itemIds.length+2)+'" x:FullColumns="1" x:FullRows="1">' +
+        '<Column ss:Index="1" ss:Width="85"/>' +
+        '<Column ss:Index="2" ss:Width="300"/>' +
+        '<Column ss:Index="3" ss:Span="35" ss:Width="72"/>' +
+        '<Column ss:Index="39" ss:Span="1" ss:Width="82"/>' +
+        rows.join('') +
+      '</Table>' +
+      '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
+        '<FreezePanes/><FrozenNoSplit/>' +
+        '<SplitHorizontal>2</SplitHorizontal><TopRowBottomPane>2</TopRowBottomPane>' +
+        '<SplitVertical>2</SplitVertical><LeftColumnRightPane>2</LeftColumnRightPane>' +
+        '<ActivePane>0</ActivePane>' +
+        '<ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios>' +
+      '</WorksheetOptions>' +
+    '</Worksheet>';
+  }
+
+  /* SpreadsheetML 2003 is deliberately used here instead of the previous
+     hand-built XLSX ZIP. It is a native multi-sheet Excel workbook and avoids
+     browser/ZIP compatibility problems that could create an empty workbook. */
+  var xml='<?xml version="1.0" encoding="UTF-8"?>' +
+    '<?mso-application progid="Excel.Sheet"?>' +
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ' +
+      'xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+      'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+      'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" ' +
+      'xmlns:html="http://www.w3.org/TR/REC-html40">' +
+      '<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">' +
+        '<Title>Delicio Oman Monthly Item Detail</Title>' +
+        '<Author>Delicio Dashboard</Author>' +
+      '</DocumentProperties>' +
+      '<Styles>' +
+        '<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/>' +
+          '<Font ss:FontName="Calibri" ss:Size="10"/></Style>' +
+        '<Style ss:ID="Year"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Bold="1"/><Interior ss:Color="#FBEDE4" ss:Pattern="Solid"/></Style>' +
+        '<Style ss:ID="Head"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Bold="1"/></Style>' +
+        '<Style ss:ID="Text"><Alignment ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>' +
+        '<Style ss:ID="Dec"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<NumberFormat ss:Format="#,##0.00"/></Style>' +
+        '<Style ss:ID="Int"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<NumberFormat ss:Format="#,##0"/></Style>' +
+      '</Styles>' +
+      sheetXml('Cases',A.mq,false) +
+      sheetXml('Values',A.mv,true) +
+    '</Workbook>';
+
+  var blob=new Blob(['\ufeff'+xml],{type:'application/vnd.ms-excel;charset=utf-8;'});
+  var a=document.createElement('a');
+  var dep=(state.dep||'ALL').replace(/\W+/g,'_');
+  var scope=siteScopeLabel().replace(/\W+/g,'_');
+  var url=URL.createObjectURL(blob);
+  a.href=url;
+  a.download='delicio_monthly_item_detail_'+dep+'_'+scope+'.xls';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); },1000);
 }
 
 /* Export button: keep the existing CSV and add the detailed two-sheet workbook. */
