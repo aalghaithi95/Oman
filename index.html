@@ -809,6 +809,42 @@ body.neopen .necard{transform:translateY(0)}
 }
 
 
+/* ---------- promotion analysis ---------- */
+.promoformula{font-size:10.5px;color:var(--muted);line-height:1.35;align-self:center}
+#ptbl{width:100%;border-collapse:collapse}
+#ptbl th{position:sticky;top:0;z-index:5;background:var(--ink);color:#EAF2F0;text-align:left;
+  padding:9px 8px;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap}
+#ptbl th.r{text-align:right}
+#ptbl td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:11.5px;vertical-align:middle}
+#ptbl td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap}
+#ptbl td.p-last{white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:10.5px}
+#ptbl tr.pcust td{background:#EEF1EF;font-weight:600;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#ptbl tr.pcust td.p-custname{color:var(--ink)}
+#ptbl tr.psite{cursor:pointer}
+#ptbl tr.psite:hover td{background:#FAFAF8}
+#ptbl tr.psite td.p-site{box-shadow:inset 3px 0 0 var(--accent)}
+#ptbl tr.psite .tw{display:inline-block;width:14px;color:var(--muted);font-size:9px}
+#ptbl tr.pitem td{background:#FBFBF9;color:var(--muted)}
+#ptbl tr.pitem td.p-item{padding-left:18px;color:var(--ink)}
+#ptbl tr.pitem td.p-cat{font-size:10.5px}
+#ptbl .prate{display:inline-block;min-width:52px;text-align:right;font-weight:600}
+#ptbl .prate.high{color:var(--neg)}
+#ptbl .empty{padding:28px;text-align:center;color:var(--muted);font-size:12px}
+#ptbl tr.more td{background:#FBF3E1;color:var(--accent-2);font-size:11px;padding:6px 10px}
+#ptbl th.p-site,#ptbl td.p-site{width:22%}
+#ptbl th.p-item,#ptbl td.p-item{width:24%}
+#ptbl th.p-cat,#ptbl td.p-cat{width:11%}
+#ptbl th.p-last,#ptbl td.p-last{width:10%}
+@media (max-width:760px){
+  .tabs .tab{font-size:10.5px;line-height:1.1;white-space:normal}
+  .promoformula{width:100%;font-size:10px}
+  #ptbl{min-width:760px;font-size:11px}
+  #ptbl th,#ptbl td{padding:6px 5px}
+  #ptbl th.p-cat,#ptbl td.p-cat,
+  #ptbl th.p-supply,#ptbl td.p-supply,
+  #ptbl th.p-sales,#ptbl td.p-sales{display:none}
+}
+
 /* ---------- value / volume switch ---------- */
 .metsw{display:flex;margin-top:6px}
 .met{background:#fff;border:1px solid var(--line);border-right:none;padding:5px 12px;
@@ -881,6 +917,7 @@ body.neopen .necard{transform:translateY(0)}
     <button class="tab on" type="button" data-t="visit">Market Visit</button>
     <button class="tab" type="button" data-t="analysis">Analysis</button>
     <button class="tab" type="button" data-t="outlet">Outlet Performance</button>
+    <button class="tab" type="button" data-t="promo">Promotion Analysis</button>
   </div>
 
 <div id="paneVisit">
@@ -1198,6 +1235,104 @@ body.neopen .necard{transform:translateY(0)}
     </div>
   </div>
 </div><!-- /paneOutlet -->
+
+<div id="panePromo" style="display:none">
+  <div class="deps" data-pane="promo">
+    <button class="dep on" type="button" data-d="ALL">All</button>
+    <button class="dep" type="button" data-d="CPD">CPD</button>
+    <button class="dep" type="button" data-d="FSD">FSD</button>
+    <span class="dephint" id="depHint4"></span>
+  </div>
+
+  <div class="filters">
+    <div class="field f-area">
+      <span>Area</span>
+      <div class="ms" id="msPArea">
+        <button class="ms-btn" type="button" data-role="btn"><b>All areas</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search area…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field f-cust">
+      <span>Customer</span>
+      <div class="ms" id="msPCust">
+        <button class="ms-btn" type="button" data-role="btn"><b>All customers</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search customer…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field f-search">
+      <span>Category</span>
+      <select id="pCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+    </div>
+
+    <div class="field f-item">
+      <span>Item Desc</span>
+      <div class="ms" id="msPItem">
+        <button class="ms-btn" type="button" data-role="btn"><b>All promotion items</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search promotion item…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field f-search">
+      <span>Return %</span>
+      <select id="pRet" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%">
+        <option value="10">10% or more</option>
+        <option value="20">20% or more</option>
+        <option value="30">30% or more</option>
+        <option value="40">40% or more</option>
+        <option value="50">50% or more</option>
+      </select>
+    </div>
+
+    <div class="fbar">
+      <div class="promoformula">
+        Return % = returned cases ÷ cases supplied in the immediately previous month.
+      </div>
+      <div class="fbtns">
+        <button class="btn ghost" id="pReset">Reset filters</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis" id="pKpis"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Promotion return frequency</h2>
+      <span class="count" id="pCount"></span>
+      <div class="right"><span class="eyebrow" id="pScope"></span></div>
+    </div>
+    <div class="tscroll" id="pScroll">
+      <table id="ptbl">
+        <thead><tr>
+          <th class="p-site">Customer Site</th>
+          <th class="p-item">Promotion Item</th>
+          <th class="p-cat">Category</th>
+          <th class="r p-sales" id="pSalesHead"></th>
+          <th class="r p-events">Return Events</th>
+          <th class="r p-supply">Supplied Cases</th>
+          <th class="r p-return">Returned Cases</th>
+          <th class="r p-rate">Return %</th>
+          <th class="r p-max">Max Return %</th>
+          <th class="p-last">Last Return</th>
+        </tr></thead>
+      </table>
+    </div>
+  </div>
+</div><!-- /panePromo -->
 
   <div class="foot">
     <span id="footMeta"></span>
@@ -2348,6 +2483,7 @@ var state = {
   aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
   aMetric: 'value', oMetric: 'value',
   oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
+  pArea: new Set(), pCust: new Set(), pCat: null, pItems: new Set(), pRet: 10,
   sort: {key:'vB', dir:-1},
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
@@ -3149,6 +3285,7 @@ function renderActiveTab(){
   render();
   if (TAB === 'analysis') renderAnalysis();
   else if (TAB === 'outlet') renderOutlet();
+  else if (TAB === 'promo'){ PRSCAN = null; renderPromo(); }
 }
 function onPeriod(){
   var m1 = document.getElementById('m1'), m2 = document.getElementById('m2');
@@ -4806,6 +4943,354 @@ document.getElementById('anCsv').addEventListener('click', function(){
   a.click(); URL.revokeObjectURL(a.href);
 });
 
+
+/* ================= Promotion Analysis =================
+   A return event is deliberately defined from the user's example:
+   positive cases supplied in one month, followed by a net negative quantity in
+   the immediately following month for the same customer site + promotion item.
+   Return % = absolute returned cases / previous month's supplied cases. */
+var PRSCAN = null;
+var msPArea = null, msPCust = null, msPItem = null;
+var promoOpen = {};
+var PROMO_CAP = 700, PROMO_PER_CUST = 18;
+
+function promoItemOk(i){
+  return !isOther(i) && ITEMS[i][3] === 'Promotion';
+}
+function promoPairKey(s,i){ return s * NI + i; }
+
+function promotionScan(){
+  var key = state.dep + '|' + state.yrB + '|' + state.m1 + '|' + state.m2 + '|' +
+            SITES.length + '|' + (F ? F.s.length : 0);
+  if (PRSCAN && PRSCAN.key === key) return PRSCAN;
+
+  var span = NY * 12, ib = yIdx(state.yrB);
+  var pairs = {};
+  var fs = F.s, fi = F.i, fp = F.p, fq = F.q, fv = F.v, fd = F.d, N = fs.length;
+
+  for (var k=0;k<N;k++){
+    var i = fi[k];
+    if (!promoItemOk(i)) continue;
+    if (!factCounted(fd[k], i)) continue;
+
+    var s = fs[k], p = fp[k], pk = promoPairKey(s,i);
+    var d = pairs[pk];
+    if (!d){
+      d = pairs[pk] = {s:s, i:i, q:new Float64Array(span), sales:0};
+    }
+    d.q[p] += fq[k];
+
+    var yi = (p/12)|0, m = p%12;
+    if (yi === ib && m >= state.m1 && m <= state.m2){
+      d.sales += fv[k];
+    }
+  }
+
+  var events = [], siteAny = {}, custAny = {}, areaAny = {};
+  Object.keys(pairs).forEach(function(pk){
+    var d = pairs[pk], q = d.q;
+    for (var p=1;p<span;p++){
+      var yi = (p/12)|0, m = p%12;
+      if (yi !== ib || m < state.m1 || m > state.m2) continue;
+      if (state.yrB === YEARS[NY-1] && m > LASTM) continue;
+
+      var supplied = q[p-1], returned = q[p];
+      if (!(supplied > 0 && returned < 0)) continue;
+
+      var pct = (-returned / supplied) * 100;
+      var cid = SITES[d.s][4];
+      events.push({
+        s:d.s, i:d.i, cid:cid, a:areaOf[d.s],
+        supplyP:p-1, returnP:p,
+        supply:supplied, ret:-returned, pct:pct,
+        sales:d.sales
+      });
+      siteAny[d.s] = 1;
+      custAny[cid] = 1;
+      areaAny[areaOf[d.s]] = 1;
+    }
+  });
+
+  PRSCAN = {key:key, events:events, pairs:pairs, siteAny:siteAny, custAny:custAny, areaAny:areaAny};
+  return PRSCAN;
+}
+
+function promoAreaOptions(){
+  var S = promotionScan(), out = [];
+  Object.keys(S.areaAny).forEach(function(a){
+    out.push({id:+a, label:areaLabel(+a)});
+  });
+  return out.sort(function(x,y){ return x.label < y.label ? -1 : 1; });
+}
+function promoCustomerOptions(){
+  var S = promotionScan(), seen = {}, out = [];
+  S.events.forEach(function(e){
+    if (state.pArea.size && !state.pArea.has(e.a)) return;
+    if (seen[e.cid]) return;
+    seen[e.cid] = 1;
+    out.push({id:e.cid, label:CUSTOMERS[e.cid]});
+  });
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function promoItemOptions(){
+  var out = [];
+  for (var i=0;i<NI;i++){
+    if (!promoItemOk(i)) continue;
+    if (state.pCat !== null && catOf[i] !== state.pCat) continue;
+    out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
+  }
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function buildPromoCats(){
+  var sel = document.getElementById('pCat');
+  if (!sel) return;
+  var seen = {};
+  for (var i=0;i<NI;i++) if (promoItemOk(i)) seen[catOf[i]] = 1;
+  var order = CATS.map(function(n,i){ return {i:i,n:n}; })
+                  .filter(function(o){ return seen[o.i]; })
+                  .sort(function(a,b){ return a.n < b.n ? -1 : 1; });
+  if (state.pCat !== null && !seen[state.pCat]) state.pCat = null;
+  sel.innerHTML = '<option value="">All categories</option>' +
+    order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
+  sel.value = state.pCat === null ? '' : String(state.pCat);
+}
+
+function initPromo(){
+  msPArea = MultiSelect('msPArea', {
+    allLabel:'All areas',
+    options:promoAreaOptions,
+    sel:function(){ return state.pArea; },
+    changed:function(){
+      if (state.pCust.size){
+        var ok = {};
+        promoCustomerOptions().forEach(function(o){ ok[o.id]=1; });
+        Array.from(state.pCust).forEach(function(c){ if (!ok[c]) state.pCust.delete(c); });
+      }
+      if (msPCust) msPCust.refresh();
+      renderPromo();
+    }
+  });
+  msPCust = MultiSelect('msPCust', {
+    allLabel:'All customers',
+    options:promoCustomerOptions,
+    sel:function(){ return state.pCust; },
+    changed:function(){ renderPromo(); }
+  });
+  msPItem = MultiSelect('msPItem', {
+    allLabel:'All promotion items',
+    options:promoItemOptions,
+    sel:function(){ return state.pItems; },
+    changed:function(){ renderPromo(); }
+  });
+  buildPromoCats();
+}
+
+function promoLast(p){
+  if (p < 0) return '—';
+  var o = periodOf(p);
+  return MONTHS[o.month] + ' ' + o.year;
+}
+function promoRate(p){
+  if (!isFinite(p)) return '—';
+  return '<span class="prate ' + (p >= 30 ? 'high' : '') + '">' + nf1.format(p) + '%</span>';
+}
+
+function buildPromoGroups(){
+  var S = promotionScan(), minPct = state.pRet, itemMap = {};
+
+  S.events.forEach(function(e){
+    if (e.pct + 1e-9 < minPct) return;
+    if (state.pArea.size && !state.pArea.has(e.a)) return;
+    if (state.pCust.size && !state.pCust.has(e.cid)) return;
+    if (state.pCat !== null && catOf[e.i] !== state.pCat) return;
+    if (state.pItems.size && !state.pItems.has(e.i)) return;
+
+    var key = e.s + ':' + e.i;
+    var x = itemMap[key];
+    if (!x){
+      var pair = S.pairs[promoPairKey(e.s,e.i)];
+      x = itemMap[key] = {
+        s:e.s, i:e.i, cid:e.cid, a:e.a,
+        events:0, supply:0, ret:0, maxPct:0, last:-1,
+        sales:pair ? pair.sales : 0
+      };
+    }
+    x.events++;
+    x.supply += e.supply;
+    x.ret += e.ret;
+    if (e.pct > x.maxPct) x.maxPct = e.pct;
+    if (e.returnP > x.last) x.last = e.returnP;
+  });
+
+  var byCust = {}, groups = [];
+  Object.keys(itemMap).forEach(function(k){
+    var it = itemMap[k];
+    it.rate = it.supply ? (it.ret / it.supply * 100) : 0;
+
+    var c = byCust[it.cid] || (byCust[it.cid] = {
+      cid:it.cid, sales:0, events:0, supply:0, ret:0, maxPct:0, last:-1,
+      sitesMap:{}, sites:[]
+    });
+    var st = c.sitesMap[it.s] || (c.sitesMap[it.s] = {
+      s:it.s, sales:0, events:0, supply:0, ret:0, maxPct:0, last:-1, items:[]
+    });
+
+    st.items.push(it);
+    st.sales += it.sales; st.events += it.events; st.supply += it.supply; st.ret += it.ret;
+    if (it.maxPct > st.maxPct) st.maxPct = it.maxPct;
+    if (it.last > st.last) st.last = it.last;
+
+    c.sales += it.sales; c.events += it.events; c.supply += it.supply; c.ret += it.ret;
+    if (it.maxPct > c.maxPct) c.maxPct = it.maxPct;
+    if (it.last > c.last) c.last = it.last;
+  });
+
+  Object.keys(byCust).forEach(function(k){
+    var c = byCust[k];
+    Object.keys(c.sitesMap).forEach(function(s){
+      var st = c.sitesMap[s];
+      st.rate = st.supply ? st.ret/st.supply*100 : 0;
+      st.items.sort(function(a,b){
+        return b.events-a.events || b.maxPct-a.maxPct || b.sales-a.sales ||
+               String(ITEMS[a.i][1]).localeCompare(String(ITEMS[b.i][1]));
+      });
+      c.sites.push(st);
+    });
+    c.rate = c.supply ? c.ret/c.supply*100 : 0;
+    c.sites.sort(function(a,b){ return b.sales-a.sales || b.events-a.events || b.maxPct-a.maxPct; });
+    groups.push(c);
+  });
+
+  /* Bigger customers stay at the top, then return frequency breaks ties. */
+  groups.sort(function(a,b){ return b.sales-a.sales || b.events-a.events || b.maxPct-a.maxPct; });
+  return groups;
+}
+
+function renderPromo(){
+  if (!F) return;
+  var groups = buildPromoGroups();
+  var customers = groups.length, sites = 0, items = 0, events = 0, ret = 0, supply = 0;
+
+  groups.forEach(function(g){
+    sites += g.sites.length; events += g.events; ret += g.ret; supply += g.supply;
+    g.sites.forEach(function(s){ items += s.items.length; });
+  });
+
+  function kpi(lab,val,sub,cls){
+    return '<div class="kpi"><div class="eyebrow">'+lab+'</div><div class="v">'+val+'</div>' +
+           '<div class="d '+(cls||'flat')+'">'+sub+'</div></div>';
+  }
+
+  document.getElementById('pKpis').innerHTML =
+    kpi('Return Events', nf0.format(events), 'monthly returns at ' + state.pRet + '% or more', events?'down':'flat') +
+    kpi('Affected Outlets', nf0.format(sites), customers + ' customer' + (customers===1?'':'s'), sites?'down':'flat') +
+    kpi('Returned Cases', nf2.format(ret), 'cases returned in qualifying events', ret?'down':'flat') +
+    kpi('Return %', supply ? nf1.format(ret/supply*100)+'%' : '—', 'weighted across qualifying events', ret?'down':'flat');
+
+  document.getElementById('pSalesHead').textContent = state.yrB + ' ' + periodLabel() + ' Sales';
+  document.getElementById('pCount').textContent =
+    items + ' promotion item' + (items===1?'':'s') + ' · ' + sites + ' site' + (sites===1?'':'s');
+  document.getElementById('pScope').textContent =
+    state.yrB + ' ' + periodLabel() + ' · ' + state.pRet + '% or more';
+
+  var html = '', printed = 0;
+  for (var gi=0; gi<groups.length && printed<PROMO_CAP; gi++){
+    var g = groups[gi];
+    html += '<tbody class="pgrp">';
+    html += '<tr class="pcust">' +
+      '<td class="p-custname" colspan="3">' + esc(CUSTOMERS[g.cid]) +
+      ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
+      g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
+      '<td class="num p-sales">' + fmtS(g.sales) + '</td>' +
+      '<td class="num p-events">' + nf0.format(g.events) + '</td>' +
+      '<td class="num p-supply">' + nf2.format(g.supply) + '</td>' +
+      '<td class="num p-return">' + nf2.format(g.ret) + '</td>' +
+      '<td class="num p-rate">' + promoRate(g.rate) + '</td>' +
+      '<td class="num p-max">' + promoRate(g.maxPct) + '</td>' +
+      '<td class="p-last">' + promoLast(g.last) + '</td></tr>';
+
+    for (var si=0; si<g.sites.length && printed<PROMO_CAP; si++){
+      if (si >= PROMO_PER_CUST){
+        html += '<tr class="more"><td colspan="10">' + (g.sites.length-PROMO_PER_CUST) +
+                ' more outlets for ' + esc(CUSTOMERS[g.cid]) +
+                ' — use the Customer filter to focus on this customer.</td></tr>';
+        break;
+      }
+
+      var st = g.sites[si], key = g.cid + ':' + st.s, open = !!promoOpen[key];
+      printed++;
+      html += '<tr class="psite' + (open?' open':'') + '" data-key="' + esc(key) + '">' +
+        '<td class="p-site"><span class="tw">' + (open?'▾':'▸') + '</span>' + esc(SITES[st.s][1]) +
+          '<span class="mono" style="display:block;color:var(--muted);font-size:9.5px;padding-left:14px">' +
+          esc(areaLabel(areaOf[st.s])) + '</span></td>' +
+        '<td class="p-item"></td><td class="p-cat"></td>' +
+        '<td class="num p-sales">' + fmtS(st.sales) + '</td>' +
+        '<td class="num p-events">' + nf0.format(st.events) + '</td>' +
+        '<td class="num p-supply">' + nf2.format(st.supply) + '</td>' +
+        '<td class="num p-return">' + nf2.format(st.ret) + '</td>' +
+        '<td class="num p-rate">' + promoRate(st.rate) + '</td>' +
+        '<td class="num p-max">' + promoRate(st.maxPct) + '</td>' +
+        '<td class="p-last">' + promoLast(st.last) + '</td></tr>';
+
+      if (open){
+        st.items.forEach(function(it){
+          html += '<tr class="pitem">' +
+            '<td class="p-site"></td>' +
+            '<td class="p-item">' + esc(ITEMS[it.i][1]) +
+              ' <span class="mono" style="display:block;font-size:9px;color:var(--muted)">' + ITEMS[it.i][0] + '</span></td>' +
+            '<td class="p-cat">' + esc(ITEMS[it.i][2]) + '</td>' +
+            '<td class="num p-sales">' + fmtS(it.sales) + '</td>' +
+            '<td class="num p-events">' + nf0.format(it.events) + '</td>' +
+            '<td class="num p-supply">' + nf2.format(it.supply) + '</td>' +
+            '<td class="num p-return">' + nf2.format(it.ret) + '</td>' +
+            '<td class="num p-rate">' + promoRate(it.rate) + '</td>' +
+            '<td class="num p-max">' + promoRate(it.maxPct) + '</td>' +
+            '<td class="p-last">' + promoLast(it.last) + '</td></tr>';
+        });
+      }
+    }
+    html += '</tbody>';
+  }
+
+  if (!html){
+    html = '<tbody><tr><td colspan="10" class="empty">No promotion return events match the current filters. ' +
+           'A return event requires positive cases in one month and a negative quantity in the immediately following month.</td></tr></tbody>';
+  }
+  document.getElementById('ptbl').querySelectorAll('tbody').forEach(function(t){ t.remove(); });
+  document.getElementById('ptbl').insertAdjacentHTML('beforeend', html);
+}
+
+document.getElementById('ptbl').addEventListener('click', function(e){
+  var row = e.target.closest('tr.psite');
+  if (!row) return;
+  var key = row.dataset.key;
+  promoOpen[key] = !promoOpen[key];
+  renderPromo();
+});
+
+document.getElementById('pCat').addEventListener('change', function(){
+  state.pCat = this.value === '' ? null : +this.value;
+  if (state.pItems.size && state.pCat !== null){
+    Array.from(state.pItems).forEach(function(i){ if (catOf[i] !== state.pCat) state.pItems.delete(i); });
+  }
+  if (msPItem) msPItem.refresh();
+  renderPromo();
+});
+document.getElementById('pRet').addEventListener('change', function(){
+  state.pRet = +this.value;
+  renderPromo();
+});
+document.getElementById('pReset').addEventListener('click', function(){
+  state.pArea.clear(); state.pCust.clear(); state.pCat = null; state.pItems.clear(); state.pRet = 10;
+  document.getElementById('pCat').value = '';
+  document.getElementById('pRet').value = '10';
+  promoOpen = {};
+  if (msPArea) msPArea.refresh();
+  if (msPCust) msPCust.refresh();
+  if (msPItem) msPItem.refresh();
+  renderPromo();
+});
+
 /* ---------- ALL / CPD / FSD ---------- */
 function syncDepButtons(){
   document.querySelectorAll('.deps .dep').forEach(function(b){
@@ -4815,8 +5300,9 @@ function syncDepButtons(){
       ? 'Food Service (HOR) — market visit checks the catering active list'
       : (state.dep === 'CPD' ? 'Retail business only' : 'Retail and Food Service together');
   var h1 = document.getElementById('depHint1'), h2 = document.getElementById('depHint2');
-  var h3 = document.getElementById('depHint3');
+  var h3 = document.getElementById('depHint3'), h4 = document.getElementById('depHint4');
   if (h3) h3.textContent = hint;
+  if (h4) h4.textContent = hint;
   if (h1) h1.textContent = hint;
   if (h2) h2.textContent = state.dep === 'FSD'
       ? 'Food Service — gaps measured on the catering active list only'
@@ -4825,7 +5311,7 @@ function syncDepButtons(){
 function setDep(d){
   if (state.dep === d) return;
   state.dep = d;
-  LIVE = null; AN = null;                       /* both scans depend on the department */
+  LIVE = null; AN = null; PRSCAN = null;        /* scans depend on the department */
   /* selections that no longer exist in this department have to go */
   var liveSet = new Set(baseSites());
   Array.from(state.site).forEach(function(s){ if (!liveSet.has(s)) state.site.delete(s); });
@@ -4846,12 +5332,17 @@ function setDep(d){
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
   if (msOItem) msOItem.refresh();
+  if (msPArea) msPArea.refresh();
+  if (msPCust) msPCust.refresh();
+  if (msPItem) msPItem.refresh();
   buildCatFilter();
   buildOutletCats();
+  buildPromoCats();
   loadChecks();
   renderHead(); render();
   if (TAB === 'analysis') renderAnalysis();
   if (TAB === 'outlet') renderOutlet();
+  if (TAB === 'promo') renderPromo();
 }
 document.querySelectorAll('.deps').forEach(function(box){
   box.addEventListener('click', function(e){
@@ -4926,11 +5417,13 @@ function showTab(t){
   document.getElementById('paneVisit').style.display = (t === 'visit') ? '' : 'none';
   document.getElementById('paneAnalysis').style.display = (t === 'analysis') ? '' : 'none';
   document.getElementById('paneOutlet').style.display = (t === 'outlet') ? '' : 'none';
+  document.getElementById('panePromo').style.display = (t === 'promo') ? '' : 'none';
   if (t === 'analysis'){
     renderAnalysis();
     setTimeout(function(){ syncAnHeadHeight(); measureGroups(); }, 0);
   }
   if (t === 'outlet') renderOutlet();
+  if (t === 'promo') renderPromo();
 }
 document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
@@ -5938,6 +6431,7 @@ function afterLoad(rebuild){
     buildCatFilter();
     initAnalysis();
     initOutlet();
+    initPromo();
     built = true;
   } else if (rebuild){
     msCust.refresh(); msSite.refresh();
@@ -5960,8 +6454,13 @@ function afterLoad(rebuild){
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
   if (msOItem) msOItem.refresh();
+  if (msPArea) msPArea.refresh();
+  if (msPCust) msPCust.refresh();
+  if (msPItem) msPItem.refresh();
   buildOutletCats();
+  buildPromoCats();
   if (TAB === 'outlet') renderOutlet();
+  if (TAB === 'promo'){ PRSCAN = null; renderPromo(); }
   loadChecks();
   renderHead(); syncPresets(); render();
   vqSet(vqGet());                /* show anything still waiting */
