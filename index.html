@@ -3398,18 +3398,30 @@ function exportMonthlyDetailXlsx(){
     else regularIds.push(i);
   }
 
-  /* Keep Regular first, Promo second. Sort within each block by 2026 YTD cases. */
+  /* Category order is driven by 2026 YTD VALUE sales, highest category first.
+     Items stay together by category; within each category, items are ranked by
+     2026 YTD value. Regular remains above Promo. */
   var y26=yIdx(2026);
+  function ytdValue(i){
+    var v=0;
+    if (y26>=0){
+      for (var m=0;m<=LASTM;m++) v += A.mv[i*span+y26*12+m] || 0;
+    }
+    return v;
+  }
   function sortGroup(ids){
+    var catSales={};
+    ids.forEach(function(i){
+      var c=catOf[i];
+      catSales[c]=(catSales[c]||0)+ytdValue(i);
+    });
     ids.sort(function(a,b){
-      var qa=0,qb=0;
-      if (y26>=0){
-        for (var m=0;m<=LASTM;m++){
-          qa += A.mq[a*span+y26*12+m] || 0;
-          qb += A.mq[b*span+y26*12+m] || 0;
-        }
-      }
-      return qb-qa || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
+      var ca=catOf[a], cb=catOf[b];
+      var ra=catSales[ca]||0, rb=catSales[cb]||0;
+      if (ra!==rb) return rb-ra;
+      if (ca!==cb) return String(CATS[ca]).localeCompare(String(CATS[cb]));
+      var va=ytdValue(a), vb=ytdValue(b);
+      return vb-va || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
     });
   }
   sortGroup(regularIds);
@@ -3458,20 +3470,21 @@ function exportMonthlyDetailXlsx(){
   function sheetXml(name,arr,isValue){
     var rows=[];
 
-    /* Row 1: merged year bands. */
+    /* Row 1: merged year bands. Month columns now begin at D because Category
+       was added before Item Code. */
     rows.push(
       '<Row ss:Height="20">' +
-        '<Cell ss:Index="3" ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2024</Data></Cell>' +
+        '<Cell ss:Index="4" ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2024</Data></Cell>' +
         '<Cell ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2025</Data></Cell>' +
         '<Cell ss:MergeAcross="11" ss:StyleID="Year"><Data ss:Type="String">2026 YTD</Data></Cell>' +
       '</Row>'
     );
 
-    /* Row 2: GRAND TOTAL = Regular + Promo, positioned below year bands and above month headers. */
+    /* Row 2: GRAND TOTAL = Regular + Promo, below years and above month headers. */
     var allIds=regularIds.concat(promoIds);
     var allStock=groupStock(allIds);
     var grand='<Row ss:Height="21">' +
-      cellString('GRAND TOTAL','Grand',1,1);
+      cellString('GRAND TOTAL','Grand',1,2);
     exportYears.forEach(function(y){
       for (var m=0;m<12;m++){
         var v=monthTotal(allIds,arr,y,m);
@@ -3483,8 +3496,9 @@ function exportMonthlyDetailXlsx(){
     grand += '</Row>';
     rows.push(grand);
 
-    /* Row 3: month headers. */
+    /* Row 3: column headers. */
     var h='<Row ss:Height="23">' +
+      cellString('Category','Head') +
       cellString('Item Code','Head') +
       cellString('Item Name','Head');
     exportYears.forEach(function(){
@@ -3495,6 +3509,7 @@ function exportMonthlyDetailXlsx(){
 
     function itemRow(i){
       var r='<Row>' +
+        cellString(CATS[catOf[i]] || ITEMS[i][2] || '','Text') +
         cellString(String(ITEMS[i][0]),'Text') +
         cellString(ITEMS[i][1],'Text');
 
@@ -3520,7 +3535,7 @@ function exportMonthlyDetailXlsx(){
 
     function groupTotalRow(label,ids){
       var gs=groupStock(ids);
-      var r='<Row ss:Height="20">' + cellString(label,'GroupTotal',1,1);
+      var r='<Row ss:Height="20">' + cellString(label,'GroupTotal',1,2);
 
       exportYears.forEach(function(y){
         for (var m=0;m<12;m++){
@@ -3535,30 +3550,27 @@ function exportMonthlyDetailXlsx(){
       return r;
     }
 
-    /* Regular section first. */
-    rows.push('<Row ss:Height="20">' + cellString('REGULAR ITEMS','Section',1,39) + '</Row>');
+    /* No separate "REGULAR ITEMS" or "PROMO ITEMS" header rows.
+       The trailing totals identify where each section ends. */
     regularIds.forEach(function(i){ rows.push(itemRow(i)); });
     rows.push(groupTotalRow('REGULAR TOTAL',regularIds));
 
-    /* Promo section below Regular. */
-    rows.push('<Row ss:Height="20">' + cellString('PROMO ITEMS','SectionPromo',1,39) + '</Row>');
     promoIds.forEach(function(i){ rows.push(itemRow(i)); });
     rows.push(groupTotalRow('PROMO TOTAL',promoIds));
 
-    var expandedRows = rows.length;
-
     return '<Worksheet ss:Name="'+xmlEsc(name)+'">' +
-      '<Table ss:ExpandedColumnCount="40" ss:ExpandedRowCount="'+expandedRows+'" x:FullColumns="1" x:FullRows="1">' +
-        '<Column ss:Index="1" ss:Width="85"/>' +
-        '<Column ss:Index="2" ss:Width="300"/>' +
-        '<Column ss:Index="3" ss:Span="35" ss:Width="72"/>' +
-        '<Column ss:Index="39" ss:Span="1" ss:Width="82"/>' +
+      '<Table ss:ExpandedColumnCount="41" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
+        '<Column ss:Index="1" ss:Width="105"/>' +
+        '<Column ss:Index="2" ss:Width="85"/>' +
+        '<Column ss:Index="3" ss:Width="300"/>' +
+        '<Column ss:Index="4" ss:Span="35" ss:Width="72"/>' +
+        '<Column ss:Index="40" ss:Span="1" ss:Width="82"/>' +
         rows.join('') +
       '</Table>' +
       '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
         '<FreezePanes/><FrozenNoSplit/>' +
         '<SplitHorizontal>3</SplitHorizontal><TopRowBottomPane>3</TopRowBottomPane>' +
-        '<SplitVertical>2</SplitVertical><LeftColumnRightPane>2</LeftColumnRightPane>' +
+        '<SplitVertical>3</SplitVertical><LeftColumnRightPane>3</LeftColumnRightPane>' +
         '<ActivePane>0</ActivePane>' +
         '<ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios>' +
       '</WorksheetOptions>' +
@@ -3608,11 +3620,6 @@ function exportMonthlyDetailXlsx(){
           '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
           '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
           '<Font ss:Bold="1"/></Style>' +
-
-        '<Style ss:ID="Section"><Alignment ss:Horizontal="Left" ss:Vertical="Center"/>' +
-          '<Font ss:Bold="1"/><Interior ss:Color="#E7EEE9" ss:Pattern="Solid"/></Style>' +
-        '<Style ss:ID="SectionPromo"><Alignment ss:Horizontal="Left" ss:Vertical="Center"/>' +
-          '<Font ss:Bold="1"/><Interior ss:Color="#FBF3E1" ss:Pattern="Solid"/></Style>' +
 
         '<Style ss:ID="Text"><Alignment ss:Vertical="Center"/>' +
           '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
