@@ -3629,6 +3629,26 @@ function exportMonthlyDetailXlsx(){
   var exportYears=[2024,2025,2026], span=NY*12, areaScope=areasInScope();
   var regularIds=[], promoIds=[], fsdGallonIds=[], fsdRetailIds=[];
 
+  /* Monthly Detail Excel:
+     - Regular items keep the existing full-list behavior.
+     - Promotion items are exported only when they have actually been sold
+       within the CURRENT Area / Customer / Site / department scope.
+     A positive monthly quantity or value in any exported year counts as an
+     active sale. Returns-only / never-sold promotion items are excluded. */
+  function promoActiveInCurrentScope(i){
+    var base=i*span;
+    for (var yi=0; yi<NY; yi++){
+      var y=YEARS[yi];
+      if (exportYears.indexOf(y)<0) continue;
+      for (var m=0; m<12; m++){
+        if (y===YEARS[NY-1] && m>LASTM) continue;
+        var g=base+yi*12+m;
+        if ((A.mq[g]||0)>0 || (A.mv[g]||0)>0) return true;
+      }
+    }
+    return false;
+  }
+
   for (var i=0;i<NI;i++){
     if (!itemVisible(i)) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
@@ -3636,6 +3656,10 @@ function exportMonthlyDetailXlsx(){
     var isPromo = ITEMS[i][3] === 'Promotion';
     if (isPromo && !state.showPromo) continue;
     if (!isPromo && !state.showRegular) continue;
+
+    /* Only promo lines are narrowed by customer-group activity.
+       Regular assortment stays unchanged/full as before. */
+    if (isPromo && !promoActiveInCurrentScope(i)) continue;
 
     if (isPromo) promoIds.push(i);
     else regularIds.push(i);
