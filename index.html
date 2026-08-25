@@ -4431,13 +4431,21 @@ function visitPromoPercentage(){
   }
 
   function table(y){
-    var d=buildYear(y), latest=(y===2026), regTot=0, proTot=0;
+    var d=buildYear(y), latest=(y===2026), regTot=0, proTot=0, grandTot=0;
     var cap=(isValue?'SALES IN VALUE':'SALES IN VOLUME (CASES)')+' — '+y+(latest?' YTD':'');
     var h='<table class="ovtbl"><thead>'+
       '<tr class="cap"><th colspan="14">'+cap+'</th></tr>'+
       '<tr><th></th>';
     for (var m=0;m<12;m++) h+='<th>'+MONTHS[m]+'</th>';
     h+='<th class="tot">Total</th></tr></thead><tbody>';
+
+    h+='<tr><th>Total</th>';
+    for (var m=0;m<12;m++){
+      if (!isActive(y,m)){ h+='<td class="off"></td>'; continue; }
+      var tv=(d.regular[m]||0)+(d.promo[m]||0); grandTot+=tv;
+      h+='<td>'+f(tv)+'</td>';
+    }
+    h+='<td class="tot">'+f(grandTot)+'</td></tr>';
 
     h+='<tr><th>Regular</th>';
     for (var m=0;m<12;m++){
@@ -4455,7 +4463,7 @@ function visitPromoPercentage(){
     }
     h+='<td class="tot">'+f(proTot)+'</td></tr>';
 
-    h+='<tr class="pi"><th>Promotion Intensity %</th>';
+    h+='<tr class="pi"><th>Promo Intensity</th>';
     for (var m=0;m<12;m++){
       if (!isActive(y,m)){ h+='<td class="off"></td>'; continue; }
       h+='<td>'+nf2.format(intensity(d.regular[m]||0,d.promo[m]||0))+'%</td>';
@@ -4477,8 +4485,9 @@ function visitPromoPercentage(){
     '<div class="cht">Promo %</div>'+
     '<div class="chs">'+depLabel()+' · '+scopeNames()+' · Regular vs Promotion</div>'+
     '<div class="ovpromo-wrap">'+tables+'</div>'+
-    '<div class="ovpromo-note">Promotion Intensity = Promotion ÷ (Regular + Promotion). 2025 stays full-year; 2026 follows the selected month period.</div>';
+    '<div class="ovpromo-note">Promo Intensity = Promotion ÷ (Regular + Promotion). 2025 stays full-year; 2026 follows the selected month period.</div>';
 }
+
 
 function visitValueRundown(){
   var years = [2024, 2025, 2026].filter(function(y){ return yIdx(y) >= 0; });
