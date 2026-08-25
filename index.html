@@ -6670,19 +6670,16 @@ function withVisitItems(id, then, fail){
    e.g. 2026 vs 2025 -> 2026; 2025 vs 2024 -> 2025. */
 var MONTHLY_VIEW_METRIC = 'cases';
 
-function monthlyViewActivePromo(i){
-  /* Match Monthly Detail Excel: promo items only appear when they have a
-     positive sale somewhere in the current customer/site/area scope.
-     Regular items keep the full assortment behavior. */
-  var span=NY*12, base=i*span;
-  for (var yi=0; yi<NY; yi++){
-    var y=YEARS[yi];
-    if (y!==2024 && y!==2025 && y!==2026) continue;
-    for (var m=0; m<12; m++){
-      if (y===YEARS[NY-1] && m>LASTM) continue;
-      var g=base+yi*12+m;
-      if ((A.mq[g]||0)>0 || (A.mv[g]||0)>0) return true;
-    }
+function monthlyViewActivePromo(i, viewYear){
+  /* Monthly View: promotion items are shown only when they were actually sold
+     in the year currently displayed. Regular items keep the full assortment.
+     For the latest year, only months with available data are checked. */
+  var yi=yIdx(viewYear), span=NY*12;
+  if (yi<0) return false;
+  var last=(viewYear===YEARS[NY-1]) ? LASTM : 11;
+  var base=i*span+yi*12;
+  for (var m=0; m<=last; m++){
+    if ((A.mq[base+m]||0)>0 || (A.mv[base+m]||0)>0) return true;
   }
   return false;
 }
@@ -6696,7 +6693,7 @@ function monthlyViewIds(viewYear){
     var isPromo=ITEMS[i][3]==='Promotion';
     if (isPromo && !state.showPromo) continue;
     if (!isPromo && !state.showRegular) continue;
-    if (isPromo && !monthlyViewActivePromo(i)) continue;
+    if (isPromo && !monthlyViewActivePromo(i,viewYear)) continue;
 
     if (isPromo) promo.push(i);
     else regular.push(i);
@@ -6816,7 +6813,7 @@ function monthlyViewBody(){
   if (secondary.length) h+=totalRow(groups.secondaryLabel,secondary,'mvgt');
 
   h+='</tbody></table></div>'+
-    '<div class="mvnote">This view follows the current Area, Customer, Site, category, Regular/Promo and All/CPD/FSD selections. '+
+    '<div class="mvnote">This view follows the current Area, Customer, Site, category, Regular/Promo and All/CPD/FSD selections. Unsold promotion items are hidden for the displayed year. '+
     (latest ? 'Months after '+MONTHS[LASTM]+' remain blank.' : 'The selected comparison year is shown in full.')+
     '</div>';
 
