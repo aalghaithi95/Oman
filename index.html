@@ -821,8 +821,8 @@ body.neopen .necard{transform:translateY(0)}
 .railslot #refreshBtn{background:none;border:1px solid #2E5462;color:#9DBDB8;
   padding:5px 11px;border-radius:var(--r);font-size:11px;cursor:pointer}
 .railslot #refreshBtn:hover{color:#fff;border-color:#5C8189}
-.headslot{display:inline-flex;align-items:center}
-.headslot #visitHist{padding:5px 11px;font-size:11.5px}
+.headslot{display:inline-flex;align-items:center;gap:5px}
+.headslot #visitHist,.headslot #monthlyViewBtn{padding:5px 11px;font-size:11.5px}
 @media (max-width:760px){
   .railslot{display:none}
   .headslot{display:none}
@@ -837,6 +837,53 @@ body.neopen .necard{transform:translateY(0)}
   .acard:hover{background:#FAFAF8}
 }
 .imtbl.vhist td.empty{padding:18px;text-align:center;color:var(--muted)}
+
+/* ---------- Monthly View ---------- */
+body.immonthly #imWrap .imcard{max-width:1500px}
+.mvtoolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+.mvtoolbar .mvmeta{font-size:11px;color:var(--muted);line-height:1.35}
+.mvmetric{
+  display:inline-flex;align-items:center;gap:1px;padding:2px;margin:0;
+  border:1px solid var(--line);border-radius:4px;background:#fff;flex:none
+}
+.mvmetricbtn{
+  min-width:54px;height:28px;padding:0 8px;border:0;border-radius:3px;
+  background:transparent;color:#7D8B92;cursor:pointer;font-size:10px;font-weight:700;
+  letter-spacing:.035em;text-transform:uppercase;line-height:28px
+}
+.mvmetricbtn.on{background:var(--ink);color:#fff}
+.mvmetricbtn:hover:not(.on){background:#F3F5F4;color:var(--ink)}
+.mvscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:4px}
+.mvtable{width:100%;min-width:1450px;border-collapse:collapse;table-layout:fixed;font-size:10.5px}
+.mvtable th,.mvtable td{border:1px solid var(--line);padding:6px 6px}
+.mvtable thead th{background:var(--ink);color:#EAF2F0;font-weight:600;text-align:center;white-space:nowrap}
+.mvtable thead th.c-cat{width:130px;text-align:left}
+.mvtable thead th.c-code{width:86px;text-align:left}
+.mvtable thead th.c-name{width:300px;text-align:left}
+.mvtable thead th.c-mon{width:67px}
+.mvtable thead th.c-tot{width:78px}
+.mvtable tbody td{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap}
+.mvtable tbody td.mvcat,.mvtable tbody td.mvcode,.mvtable tbody td.mvname{
+  font-family:'Archivo',sans-serif;text-align:left
+}
+.mvtable tbody td.mvname{white-space:normal;line-height:1.2}
+.mvtable tbody tr:hover td{background:#FAFAF8}
+.mvtable tbody tr.mvgrand td{background:var(--ink);color:#fff;font-weight:700}
+.mvtable tbody tr.mvgt td{background:#F4F7F5;font-weight:700;border-top:1.5px solid var(--ink-3)}
+.mvtable td.off{
+  background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;
+  color:transparent
+}
+.mvtable td.zero{color:var(--muted)}
+.mvnote{font-size:10px;color:var(--muted);text-align:center;margin-top:9px}
+@media (max-width:760px){
+  body.immonthly #imWrap{padding:10px 8px}
+  .mvtoolbar{align-items:flex-start;flex-wrap:wrap}
+  .mvmetric{margin-left:auto}
+  .mvtable{min-width:1240px;font-size:9.5px}
+  .mvtable th,.mvtable td{padding:5px 5px}
+  .mvtable thead th.c-name{width:240px}
+}
 
 /* ---------- outlet performance ---------- */
 #otbl th.o-site,#otbl td.o-site{width:30%}
@@ -1064,6 +1111,7 @@ body.neopen .necard{transform:translateY(0)}
       <div class="by"><label for="checker">Checked by</label><input type="text" id="checker" placeholder="Your name"></div>
       <button class="btn ghost" id="clearChk">Clear checks</button>
       <button class="btn ghost" id="visitHist">Visit history</button>
+      <button class="btn ghost" id="monthlyViewBtn">Monthly View</button>
       <button class="btn" id="saveVisit">Save visit</button>
       <button class="btn" id="pdf">Generate PDF report</button>
       <div class="vwrap"><span class="vmsg" id="visitMsg"></span><span class="vq" id="visitQueue"></span></div>
@@ -4741,6 +4789,7 @@ function renderVisitValueChart(){
   });
 })();
 function openItem(i){
+  document.body.classList.remove('immonthly');
   aggregate();                                   /* make sure the grid matches the filters */
   var it = ITEMS[i];
   document.getElementById('imTitle').innerHTML =
@@ -4828,6 +4877,7 @@ function openMonthCell(cell){
 function closeItem(){
   document.body.classList.remove('mdopen');
   document.body.classList.remove('imopen');
+  document.body.classList.remove('immonthly');
 }
 document.getElementById('imClose').addEventListener('click', closeItem);
 document.getElementById('imWrap').addEventListener('click', function(e){
@@ -6074,6 +6124,7 @@ function placeControls(){
   var wide = wideMQ ? wideMQ.matches : true;
   var refresh = document.getElementById('refreshBtn');
   var hist = document.getElementById('visitHist');
+  var monthly = document.getElementById('monthlyViewBtn');
   var slotR = document.getElementById('refreshSlot');
   var slotH = document.getElementById('histSlot');
   var status = document.getElementById('status');
@@ -6082,11 +6133,17 @@ function placeControls(){
     var homeR = wide ? slotR : status;
     if (homeR && refresh.parentNode !== homeR) homeR.appendChild(refresh);
   }
-  if (hist && audit){
+  if (audit){
     var homeH = wide ? slotH : audit;
-    if (homeH && hist.parentNode !== homeH){
-      if (homeH === audit) audit.insertBefore(hist, document.getElementById('saveVisit'));
-      else homeH.appendChild(hist);
+    if (homeH){
+      if (hist && hist.parentNode !== homeH){
+        if (homeH === audit) audit.insertBefore(hist, document.getElementById('saveVisit'));
+        else homeH.appendChild(hist);
+      }
+      if (monthly && monthly.parentNode !== homeH){
+        if (homeH === audit) audit.insertBefore(monthly, document.getElementById('saveVisit'));
+        else homeH.appendChild(monthly);
+      }
     }
   }
 }
@@ -6606,6 +6663,190 @@ function withVisitItems(id, then, fail){
     .catch(function(err){ fail(err); });
 }
 
+
+/* ---------- Monthly View ----------
+   One-year on-screen version of Monthly Detail Excel.
+   The displayed year is always the first comparison year (state.yrB):
+   e.g. 2026 vs 2025 -> 2026; 2025 vs 2024 -> 2025. */
+var MONTHLY_VIEW_METRIC = 'cases';
+
+function monthlyViewActivePromo(i){
+  /* Match Monthly Detail Excel: promo items only appear when they have a
+     positive sale somewhere in the current customer/site/area scope.
+     Regular items keep the full assortment behavior. */
+  var span=NY*12, base=i*span;
+  for (var yi=0; yi<NY; yi++){
+    var y=YEARS[yi];
+    if (y!==2024 && y!==2025 && y!==2026) continue;
+    for (var m=0; m<12; m++){
+      if (y===YEARS[NY-1] && m>LASTM) continue;
+      var g=base+yi*12+m;
+      if ((A.mq[g]||0)>0 || (A.mv[g]||0)>0) return true;
+    }
+  }
+  return false;
+}
+
+function monthlyViewIds(viewYear){
+  var regular=[], promo=[], gallon=[], retail=[];
+  for (var i=0;i<NI;i++){
+    if (!itemVisible(i)) continue;
+    if (state.cat!==null && catOf[i]!==state.cat) continue;
+
+    var isPromo=ITEMS[i][3]==='Promotion';
+    if (isPromo && !state.showPromo) continue;
+    if (!isPromo && !state.showRegular) continue;
+    if (isPromo && !monthlyViewActivePromo(i)) continue;
+
+    if (isPromo) promo.push(i);
+    else regular.push(i);
+
+    if (isFsdItem(i)) gallon.push(i);
+    else retail.push(i);
+  }
+
+  var yi=yIdx(viewYear), span=NY*12;
+  function sortValue(i){
+    if (yi<0) return 0;
+    var last=(viewYear===YEARS[NY-1]) ? LASTM : 11, v=0;
+    for (var m=0;m<=last;m++) v+=A.mv[i*span+yi*12+m]||0;
+    return v;
+  }
+  function sortGroup(ids){
+    var catSales={};
+    ids.forEach(function(i){
+      var c=catOf[i];
+      catSales[c]=(catSales[c]||0)+sortValue(i);
+    });
+    ids.sort(function(a,b){
+      var ca=catOf[a], cb=catOf[b], va=catSales[ca]||0, vb=catSales[cb]||0;
+      if (va!==vb) return vb-va;
+      if (ca!==cb) return String(CATS[ca]||'').localeCompare(String(CATS[cb]||''));
+      var ia=sortValue(a), ib=sortValue(b);
+      return ib-ia || String(ITEMS[a][1]).localeCompare(String(ITEMS[b][1]));
+    });
+  }
+
+  [regular,promo,gallon,retail].forEach(sortGroup);
+
+  return state.dep==='FSD'
+    ? {primary:gallon,secondary:retail,primaryLabel:'FOOD SERVICE (GALLON) TOTAL',secondaryLabel:'RETAIL ITEMS TOTAL'}
+    : {primary:regular,secondary:promo,primaryLabel:'REGULAR TOTAL',secondaryLabel:'PROMO TOTAL'};
+}
+
+function monthlyViewBody(){
+  aggregate();
+
+  var viewYear=yIdx(state.yrB)>=0 ? state.yrB : YEARS[NY-1];
+  var yi=yIdx(viewYear), latest=(viewYear===YEARS[NY-1]);
+  var arr=MONTHLY_VIEW_METRIC==='value' ? A.mv : A.mq;
+  var isValue=MONTHLY_VIEW_METRIC==='value', span=NY*12;
+  var groups=monthlyViewIds(viewYear);
+  var primary=groups.primary, secondary=groups.secondary;
+  var allIds=primary.concat(secondary);
+  var areas=areasInScope();
+
+  function f(v){
+    if (Math.abs(v)<0.0000001) return '<span class="zero">0</span>';
+    return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
+  }
+  function monthValue(i,m){
+    if (yi<0) return null;
+    if (latest && m>LASTM) return null;
+    return arr[i*span+yi*12+m]||0;
+  }
+  function groupMonth(ids,m){
+    if (latest && m>LASTM) return null;
+    var v=0;
+    ids.forEach(function(i){ v+=monthValue(i,m)||0; });
+    return v;
+  }
+  function rowFor(i){
+    var total=0, h='<tr>'+
+      '<td class="mvcat">'+esc(CATS[catOf[i]]||ITEMS[i][2]||'')+'</td>'+
+      '<td class="mvcode">'+esc(String(ITEMS[i][0]))+'</td>'+
+      '<td class="mvname">'+esc(ITEMS[i][1])+'</td>';
+
+    for (var m=0;m<12;m++){
+      var v=monthValue(i,m);
+      if (v===null){ h+='<td class="off"></td>'; continue; }
+      total+=v;
+      h+='<td>'+f(v)+'</td>';
+    }
+    h+='<td>'+f(total)+'</td></tr>';
+    return h;
+  }
+  function totalRow(label,ids,cls){
+    var total=0, h='<tr class="'+cls+'"><td colspan="3">'+esc(label)+'</td>';
+    for (var m=0;m<12;m++){
+      var v=groupMonth(ids,m);
+      if (v===null){ h+='<td class="off"></td>'; continue; }
+      total+=v;
+      h+='<td>'+f(v)+'</td>';
+    }
+    h+='<td>'+f(total)+'</td></tr>';
+    return h;
+  }
+
+  var h='<div class="mvtoolbar">'+
+    '<div class="mvmeta"><b>'+viewYear+(latest?' YTD':'')+' Monthly Detail</b><br>'+
+      esc(depLabel())+' · '+esc(scopeNames())+'</div>'+
+    '<div class="mvmetric" aria-label="Monthly View metric">'+
+      '<button class="mvmetricbtn '+(MONTHLY_VIEW_METRIC==='cases'?'on':'')+'" type="button" data-mvmetric="cases">Volume</button>'+
+      '<button class="mvmetricbtn '+(MONTHLY_VIEW_METRIC==='value'?'on':'')+'" type="button" data-mvmetric="value">Value</button>'+
+    '</div>'+
+  '</div>';
+
+  if (!allIds.length){
+    return h+'<div class="imnote">No items match the current filters.</div>';
+  }
+
+  h+='<div class="mvscroll"><table class="mvtable"><thead><tr>'+
+    '<th class="c-cat">Category</th>'+
+    '<th class="c-code">Item Code</th>'+
+    '<th class="c-name">Item Name</th>';
+  for (var m=0;m<12;m++) h+='<th class="c-mon">'+MONTHS[m]+'</th>';
+  h+='<th class="c-tot">Total</th>'+
+     '</tr></thead><tbody>';
+
+  h+=totalRow('GRAND TOTAL',allIds,'mvgrand');
+  primary.forEach(function(i){ h+=rowFor(i); });
+  if (primary.length) h+=totalRow(groups.primaryLabel,primary,'mvgt');
+  secondary.forEach(function(i){ h+=rowFor(i); });
+  if (secondary.length) h+=totalRow(groups.secondaryLabel,secondary,'mvgt');
+
+  h+='</tbody></table></div>'+
+    '<div class="mvnote">This view follows the current Area, Customer, Site, category, Regular/Promo and All/CPD/FSD selections. '+
+    (latest ? 'Months after '+MONTHS[LASTM]+' remain blank.' : 'The selected comparison year is shown in full.')+
+    '</div>';
+
+  return h;
+}
+
+function renderMonthlyView(){
+  document.getElementById('imBody').innerHTML=monthlyViewBody();
+}
+
+function openMonthlyView(){
+  MONTHLY_VIEW_METRIC='cases';
+  var viewYear=yIdx(state.yrB)>=0 ? state.yrB : YEARS[NY-1];
+  document.getElementById('imTitle').textContent='Monthly View';
+  document.getElementById('imSub').textContent=
+    viewYear+(viewYear===YEARS[NY-1]?' YTD':'')+' · '+depLabel()+' · '+scopeNames();
+  document.body.classList.add('immonthly');
+  document.body.classList.add('imopen');
+  renderMonthlyView();
+  document.getElementById('imWrap').scrollTop=0;
+}
+
+document.getElementById('monthlyViewBtn').addEventListener('click',openMonthlyView);
+document.getElementById('imBody').addEventListener('click',function(e){
+  var b=e.target.closest('.mvmetricbtn');
+  if (!b) return;
+  MONTHLY_VIEW_METRIC=b.dataset.mvmetric==='value' ? 'value' : 'cases';
+  renderMonthlyView();
+});
+
 /* ---------- history ---------- */
 function fmtVisitDate(s){
   if (!s) return '';
@@ -6614,6 +6855,7 @@ function fmtVisitDate(s){
   return p[2] + ' ' + MONTHS[(+p[1])-1] + " '" + p[0].slice(2);
 }
 function openHistory(){
+  document.body.classList.remove('immonthly');
   var si = currentSite();
   var everywhere = (si === null);          /* no store picked — show them all */
   document.getElementById('imTitle').textContent = 'Visit history';
