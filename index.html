@@ -2745,7 +2745,16 @@ function buildRows(){
     if (!itemVisible(i)) continue;
     if (promo && !state.showPromo) continue;
     if (!promo && !state.showRegular) continue;
-    if (state.hideZero && !vA && !vB && !qA && !qB && promo) continue;
+    if (state.hideZero && promo){
+      /* Hide Unsold Promo Packs:
+         1) keep the existing never-sold case (zero in both comparison years);
+         2) also hide promo packs with negative base-year sales and either
+            negative sales or no sales in the comparison year.
+         This follows the currently selected comparison years, e.g. 2025 vs 2026. */
+      var promoNeverSold = !vA && !vB && !qA && !qB;
+      var promoNegativeThenNonPositive = (vA < 0 && vB <= 0);
+      if (promoNeverSold || promoNegativeThenNonPositive) continue;
+    }
     if (state.onlyUnchecked && (!itemAuditable(i) || state.checked.has(i))) continue;
     if (state.cat !== null && catOf[i] !== state.cat) continue;
     var it = ITEMS[i];
