@@ -2799,13 +2799,59 @@ function render(){
     if ((A.vA[i]||A.qA[i]) && !(A.vB[i]||A.qB[i])) T.lost++;
     if (!(A.vA[i]||A.qA[i]) && (A.vB[i]||A.qB[i])) T.gain++;
   }
-  /* Outlets gained and lost between exactly the two years being compared —
-     a third year in the data never enters into it. */
+  /* New / Lost Customer Sites always use the latest available data,
+     independent of the selected comparison years and month period.
+
+     Latest year = newest year in the dataset.
+     Base year   = immediately previous year.
+
+     A site is NEW when it has a positive bill in the latest year but none in
+     the prior year. A site is LOST when it had a positive bill in the prior
+     year but has not yet had a positive bill in the latest year.
+
+     Because this is rebuilt from all currently loaded months every render,
+     later billing automatically adds new sites or removes previously-lost sites. */
   var newSites = 0, lostSites = 0, newVal = 0, lostVal = 0;
-  for (var sB=0; sB<SITES.length; sB++){
-    if (!mask[sB]) continue;
-    if (siteBilledB[sB] && !siteBilledA[sB]){ newSites++; newVal += siteValB[sB]; }
-    else if (siteBilledA[sB] && !siteBilledB[sB]){ lostSites++; lostVal += siteValA[sB]; }
+  var latestYi = NY - 1, baseYi = NY - 2;
+  var latestYearForSites = latestYi >= 0 ? YEARS[latestYi] : null;
+  var baseYearForSites = baseYi >= 0 ? YEARS[baseYi] : null;
+
+  if (F && latestYi >= 0 && baseYi >= 0){
+    var latestBilled = new Uint8Array(SITES.length);
+    var baseBilled = new Uint8Array(SITES.length);
+    var latestSiteVal = new Float64Array(SITES.length);
+    var baseSiteVal = new Float64Array(SITES.length);
+
+    var fsNL = F.s, fiNL = F.i, fpNL = F.p, fvNL = F.v, fqNL = F.q, fdNL = F.d;
+    for (var kNL=0; kNL<fsNL.length; kNL++){
+      var sNL = fsNL[kNL];
+      if (!mask[sNL]) continue;
+      if (!factCounted(fdNL[kNL], fiNL[kNL])) continue;
+
+      var pNL = fpNL[kNL], yiNL = (pNL/12)|0, mNL = pNL%12;
+      var billedNL = (fqNL[kNL] > 0 || fvNL[kNL] > 0);
+
+      if (yiNL === latestYi){
+        /* Only loaded/available latest-year months count. */
+        if (latestYearForSites === YEARS[NY-1] && mNL > LASTM) continue;
+        latestSiteVal[sNL] += fvNL[kNL];
+        if (billedNL) latestBilled[sNL] = 1;
+      } else if (yiNL === baseYi){
+        baseSiteVal[sNL] += fvNL[kNL];
+        if (billedNL) baseBilled[sNL] = 1;
+      }
+    }
+
+    for (var sB=0; sB<SITES.length; sB++){
+      if (!mask[sB]) continue;
+      if (latestBilled[sB] && !baseBilled[sB]){
+        newSites++;
+        newVal += latestSiteVal[sB];
+      } else if (baseBilled[sB] && !latestBilled[sB]){
+        lostSites++;
+        lostVal += baseSiteVal[sB];
+      }
+    }
   }
   var dv = T.vA ? T.vB/T.vA-1 : 0, dq = T.qA ? T.qB/T.qA-1 : 0;
   function kpi(lab, val, sub, cls, act){
@@ -2827,11 +2873,11 @@ function render(){
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
         newVal ? '+' + nf0.format(Math.round(newVal)) + ' Gained'
-               : 'billed in ' + state.yrB + ', never in ' + state.yrA,
+               : (latestYearForSites && baseYearForSites ? 'billed in ' + latestYearForSites + ', not in ' + baseYearForSites : 'latest available data'),
         newSites?'up':'flat', newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
         lostVal ? '−' + nf0.format(Math.round(lostVal)) + ' at Risk'
-                : 'billed in ' + state.yrA + ', nothing in ' + state.yrB,
+                : (latestYearForSites && baseYearForSites ? 'billed in ' + baseYearForSites + ', not yet in ' + latestYearForSites : 'latest available data'),
         lostSites?'down':'flat', lostSites ? 'lost' : '');
 
   renderVisitValueChart();
