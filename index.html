@@ -3362,7 +3362,9 @@ function MultiSelect(el, opts){
     var s = opts.sel(); visible.forEach(function(o){ s.add(o.id); }); opts.changed(); label(); draw();
   });
   root.querySelector('[data-role=none]').addEventListener('click', function(){
-    opts.sel().clear(); opts.changed(); label(); draw();
+    opts.sel().clear();
+    if (opts.cleared) opts.cleared();
+    opts.changed(); label(); draw();
   });
   api.refresh = function(){ label(); if (root.classList.contains('open')) draw(); };
   label();
@@ -3424,9 +3426,16 @@ function buildSelectors(){
                          .sort(function(a,b){ return a.label < b.label ? -1 : 1; });
     },
     sel: function(){ return state.site; },
+    cleared: function(){
+      /* Clearing Customer Site should also clear the Area filter, while the
+         currently selected Customer stays untouched. */
+      state.area.clear();
+      if (msArea) msArea.refresh();
+    },
     changed: function(){
       /* a site belongs to one customer and sits in one area — select both, so all
-         three pickers always agree */
+         three pickers always agree. When Site is cleared, Customer is intentionally
+         retained and Area has already been cleared by the dedicated Clear action. */
       if (state.site.size){
         var parents = new Set(), areas = new Set();
         state.site.forEach(function(s){ parents.add(SITES[s][4]); areas.add(areaOf[s]); });
