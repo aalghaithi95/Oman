@@ -3820,9 +3820,16 @@ function exportMonthlyDetailXlsx(){
       '><Data ss:Type="String">'+xmlEsc(v)+'</Data></Cell>';
   }
   function cellNumber(v,style,index){
+    var n=Number(v || 0), useStyle=style;
+    if (n < 0){
+      if (style === 'Dec') useStyle='NegDec';
+      else if (style === 'Int') useStyle='NegInt';
+      else if (style === 'GrandNum') useStyle='NegGrandNum';
+      else if (style === 'GroupTotalNum') useStyle='NegGroupTotalNum';
+    }
     return '<Cell' + (index ? ' ss:Index="'+index+'"' : '') +
-      (style ? ' ss:StyleID="'+style+'"' : '') +
-      '><Data ss:Type="Number">'+Number(v || 0)+'</Data></Cell>';
+      (useStyle ? ' ss:StyleID="'+useStyle+'"' : '') +
+      '><Data ss:Type="Number">'+n+'</Data></Cell>';
   }
   function blankCell(style,index){
     return '<Cell' + (index ? ' ss:Index="'+index+'"' : '') +
@@ -4037,6 +4044,39 @@ function exportMonthlyDetailXlsx(){
           '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
           '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
           '<Font ss:Bold="1"/><Interior ss:Color="#F4F7F5" ss:Pattern="Solid"/>' +
+          '<NumberFormat ss:Format="#,##0.00"/></Style>' +
+
+        /* Negative monthly/export values: light red fill + dark red font. */
+        '<Style ss:ID="NegDec"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Color="#9C0006"/><Interior ss:Color="#FFC7CE" ss:Pattern="Solid"/>' +
+          '<NumberFormat ss:Format="#,##0.00"/></Style>' +
+
+        '<Style ss:ID="NegInt"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Color="#9C0006"/><Interior ss:Color="#FFC7CE" ss:Pattern="Solid"/>' +
+          '<NumberFormat ss:Format="#,##0"/></Style>' +
+
+        '<Style ss:ID="NegGrandNum"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Bold="1" ss:Color="#9C0006"/><Interior ss:Color="#FFC7CE" ss:Pattern="Solid"/>' +
+          '<NumberFormat ss:Format="#,##0.00"/></Style>' +
+
+        '<Style ss:ID="NegGroupTotalNum"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
+          '<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
+          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>' +
+          '<Font ss:Bold="1" ss:Color="#9C0006"/><Interior ss:Color="#FFC7CE" ss:Pattern="Solid"/>' +
           '<NumberFormat ss:Format="#,##0.00"/></Style>' +
       '</Styles>' +
 
