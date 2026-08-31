@@ -556,317 +556,6 @@ body.mdopen #mdWrap{display:block}
 
 
 
-
-/* ================= Spend Analysis =================
-   Claims workbook columns supported from the supplied template:
-   Customer Code | Customer Name | Reference | Customer Site | Cust Code
-   | Amount | Month | Year
-
-   Matching is intentionally strict: Cust Site Code + Month + Year.
-   Reference is never used as a join key and is always retained on its source row. */
-var spendRows = [];
-var spendPromoIndex = null;
-var spendSiteNames = null;
-var spendNf3 = new Intl.NumberFormat('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
-
-function spendNormHeader(v){
-  return String(v==null?'':v).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-}
-function spendNormCode(v){
-  if (v===null || v===undefined) return '';
-  var s=String(v).trim().replace(/^'/,'');
-  if (/^-?\d+\.0+$/.test(s)) s=s.replace(/\.0+$/,'');
-  return s.replace(/\s+/g,'');
-}
-function spendNum(v){
-  if (typeof v==='number' && isFinite(v)) return v;
-  var s=String(v==null?'':v).replace(/,/g,'').replace(/[^\d.\-]/g,'').trim();
-  var n=parseFloat(s);
-  return isFinite(n)?n:0;
-}
-function spendMonthFrom(v){
-  if (v instanceof Date && !isNaN(v.getTime())) return v.getMonth();
-  if (typeof v==='number' && isFinite(v)){
-    if (v>=1 && v<=12 && Math.floor(v)===v) return v-1;
-    if (window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
-      var d=XLSX.SSF.parse_date_code(v);
-      if (d && d.m>=1 && d.m<=12) return d.m-1;
-    }
-  }
-  var s=String(v==null?'':v).trim();
-  if (!s) return null;
-  var low=s.toLowerCase();
-  var mnames={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  var k=low.slice(0,3);
-  if (mnames[k]!==undefined) return mnames[k];
-  if (/^\d{1,2}$/.test(s)){
-    var n=+s; return n>=1&&n<=12 ? n-1 : null;
-  }
-  var dt=new Date(s);
-  return isNaN(dt.getTime()) ? null : dt.getMonth();
-}
-function spendYearFrom(v, monthRaw){
-  var n=parseInt(String(v==null?'':v).replace(/[^\d]/g,''),10);
-  if (n>=2000 && n<=2100) return n;
-  if (monthRaw instanceof Date && !isNaN(monthRaw.getTime())) return monthRaw.getFullYear();
-  if (typeof monthRaw==='number' && monthRaw>31 && window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
-    var d=XLSX.SSF.parse_date_code(monthRaw);
-    if (d && d.y) return d.y;
-  }
-  var dt=new Date(String(monthRaw==null?'':monthRaw));
-  return isNaN(dt.getTime()) ? null : dt.getFullYear();
-}
-function spendBuildPromoIndex(){
-  if (spendPromoIndex && spendSiteNames) return;
-  spendPromoIndex=Object.create(null);
-  spendSiteNames=Object.create(null);
-  if (!F) return;
-
-  for (var s=0;s<SITES.length;s++){
-    var code=spendNormCode(SITES[s][2]);
-    if (!code) continue;
-    if (!spendSiteNames[code]) spendSiteNames[code]=[];
-    if (spendSiteNames[code].indexOf(SITES[s][1])<0) spendSiteNames[code].push(SITES[s][1]);
-  }
-
-  var fs=F.s, fi=F.i, fp=F.p, fv=F.v;
-  for (var k=0;k<fs.length;k++){
-    var ii=fi[k];
-    if (isOther(ii) || ITEMS[ii][3] !== 'Promotion') continue;
-    var si=fs[k], p=fp[k], yi=(p/12)|0, m=p%12;
-    var y=YEARS[yi];
-    if (y===undefined) continue;
-    var code=spendNormCode(SITES[si][2]);
-    if (!code) continue;
-    var key=code+'|'+y+'|'+m;
-    spendPromoIndex[key]=(spendPromoIndex[key]||0)+(fv[k]||0);
-  }
-}
-function spendFindHeaderIndex(headers, aliases){
-  var map={};
-  headers.forEach(function(h,i){ map[spendNormHeader(h)]=i; });
-  for (var a=0;a<aliases.length;a++){
-    var key=spendNormHeader(aliases[a]);
-    if (map[key]!==undefined) return map[key];
-  }
-  return -1;
-}
-function spendStatus(msg,kind){
-  var box=document.getElementById('spendMsg');
-  box.textContent=msg||'';
-  box.className='spend-msg '+(kind||'');
-}
-function spendEscapeCsv(v){
-  var s=String(v==null?'':v);
-  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
-}
-function renderSpend(){
-  var body=document.getElementById('spendBody');
-  var count=document.getElementById('spendCount');
-  var kpis=document.getElementById('spendKpis');
-  if (!body || !count || !kpis) return;
-
-  if (!spendRows.length){
-    body.innerHTML='<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px">No claims file uploaded.</td></tr>';
-    count.textContent='Upload a claims file to begin';
-    return;
-  }
-
-  var matched=0, claimTotal=0, uniqueSales=0, uniqueSeen={}, out=[];
-  spendRows.forEach(function(r,idx){
-    claimTotal+=r.amount||0;
-    if (r.status==='Matched' || r.status==='No promo sales') matched++;
-    if ((r.status==='Matched' || r.status==='No promo sales') && !uniqueSeen[r.key]){
-      uniqueSeen[r.key]=1;
-      uniqueSales+=r.promoSales||0;
-    }
-
-    var cls=r.status==='Matched' ? '' : (r.status==='No promo sales' ? ' class="s-zero"' : ' class="s-unmatched"');
-    var badge=r.status==='Matched' ? 'ok' : (r.status==='No promo sales' ? 'zero' : 'bad');
-    var spendPct=(r.promoSales>0) ? (r.amount/r.promoSales*100) : null;
-
-    out.push('<tr'+cls+'>'+
-      '<td class="mono">'+(idx+1)+'</td>'+
-      '<td class="mono">'+esc(r.customerCode)+'</td>'+
-      '<td>'+esc(r.customerName)+'</td>'+
-      '<td class="spend-ref">'+esc(r.reference)+'</td>'+
-      '<td>'+esc(r.customerSite)+'</td>'+
-      '<td class="mono">'+esc(r.siteCode)+'</td>'+
-      '<td>'+esc(r.monthLabel)+'</td>'+
-      '<td class="mono">'+(r.year||'—')+'</td>'+
-      '<td class="r mono">'+spendNf3.format(r.amount||0)+'</td>'+
-      '<td class="r mono">'+(r.promoSales===null?'—':spendNf3.format(r.promoSales))+'</td>'+
-      '<td class="r mono">'+(spendPct===null?'—':nf1.format(spendPct)+'%')+'</td>'+
-      '<td><span class="spend-status '+badge+'" title="'+esc(r.detail||'')+'">'+esc(r.status)+'</span></td>'+
-    '</tr>');
-  });
-
-  body.innerHTML=out.join('');
-  count.textContent=spendRows.length+' claim row'+(spendRows.length===1?'':'s')+' · '+matched+' site/month matched';
-
-  var overallPct=uniqueSales>0 ? claimTotal/uniqueSales*100 : null;
-  kpis.innerHTML=
-    '<div class="kpi"><div class="eyebrow">Claim Rows</div><div class="v">'+nf0.format(spendRows.length)+'</div><div class="d flat">References kept row-by-row</div></div>'+
-    '<div class="kpi"><div class="eyebrow">Matched Claims</div><div class="v">'+nf0.format(matched)+'</div><div class="d '+(matched===spendRows.length?'up':'flat')+'">'+nf1.format(matched/spendRows.length*100)+'% matched</div></div>'+
-    '<div class="kpi"><div class="eyebrow">Claim Amount</div><div class="v">'+spendNf3.format(claimTotal)+'</div><div class="d flat">OMR</div></div>'+
-    '<div class="kpi"><div class="eyebrow">Promo Sales</div><div class="v">'+spendNf3.format(uniqueSales)+'</div><div class="d flat">Unique site-months'+(overallPct===null?'':' · Spend '+nf1.format(overallPct)+'%')+'</div></div>';
-
-  document.getElementById('spendExport').disabled=false;
-}
-function spendProcessWorkbook(wb,fileName){
-  spendRows=[];
-  spendPromoIndex=null; spendSiteNames=null;
-  spendBuildPromoIndex();
-
-  if (!F || !SITES.length){
-    spendStatus('Dashboard sales data is not loaded yet. Refresh the dashboard, then upload the claims file again.','err');
-    return;
-  }
-  if (!wb || !wb.SheetNames || !wb.SheetNames.length){
-    spendStatus('The workbook has no readable worksheet.','err');
-    return;
-  }
-
-  var sh=wb.Sheets[wb.SheetNames[0]];
-  var raw=XLSX.utils.sheet_to_json(sh,{header:1,raw:true,defval:null});
-  var fmt=XLSX.utils.sheet_to_json(sh,{header:1,raw:false,defval:''});
-  if (!raw.length){
-    spendStatus('The uploaded worksheet is empty.','err');
-    return;
-  }
-
-  var headerRow=0;
-  while (headerRow<raw.length && (!raw[headerRow] || !raw[headerRow].some(function(v){return String(v||'').trim();}))) headerRow++;
-  if (headerRow>=raw.length){
-    spendStatus('Could not find the header row.','err');
-    return;
-  }
-
-  var headers=(fmt[headerRow]||raw[headerRow]||[]).map(function(v){return String(v==null?'':v).trim();});
-  var ix={
-    customerCode:spendFindHeaderIndex(headers,['Customer Code']),
-    customerName:spendFindHeaderIndex(headers,['Customer Name']),
-    reference:spendFindHeaderIndex(headers,['Reference','Claim Reference','Ref']),
-    customerSite:spendFindHeaderIndex(headers,['Customer Site','Cust Site']),
-    siteCode:spendFindHeaderIndex(headers,['Cust Code','Cust Site Code','Customer Site Code','Site Code']),
-    amount:spendFindHeaderIndex(headers,['Amount','Claim Amount']),
-    month:spendFindHeaderIndex(headers,['Month']),
-    year:spendFindHeaderIndex(headers,['Year'])
-  };
-
-  var missing=[];
-  if (ix.reference<0) missing.push('Reference');
-  if (ix.siteCode<0) missing.push('Cust Code / Cust Site Code');
-  if (ix.month<0) missing.push('Month');
-  if (ix.year<0) missing.push('Year');
-  if (missing.length){
-    spendStatus('Missing required column'+(missing.length>1?'s':'')+': '+missing.join(', ')+'.','err');
-    return;
-  }
-
-  var invalid=0, notFound=0, zero=0;
-  for (var r=headerRow+1;r<raw.length;r++){
-    var rr=raw[r]||[], fr=fmt[r]||[];
-    var hasAny=rr.some(function(v){return v!==null && String(v).trim()!=='';});
-    if (!hasAny) continue;
-
-    function rawAt(i){ return i>=0 ? rr[i] : null; }
-    function fmtAt(i){ return i>=0 ? String(fr[i]===undefined || fr[i]===null ? (rr[i]===undefined||rr[i]===null?'':rr[i]) : fr[i]).trim() : ''; }
-
-    var monthRaw=rawAt(ix.month);
-    var month=spendMonthFrom(monthRaw);
-    var year=spendYearFrom(rawAt(ix.year),monthRaw);
-    var siteCode=spendNormCode(rawAt(ix.siteCode)!==null ? rawAt(ix.siteCode) : fmtAt(ix.siteCode));
-    var reference=fmtAt(ix.reference);
-    var key=(siteCode && year && month!==null) ? siteCode+'|'+year+'|'+month : '';
-    var promoSales=null, status='Matched', detail='';
-
-    if (!siteCode){
-      status='Missing site code'; invalid++;
-    } else if (month===null || !year){
-      status='Invalid month/year'; invalid++;
-    } else if (!spendSiteNames[siteCode]){
-      status='Site code not found'; notFound++;
-    } else {
-      promoSales=spendPromoIndex[key]||0;
-      if (Math.abs(promoSales)<0.0000001){
-        status='No promo sales'; zero++;
-        detail='Site found in dashboard, but no Promotion-item sales were recorded for '+MONTHS[month]+' '+year+'.';
-      } else {
-        detail='Matched to '+spendSiteNames[siteCode].join(' / ')+' for '+MONTHS[month]+' '+year+'.';
-      }
-    }
-
-    spendRows.push({
-      sourceRow:r+1,
-      customerCode:fmtAt(ix.customerCode),
-      customerName:fmtAt(ix.customerName),
-      reference:reference,
-      customerSite:fmtAt(ix.customerSite),
-      siteCode:siteCode,
-      amount:spendNum(rawAt(ix.amount)),
-      month:month,
-      monthLabel:month===null ? fmtAt(ix.month) : MONTHS[month],
-      year:year,
-      promoSales:promoSales,
-      key:key,
-      status:status,
-      detail:detail
-    });
-  }
-
-  document.getElementById('spendFileName').textContent=fileName||'Claims file';
-  renderSpend();
-
-  var bad=invalid+notFound;
-  var msg='Loaded '+spendRows.length+' claim row'+(spendRows.length===1?'':'s')+'. ';
-  if (!bad) msg+='All site codes and periods were found in the dashboard data.';
-  else msg+=(spendRows.length-bad)+' matched; '+bad+' need review.';
-  if (zero) msg+=' '+zero+' matched claim'+(zero===1?' has':'s have')+' no promo sales for the specified month.';
-  spendStatus(msg,bad?'warn':'ok');
-}
-function spendReadFile(file){
-  if (!file) return;
-  document.getElementById('spendExport').disabled=true;
-  spendStatus('Reading '+file.name+'…','warn');
-
-  if (!window.XLSX){
-    spendStatus('Excel reader did not load. Check the internet connection and try again.','err');
-    return;
-  }
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
-      spendProcessWorkbook(wb,file.name);
-    }catch(err){
-      spendStatus('Could not read this workbook: '+(err&&err.message?err.message:'unknown error'),'err');
-    }
-  };
-  reader.onerror=function(){ spendStatus('Could not read the selected file.','err'); };
-  reader.readAsArrayBuffer(file);
-}
-function spendExportCsv(){
-  if (!spendRows.length) return;
-  var rows=[['Customer Code','Customer Name','Reference','Customer Site','Cust Site Code','Month','Year','Claim Amount','Promo Sales (OMR)','Spend %','Match Status']];
-  spendRows.forEach(function(r){
-    var pct=r.promoSales>0 ? r.amount/r.promoSales*100 : '';
-    rows.push([r.customerCode,r.customerName,r.reference,r.customerSite,r.siteCode,r.monthLabel,r.year||'',r.amount,
-               r.promoSales===null?'':r.promoSales,pct===''?'':pct,r.status]);
-  });
-  var csv=rows.map(function(row){return row.map(spendEscapeCsv).join(',');}).join('\r\n');
-  var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='Delicio Spend Analysis.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
-}
-document.getElementById('spendFile').addEventListener('change',function(){
-  if (this.files && this.files[0]) spendReadFile(this.files[0]);
-});
-document.getElementById('spendExport').addEventListener('click',spendExportCsv);
-
 /* ---------- tabs ---------- */
 .tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}
 .tab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 15px;
@@ -1224,49 +913,6 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 }
 
 
-/* ---------- spend analysis ---------- */
-.spend-upload{
-  display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px;
-  border:1px dashed #AEBDB7;border-radius:8px;background:#FBFCFB;margin-bottom:14px
-}
-.spend-upload .su-text{flex:1 1 420px}
-.spend-upload .su-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:4px}
-.spend-upload .su-sub{font-size:11px;color:var(--muted);line-height:1.45}
-.spend-upload input[type=file]{display:none}
-.spend-upload .su-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.spend-file{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);max-width:280px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.spend-msg{font-size:11px;padding:8px 10px;border-radius:4px;margin-bottom:10px;display:none}
-.spend-msg.ok{display:block;background:var(--pos-bg);color:var(--pos);border:1px solid #A7CDB5}
-.spend-msg.warn{display:block;background:#FFF8E7;color:#8A6500;border:1px solid #E2CF91}
-.spend-msg.err{display:block;background:var(--neg-bg);color:var(--neg);border:1px solid #E3B5AA}
-.spend-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
-#spendTbl{width:100%;border-collapse:collapse;min-width:1250px;font-size:11px}
-#spendTbl th{position:sticky;top:0;z-index:5;background:var(--ink);color:#EAF2F0;
-  text-align:left;padding:8px 7px;border-right:1px solid #2E4650;white-space:nowrap}
-#spendTbl th.r,#spendTbl td.r{text-align:right}
-#spendTbl td{padding:7px;border-bottom:1px solid var(--line);vertical-align:top}
-#spendTbl td.mono{font-family:'IBM Plex Mono',monospace;font-size:10.5px}
-#spendTbl tbody tr:hover td{background:#FAFAF8}
-#spendTbl tr.s-unmatched td{background:#FFFAF9}
-#spendTbl tr.s-zero td{background:#FFFDF5}
-.spend-status{display:inline-block;font-size:9.5px;font-family:'IBM Plex Mono',monospace;
-  padding:2px 6px;border-radius:20px;border:1px solid var(--line);white-space:nowrap}
-.spend-status.ok{color:var(--pos);background:var(--pos-bg);border-color:#A7CDB5}
-.spend-status.zero{color:#8A6500;background:#FFF8E7;border-color:#E2CF91}
-.spend-status.bad{color:var(--neg);background:var(--neg-bg);border-color:#E3B5AA}
-.spend-ref{font-family:'IBM Plex Mono',monospace;font-size:10.5px;white-space:normal;word-break:break-word}
-.spend-note{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:8px}
-@media (max-width:900px){
-  .spend-kpis{grid-template-columns:1fr 1fr}
-}
-@media (max-width:760px){
-  .spend-upload{padding:12px}
-  .spend-upload .su-actions{width:100%}
-  .spend-upload .su-actions .btn{flex:1}
-  #spendTbl{font-size:10px}
-}
-
 /* ---------- promotion analysis ---------- */
 .promoformula{font-size:10.5px;color:var(--muted);line-height:1.35;align-self:center}
 #ptbl{width:100%;border-collapse:collapse}
@@ -1381,7 +1027,6 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     <button class="tab" type="button" data-t="analysis">Analysis</button>
     <button class="tab" type="button" data-t="outlet">Outlet Performance</button>
     <button class="tab" type="button" data-t="promo">Promotion Analysis</button>
-    <button class="tab" type="button" data-t="spend">Spend Analysis</button>
   </div>
 
 <div id="paneVisit">
@@ -1802,67 +1447,6 @@ body.immonthly #imWrap .imcard{max-width:1500px}
   </div>
 </div><!-- /panePromo -->
 
-<div id="paneSpend" style="display:none">
-  <div class="spend-upload">
-    <div class="su-text">
-      <div class="su-title">Upload claims file</div>
-      <div class="su-sub">
-        Upload the claims workbook in the same structure as the provided file. Matching is done strictly by
-        <b>Cust Site Code + Month + Year</b>. The original <b>Reference</b> stays attached to its own claim row.
-      </div>
-    </div>
-    <div class="su-actions">
-      <label class="btn" for="spendFile">Upload Excel</label>
-      <input id="spendFile" type="file" accept=".xlsx,.xls,.csv">
-      <button class="btn ghost" id="spendExport" type="button" disabled>Export Analysis CSV</button>
-      <span class="spend-file" id="spendFileName">No file selected</span>
-    </div>
-  </div>
-
-  <div class="spend-msg" id="spendMsg"></div>
-
-  <div class="kpis spend-kpis" id="spendKpis">
-    <div class="kpi"><div class="eyebrow">Claim Rows</div><div class="v">—</div><div class="d flat">Upload a file</div></div>
-    <div class="kpi"><div class="eyebrow">Matched Claims</div><div class="v">—</div><div class="d flat">Cust Site Code + Month + Year</div></div>
-    <div class="kpi"><div class="eyebrow">Claim Amount</div><div class="v">—</div><div class="d flat">OMR</div></div>
-    <div class="kpi"><div class="eyebrow">Promo Sales</div><div class="v">—</div><div class="d flat">Unique site-months · OMR</div></div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-head">
-      <h2>Claims × Promo Sales</h2>
-      <span class="count" id="spendCount">Upload a claims file to begin</span>
-      <div class="right"><span class="eyebrow" id="spendScope">Reference preserved per claim</span></div>
-    </div>
-    <div class="tscroll" style="max-height:68vh">
-      <table id="spendTbl">
-        <thead><tr>
-          <th>#</th>
-          <th>Customer Code</th>
-          <th>Customer Name</th>
-          <th>Reference</th>
-          <th>Customer Site</th>
-          <th>Cust Site Code</th>
-          <th>Month</th>
-          <th>Year</th>
-          <th class="r">Claim Amount</th>
-          <th class="r">Promo Sales (OMR)</th>
-          <th class="r">Spend %</th>
-          <th>Match Status</th>
-        </tr></thead>
-        <tbody id="spendBody">
-          <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px">No claims file uploaded.</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="spend-note">
-      Promo Sales is the net sales value of items classified as <b>Promotion</b> in the dashboard data for the exact
-      Cust Site Code, Month and Year in each claim. Claims with the same site/month remain separate so their original
-      Reference is never reassigned or merged.
-    </div>
-  </div>
-</div><!-- /paneSpend -->
-
   <div class="foot">
     <span id="footMeta"></span>
     <span>Change % compares the two selected years over the same months. “New” = sales this year with no base last year.</span>
@@ -1914,7 +1498,6 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 
 <div id="reportWrap"><div class="rep" id="report"></div></div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script id="items" type="application/json">[[35590028,"DELICIO SALAD DRESSING TWIN PACK SPCL OFF [6x(2x532ml)]","Salad Dressing","Promotion",0],[35590030,"DELICIO SALAD DRESSING 15% ASSTD [2x267ml]","Salad Dressing","Promotion",0],[35511140,"DELICIO FRENCH DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511020,"DELICIO FRENCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511160,"DELICIO RANCH DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511040,"DELICIO RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511130,"DELICIO 1000 ISLAND DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511045,"DELICIO SPICY RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511010,"DELICIO 1000 ISLAND DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511080,"DELICIO CAESAR DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511085,"DELICIO PEPPER GARLIC DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511023,"DELICIO LIGHT FRENCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511043,"DELICIO LIGHT RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511035,"DELICIO HABANERO RANCH SALAD DRESSING [12x267ML]","Salad Dressing","Regular",0],[35511017,"DELICIO CHIPOTLE RANCH DRESSING [12x267 ml]","Salad Dressing","Regular",0],[35511150,"DELICIO ITALIAN DRESSING [12x532ml]","Salad Dressing","Regular",0],[35511065,"DELICIO CHILI LIME DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511050,"DELICIO BLUE CHEESE DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511030,"DELICIO ITALIAN DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511075,"DELICIO SIRACHA RANCH DRESSING [12x267ml]","Salad Dressing","Regular",0],[35591092,"DELICIO HABANERO RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion",0],[35591094,"DELICIO CHIPOTLE RANCH + FRENCH DRESSING [(2X267)X6] SPL PRICE","Salad Dressing","Promotion",0],[35591055,"DELICIO FRENCH DRESSING 267ML+CHILLY MAYO 300ML[6x(267+300)]SPL OFFER","Salad Dressing","Promotion",0],[35591053,"DELICIO SALAD FRENCH/RANCH  DRESSING [4x3x267ML]SPL PRICE","Salad Dressing","Promotion",0],[35591057,"DELICIO CHIPOTLE RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion",0],[35591058,"DELICIO HABANERO RANCH DRESSING [12x(1x267 ML)]-SPL PRICE","Salad Dressing","Promotion",0],[35591054,"DELICIO SALAD DRESSING FRENCH 267ML + CHILLI LIME 267ML 6x(2x267ML)]","Salad Dressing","Promotion",0],[35511005,"Butter Milk Ranch 12x267ml","Salad Dressing","Regular",0],[35511000,"Smoky French 12x257ml","Salad Dressing","Regular",0],[35591051,"DELICIO RANCH + FRENCH DRESSING [6x(2x267Ml)]\u00a0 VALUE PACK","Salad Dressing","Promotion",0],[35590163,"DELICIO MAYONNAISE ASST TWIN PACK [2x300gm]","Mayonnaise","Promotion",0],[35590115,"DELICIO REAL MAYONNAISE 300ML TWIN PACK [6x(2x300ml)]","Mayonnaise","Promotion",0],[35590103,"DELICIO 2 CHILLY MAYO+ 1 BLACK TRUFFLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion",0],[35510180,"DELICIO MAYONNAISE REAL PET [12x300ml]","Mayonnaise","Regular",0],[35510193,"DELICIO MAYONNAISE CHILI PET [12x300ml]","Mayonnaise","Regular",0],[35510183,"DELICIO MAYONNAISE REAL PET [12x500ml]","Mayonnaise","Regular",0],[35510197,"DELICIO MAYONNAISE LITE PET [12x500ml]","Mayonnaise","Regular",0],[35590104,"DELICIO 2 CHILLY MAYO+ 1 CHIPOTLE MAYO FREE 2+1 [(3X300)X4]","Mayonnaise","Promotion",0],[35510145,"DELICIO MAYONNAISE GARLIC PET [12x300ml]","Mayonnaise","Regular",0],[35510132,"DELICIO REAL MAYONNAISE PET [6x946ML]","Mayonnaise","Regular",0],[35510194,"DELICIO CHILLI MAYONNAISE - 12 X 500 ML","Mayonnaise","Regular",0],[35510101,"DELICIO CHIPOTLE MAYONNAISE 12 X 300 ML","Mayonnaise","Regular",0],[35510175,"DELICIO MAYOCHUP PET [12x300ml]","Mayonnaise","Regular",0],[35590185,"DELICIO Real MAYO 500G [12x1x500GM] SPECIAL PRICE","Mayonnaise","Promotion",0],[35510185,"DELICIO BLACK TRUFFLE MAYONNAISE [12x300ML]","Mayonnaise","Regular",0],[35590132,"DELICIO REAL  MAYO  PET [(1X6)x946ml]SPL PRICE","Mayonnaise","Promotion",0],[35510105,"DELICIO SIRACHA MAYONNAISE [12x300ml]","Mayonnaise","Regular",0],[35590184,"DELICIO CHILLI MAYONNAISE PET [12x500ml] SPL PRICE","Mayonnaise","Promotion",0],[35590175,"DELICIO BLACK TRUFFLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion",0],[35590177,"DELICIO CHIPOTLE MAYONNAISE [12x(1x300 ML)]-SPL PRICE","Mayonnaise","Promotion",0],[35590118,"DELICIO REAL MAYONNAISE 300 ML TWIN PACK [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion",0],[35590143,"DELICIO  MAYONNAISE CHILLI TWIN PACK  [6x(2x300 ML)]+GIFT","Mayonnaise","Promotion",0],[35590144,"DELICIO CHILLY MAYO+ GARLIC MAYO [(2x300ml)X6] SPL PRICE","Mayonnaise","Promotion",0],[35591033,"DELICIO MAYOCHUP 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion",0],[35590142,"DELICIO CHILLI MAYONNAISE 300ML 20% OFF [12x300ml]","Mayonnaise","Promotion",0],[35590167,"DELICIO MAYONNAISE ASST 2+1 [(3x300ml)]","Mayonnaise","Promotion",0],[35590148,"DELICIO GARLIC MAYONNAISE 2x300ml SPL OFFER[2X300MLX6]","Mayonnaise","Promotion",0],[35590119,"DELICIO MAYONNAISE ASST 3X300 ML\u00a0 [4x(3x300Ml)]VALUE PACK","Mayonnaise","Promotion",0],[35511175,"DELICIO SMOKY BBQ SAUCE WITH SWEETENED DATES [12x532ml]","Sauces","Regular",0],[35511110,"DELICIO MUSTARD SAUCE [12x325ml]","Sauces","Regular",0],[35513010,"DELICIO CHEESE SAUCE [12x300ml]","Sauces","Regular",0],[35510360,"DELICIO DYNAMITE SAUCE [12x300ml]","Sauces","Regular",0],[35591115,"DELICIO SMOKY BBQ SAUCE 532ml SPL OFFER [12x532ml]","Sauces","Promotion",0],[35511185,"DELICIO SPICY BBQ SAUCE [12x532ml]","Sauces","Regular",0],[35511180,"DELICIO HONEY BBQ SAUCE [12x532ml]","Sauces","Regular",0],[35511125,"DELICIO SWEET THAI CHILLI SAUCE [12x267ml]","Sauces","Regular",0],[35591118,"DELICIO BBQ SAUCE TWIN PACK [2x532ml]","Sauces","Promotion",0],[35510370,"Burger Sauce 12x200ml","Sauces","Regular",0],[35590031,"DELICIO TOMATO KETCHUP [2x500gm]","Ketchup","Promotion",0],[35510030,"DELICIO TOMATO KETCHUP [12x500gm]","Ketchup","Regular",0],[35521127,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 910 GM","Ketchup","Regular",0],[35521125,"DELICIO TOMATO KETCHUP TOP DOWN - 12 X 340 GM","Ketchup","Regular",0],[35590032,"DELICIO TOMATO KETCHUP [6x(2x500 ML)]+GIFT","Ketchup","Promotion",0],[35590010,"Ketchup 910 G @ 25% OFF","Ketchup","Promotion",0],[35590017,"DELICIO TOMATO KETCHUP 3X340 Gm\u00a0 [4x(3x340Gm)]VALUE PACK","Ketchup","Promotion",0],[35510282,"DELICIO LEMON PICKLE  SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510292,"DELICIO CHILLI GARLIC  SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510252,"DELICIO SWEET JALAPENO SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510258,"DELICIO JALAPENO HOT SAUCE [24x175ml]","Hot Sauce","Regular",0],[35510272,"DELICIO CHIPOTLE SAUCE [24x175ml]","Hot Sauce","Regular",0],[35512110,"DELICIO VANILLA ESSENCE [12x28ml]","C&E","Regular",0],[35512150,"DELICIO YELLO FOOD COLOR [12x28ml]","C&E","Regular",0],[35512130,"DELICIO GREEN FOOD COLOR [12x28ml]","C&E","Regular",0],[35512140,"DELICIO RED FOOD COLOR [12x28ml]","C&E","Regular",0],[35512020,"DELICIO PINEAPPL ESSENCE [12x28ml]","C&E","Regular",0],[35512120,"DELICIO BR BLUE FOOD COLOR [12x28ml]","C&E","Regular",0],[35591381,"DELICIO PIZZA SAUCE [12X500GM] SPL PRICE","Pasta","Promotion",0],[35591375,"DELICIO PASTA SAUCE ARBTA/BLGNS/MRNA- SPL PRICE ASST- [12X500GM]","Pasta","Promotion",0],[35511400,"DELICIO PIZZA SAUCE  - 12 X 500 GM","Pasta","Regular",0],[35511370,"DELICIO MARINARA PASTA SAUCE - 12 X 500 GM","Pasta","Regular",0],[35511320,"DELICIO PASTA S ARRABBIATA [12x500gm]","Pasta","Regular",0],[35511340,"DELICIO PASTA S BOLOGNESE [12x500gm]","Pasta","Regular",0],[35531128,"Strawberry Jam 12 x 360g","Jam","Regular",0],[35531132,"Apricot Jam 12 x 360g","Jam","Regular",0],[35531129,"Fig Jam 12 x 360g","Jam","Regular",0],[35531131,"Mix Fruit Jam 12 x 360g","Jam","Regular",0],[35531130,"Orange Jam 12 x 360g","Jam","Regular",0],[35591098,"Two French 267 + Ketchup 340 Free","Dressing + Ketchup","Promotion",0],[35591097,"French 532 + Chili 500","Dressing + Mayo","Promotion",0],[35591095,"French 267 + Cheese 300 @ 25% OFF","Dressing + Sauce","Promotion",0],[35591096,"French 267 + Dynamite 300 @ 25% OFF","Dressing + Sauce","Promotion",0],[35510091,"DELICIO PREMIUM MAYONNAISE [4x1 US Gallon]","Mayonnaise","Regular",1],[35510092,"DELICIO FRENCH DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510093,"DELICIO ITALIAN FAT FREE DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510094,"DELICIO 1000 ISLAND DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510095,"DELICIO RANCH DRESSING [4x1 Gallon]","Salad Dressing","Regular",1],[35510099,"DELICIO SMOKY BBQ SAUCE [4x1 USG]","Sauces","Regular",1],[35522013,"DELICIO SUPERIOR TOMATO KETCHUP [4x5KG]","Ketchup","Regular",1],[35522014,"DELICIO TOMATO KETCHUP SACHETS [1000x9GM]","Ketchup","Regular",1],[35522011,"DELICIO SUPERIOR MAYONNAISE [4x1 Gallon]","Mayonnaise","Regular",1],[35513020,"DELICIO CHEESE SAUCE [4x1 USG]","Sauces","Regular",1],[35510104,"DELICIO CHIPOTLE MAYONNAISE [4x1 USG]","Mayonnaise","Regular",1],[35511395,"DELICIO PIZZA SAUCE [4x1 USG]","Pasta","Regular",1],[35522012,"DELICIO MAYONNAISE SACHET [1000x9GM]","Mayonnaise","Regular",1],[35590122,"DELICIO REAL MAYONNAISE PET [6(2x288ml)] SPL OFFER","Mayonnaise","Promotion",0]]</script>
 <script>
 (function(){
@@ -6662,14 +6245,12 @@ function showTab(t){
   document.getElementById('paneAnalysis').style.display = (t === 'analysis') ? '' : 'none';
   document.getElementById('paneOutlet').style.display = (t === 'outlet') ? '' : 'none';
   document.getElementById('panePromo').style.display = (t === 'promo') ? '' : 'none';
-  document.getElementById('paneSpend').style.display = (t === 'spend') ? '' : 'none';
   if (t === 'analysis'){
     renderAnalysis();
     setTimeout(function(){ syncAnHeadHeight(); measureGroups(); }, 0);
   }
   if (t === 'outlet') renderOutlet();
   if (t === 'promo') renderPromo();
-  if (t === 'spend') renderSpend();
 }
 document.getElementById('tabs').addEventListener('click', function(e){
   var b = e.target.closest('.tab'); if (!b) return;
