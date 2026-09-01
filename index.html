@@ -3588,8 +3588,35 @@ function wirePeriod(){
 var msCat = null;
 function visitCategoryOptions(){
   var live={}, out=[];
-  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]]=1;
-  CATS.forEach(function(n,i){ if (live[i]) out.push({id:i,label:n}); });
+
+  /* Tab 1 Category must reflect the selected channel.
+     Use actual loaded channel facts so:
+       CPD = categories occurring in CPD facts
+       FSD = categories occurring in FSD facts
+       ALL = union of both
+     The synthetic off-list bucket "Other" is never offered as a category. */
+  if (F){
+    var fi=F.i, fd=F.d, n=fi.length;
+    for (var k=0;k<n;k++){
+      var i=fi[k];
+      if (isOther(i)) continue;
+      if (!factCounted(fd[k],i)) continue;
+      live[catOf[i]]=1;
+    }
+  } else {
+    /* Safe fallback before facts finish loading. */
+    for (var i2=0;i2<NI;i2++){
+      if (isOther(i2)) continue;
+      if (state.dep==='CPD' && isFsdItem(i2)) continue;
+      if (state.dep==='FSD' && !isFsdItem(i2)) continue;
+      live[catOf[i2]]=1;
+    }
+  }
+
+  CATS.forEach(function(nm,ci){
+    if (nm==='Other') return;
+    if (live[ci]) out.push({id:ci,label:nm});
+  });
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
 function analysisCategoryOptions(){
@@ -3633,7 +3660,7 @@ document.getElementById('reset').addEventListener('click', function(){
   state.showPromo = true; document.getElementById('showPromo').checked = true;
   state.showDecline = false; document.getElementById('showDecline').checked = false;
   state.onlyUnchecked = false; document.getElementById('onlyUn').checked = false;
-  msArea.refresh(); msCust.refresh(); msSite.refresh(); syncPresets(); loadChecks(); render();
+  msArea.refresh(); msCust.refresh(); msSite.refresh(); if (msCat) msCat.refresh(); syncPresets(); loadChecks(); render();
 });
 document.getElementById('refreshBtn').addEventListener('click', function(){
   if (!window.confirm('Reload everything from the Google Sheet? Your ticks are kept.')) return;
@@ -4503,6 +4530,13 @@ function visitCategoryWise(){
 }
 
 
+function visitTopCategoryAllowed(i){
+  /* Empty Category selection = All categories, preserving the original total.
+     Once one or more categories are selected, only those item categories feed
+     the Graph View / Monthly Run Down. */
+  return !state.cat.size || state.cat.has(catOf[i]);
+}
+
 function visitMonthlyValueSeries(){
   var span = NY * 12, out = {};
   [2024, 2025, 2026].forEach(function(y){
@@ -4511,6 +4545,7 @@ function visitMonthlyValueSeries(){
     var a = new Array(12);
     for (var m=0;m<12;m++) a[m] = (y === YEARS[NY-1] && m > LASTM) ? null : 0;
     for (var i=0;i<NI;i++){
+      if (!visitTopCategoryAllowed(i)) continue;
       var base = i * span + yi * 12;
       for (var m2=0;m2<12;m2++){
         if (a[m2] === null) continue;
@@ -4740,6 +4775,7 @@ function visitValueRundown(){
       var yi = yIdx(y), vals = new Array(12);
       for (var m=0; m<12; m++) vals[m] = hasDataForYearMonth(y, m) ? 0 : null;
       for (var i=0; i<NI; i++){
+        if (!visitTopCategoryAllowed(i)) continue;
         var base = i * span + yi * 12;
         for (var m2=0; m2<12; m2++){
           if (vals[m2] === null) continue;
