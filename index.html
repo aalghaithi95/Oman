@@ -57,6 +57,20 @@ button,select,input{font-family:inherit;font-size:inherit;color:inherit}
 .f-site{flex:1 1 340px}
 .f-search{flex:0 1 220px}
 .f-search input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:#fff}
+
+/* Category multiselect alignment:
+   .f-search input styles are intended for text/search fields. Without this
+   override they also stretch the category checkboxes to 100% width, which
+   pushes the category names toward the middle/right of the dropdown. */
+.f-search .ms-list{text-align:left}
+.f-search .ms-opt{justify-content:flex-start;text-align:left}
+.f-search .ms-opt input[type="checkbox"]{
+  width:auto;min-width:0;height:auto;padding:0;margin:0;
+  border:0;border-radius:0;background:transparent;flex:0 0 auto
+}
+.f-search .ms-opt > span:not(.tag){
+  flex:1 1 auto;min-width:0;text-align:left
+}
 .btn{background:var(--ink);border:1px solid var(--ink);color:#fff;padding:8px 13px;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:500}
 .btn:hover{background:var(--ink-2)}
 .btn.ghost{background:#fff;color:var(--ink);border-color:var(--line)}
@@ -1072,7 +1086,14 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     </div>
     <div class="field f-search">
       <span>Category</span>
-      <select id="catSel" style="padding:8px 8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+      <div class="ms" id="msCat">
+        <button class="ms-btn" type="button" data-role="btn"><b>All categories</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search category…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
     </div>
     <button class="btn ghost" id="reset">Reset filters</button>
     <div class="expwrap">
@@ -1176,7 +1197,14 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     </div>
     <div class="field f-search">
       <span>Category</span>
-      <select id="anCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+      <div class="ms" id="msACat">
+        <button class="ms-btn" type="button" data-role="btn"><b>All categories</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search category…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
     </div>
     <div class="field f-item">
       <span>Item Description</span>
@@ -1291,7 +1319,14 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     </div>
     <div class="field f-search">
       <span>Category</span>
-      <select id="oCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+      <div class="ms" id="msOCat">
+        <button class="ms-btn" type="button" data-role="btn"><b>All categories</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search category…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
     </div>
     <div class="field f-item">
       <span>Item Description</span>
@@ -1384,7 +1419,14 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 
     <div class="field f-search">
       <span>Category</span>
-      <select id="pCat" style="padding:8px;border:1px solid var(--line);border-radius:var(--r);background:#fff;width:100%"></select>
+      <div class="ms" id="msPCat">
+        <button class="ms-btn" type="button" data-role="btn"><b>All categories</b></button>
+        <div class="ms-pop">
+          <div class="ms-search"><input type="text" placeholder="Search category…" data-role="search"></div>
+          <div class="ms-tools"><button type="button" data-role="all">Select all</button><button type="button" data-role="none">Clear</button><span data-role="stat"></span></div>
+          <div class="ms-list" data-role="list"></div>
+        </div>
+      </div>
     </div>
 
     <div class="field f-item">
@@ -2592,11 +2634,11 @@ function reportPdf(info, rows){
 var state = {
   yrA: 0, yrB: 0, m1: 0, m2: 11,
   cust: new Set(), site: new Set(),
-  cat: null, q: '', area: new Set(), dep: 'ALL',
-  aArea: new Set(), aCust: new Set(), aCat: null, aItems: new Set(), aGap: 3, aNever: 'exclude',
+  cat: new Set(), q: '', area: new Set(), dep: 'ALL',
+  aArea: new Set(), aCust: new Set(), aCat: new Set(), aItems: new Set(), aGap: 3, aNever: 'exclude',
   aMetric: 'value', oMetric: 'value',
-  oArea: new Set(), oCust: new Set(), oCat: null, oItems: new Set(), oStatus: 'all', oSales: 'all',
-  pArea: new Set(), pCust: new Set(), pCat: null, pItems: new Set(), pRet: 10,
+  oArea: new Set(), oCust: new Set(), oCat: new Set(), oItems: new Set(), oStatus: 'all', oSales: 'all',
+  pArea: new Set(), pCust: new Set(), pCat: new Set(), pItems: new Set(), pRet: 10,
   sort: {key:'vB', dir:-1},
   showRegular: true, showPromo: true, showDecline: false,
   group: true, hideZero: true, onlyUnchecked: false,
@@ -2653,6 +2695,13 @@ function pctCell(a,b){
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 function periodLabel(){ return MONTHS[state.m1] + (state.m1===state.m2 ? '' : '–' + MONTHS[state.m2]); }
 function yearsLabel(){ return periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB; }
+function categorySetLabel(s){
+  if (!s || !s.size) return '';
+  if (s.size === 1){
+    var one=''; s.forEach(function(c){ one=CATS[c] || ''; }); return one;
+  }
+  return s.size + ' categories';
+}
 function areaLabelShort(){
   if (!state.area.size) return '';
   if (state.area.size === 1){ var only = ''; state.area.forEach(function(a){ only = areaLabel(a); }); return only; }
@@ -2756,7 +2805,7 @@ function buildRows(){
       if (promoNeverSold || promoNegativeThenNonPositive) continue;
     }
     if (state.onlyUnchecked && (!itemAuditable(i) || state.checked.has(i))) continue;
-    if (state.cat !== null && catOf[i] !== state.cat) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
     var it = ITEMS[i];
     if (q && (String(it[0]).indexOf(q) < 0 && it[1].toLowerCase().indexOf(q) < 0)) continue;
     rows.push({
@@ -2985,7 +3034,7 @@ function render(){
     if (!itemInDep(i)) continue;
     if (A.last[i] >= 0 && Math.floor(A.last[i]/12) >= ib) continue;
     if (!(A.vA[i] || A.qA[i])) continue;
-    if (state.cat !== null && catOf[i] !== state.cat) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
     lost.push({i:i, v:A.vA[i], q:A.qA[i], p:A.last[i]});
   }
   lost.sort(function(a,b){ return b.v-a.v; });
@@ -3374,7 +3423,7 @@ document.addEventListener('click', function(){
   document.querySelectorAll('.ms.open').forEach(function(x){ x.classList.remove('open'); });
 });
 
-var msArea, msCust, msSite;
+var msArea, msCust, msSite, msCat;
 function buildSelectors(){
   msArea = MultiSelect('msArea', {
     allLabel:'All areas',
@@ -3455,6 +3504,12 @@ function buildSelectors(){
       reload();
     }
   });
+  msCat = MultiSelect('msCat', {
+    allLabel:'All categories',
+    options:visitCategoryOptions,
+    sel:function(){ return state.cat; },
+    changed:function(){ render(); }
+  });
 }
 function reload(){
   loadChecks();
@@ -3530,38 +3585,32 @@ function wirePeriod(){
 }
 
 /* ---------- filters ---------- */
-var catWired = false;
+var msCat = null;
+function visitCategoryOptions(){
+  var live={}, out=[];
+  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]]=1;
+  CATS.forEach(function(n,i){ if (live[i]) out.push({id:i,label:n}); });
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function analysisCategoryOptions(){
+  var live={}, out=[];
+  for (var i=0;i<NI;i++){
+    if (ITEMS[i][3] === 'Promotion') continue;
+    if (!analysisItemInDep(i)) continue;
+    live[catOf[i]]=1;
+  }
+  CATS.forEach(function(n,i){ if (live[i]) out.push({id:i,label:n}); });
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
+function pruneCategorySet(set, options){
+  var ok=new Set(options.map(function(o){ return o.id; }));
+  Array.from(set).forEach(function(c){ if (!ok.has(c)) set.delete(c); });
+}
 function buildCatFilter(){
-  var sel = document.getElementById('catSel');
-  var live = {};
-  for (var i=0;i<NI;i++) if (itemInDep(i)) live[catOf[i]] = 1;
-  var order = CATS.map(function(n,i){ return {i:i, n:n}; })
-                  .filter(function(o){ return live[o.i]; })
-                  .sort(function(a,b){ return a.n<b.n?-1:1; });
-  if (state.cat !== null && !live[state.cat]) state.cat = null;
-  sel.innerHTML = '<option value="">All categories</option>' +
-    order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
-  sel.value = state.cat === null ? '' : String(state.cat);
-  if (!catWired){
-    catWired = true;
-    sel.addEventListener('change', function(){
-      state.cat = this.value === '' ? null : +this.value;
-      render();
-    });
-  }
-  /* the analysis category list follows the same rule */
-  var asel = document.getElementById('anCat');
-  if (asel && asel.options.length){
-    var hasReg = {};
-    for (var ci=0; ci<NI; ci++) if (ITEMS[ci][3] !== 'Promotion' && analysisItemInDep(ci)) hasReg[catOf[ci]] = 1;
-    if (state.aCat !== null && !hasReg[state.aCat]) state.aCat = null;
-    asel.innerHTML = '<option value="">All categories</option>' +
-      CATS.map(function(n,i){ return {i:i, n:n}; })
-          .filter(function(o){ return hasReg[o.i]; })
-          .sort(function(a,b){ return a.n<b.n?-1:1; })
-          .map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
-    asel.value = state.aCat === null ? '' : String(state.aCat);
-  }
+  pruneCategorySet(state.cat,visitCategoryOptions());
+  if (msCat) msCat.refresh();
+  pruneCategorySet(state.aCat,analysisCategoryOptions());
+  if (msACat) msACat.refresh();
 }
 document.getElementById('showRegular').addEventListener('change', function(){ state.showRegular = this.checked; render(); });
 document.getElementById('showPromo').addEventListener('change', function(){ state.showPromo = this.checked; render(); });
@@ -3577,10 +3626,9 @@ document.getElementById('hrow').addEventListener('click', function(e){
   renderHead(); render();
 });
 document.getElementById('reset').addEventListener('click', function(){
-  state.area.clear(); state.cust.clear(); state.site.clear(); state.cat = null; state.q = '';
+  state.area.clear(); state.cust.clear(); state.site.clear(); state.cat.clear(); state.q = '';
   state.m1 = 0; state.m2 = LASTM;
   document.getElementById('m1').value = 0; document.getElementById('m2').value = LASTM;
-  document.getElementById('catSel').value = '';
   state.showRegular = true; document.getElementById('showRegular').checked = true;
   state.showPromo = true; document.getElementById('showPromo').checked = true;
   state.showDecline = false; document.getElementById('showDecline').checked = false;
@@ -3763,7 +3811,7 @@ function exportMonthlyDetailXlsx(){
 
   for (var i=0;i<NI;i++){
     if (!itemVisible(i)) continue;
-    if (state.cat !== null && catOf[i] !== state.cat) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
     var isPromo = ITEMS[i][3] === 'Promotion';
     if (isPromo && !state.showPromo) continue;
@@ -4373,7 +4421,7 @@ function categoryWiseItemAllowed(i){
   var promo = ITEMS[i][3] === 'Promotion';
   if (promo && !state.showPromo) return false;
   if (!promo && !state.showRegular) return false;
-  if (state.cat !== null && catOf[i] !== state.cat) return false;
+  if (state.cat.size && !state.cat.has(catOf[i])) return false;
   return true;
 }
 function categoryWiseSeries(metric, yearOverride){
@@ -4583,7 +4631,7 @@ function visitPromoPercentage(){
 
     for (var i=0;i<NI;i++){
       if (isOther(i)) continue;
-      if (state.cat!==null && catOf[i]!==state.cat) continue;
+      if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
       var target=ITEMS[i][3]==='Promotion' ? promo : regular;
       var base=i*span+yi*12;
@@ -5143,7 +5191,7 @@ function buildAnalysisRows(){
     for (var i=0; i<NI; i++){
       if (ITEMS[i][3] === 'Promotion') continue;          /* promo packs aren't distribution */
       if (!analysisItemInDep(i)) continue;
-      if (state.aCat !== null && catOf[i] !== state.aCat) continue;
+      if (state.aCat.size && !state.aCat.has(catOf[i])) continue;
       if (state.aItems.size && !state.aItems.has(i)) continue;
       var idx = s*NI + i, lp = A2.lastP[idx], la = A2.lastAny[idx];
       var never = la < 0;                                 /* no record of any kind, ever */
@@ -5303,7 +5351,7 @@ function analysisItemOptions(){
   for (var i=0;i<NI;i++){
     if (ITEMS[i][3] === 'Promotion') continue;
     if (!analysisItemInDep(i)) continue;
-    if (state.aCat !== null && catOf[i] !== state.aCat) continue;
+    if (state.aCat.size && !state.aCat.has(catOf[i])) continue;
     out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
   }
   out.sort(function(a,b){ return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0); });
@@ -5400,6 +5448,18 @@ function initAnalysis(){
       renderAnalysis();
     }
   });
+  msACat = MultiSelect('msACat', {
+    allLabel:'All categories',
+    options:analysisCategoryOptions,
+    sel:function(){ return state.aCat; },
+    changed:function(){
+      if (state.aItems.size && state.aCat.size){
+        Array.from(state.aItems).forEach(function(i){ if (!state.aCat.has(catOf[i])) state.aItems.delete(i); });
+      }
+      if (msAItem) msAItem.refresh();
+      renderAnalysis();
+    }
+  });
   msAItem = MultiSelect('msAItem', {
     allLabel: 'All items',
     options: analysisItemOptions,
@@ -5412,28 +5472,9 @@ function initAnalysis(){
     sel: function(){ return state.aCust; },
     changed: function(){ renderAnalysis(); }
   });
-  var sel = document.getElementById('anCat');
-  /* promo-only categories can never yield a row here, so leave them out */
-  var hasReg = {};
-  for (var ci=0; ci<NI; ci++) if (ITEMS[ci][3] !== 'Promotion' && analysisItemInDep(ci)) hasReg[catOf[ci]] = 1;
-  var order = CATS.map(function(n,i){ return {i:i, n:n}; })
-                  .filter(function(o){ return hasReg[o.i]; })
-                  .sort(function(a,b){ return a.n<b.n?-1:1; });
-  sel.innerHTML = '<option value="">All categories</option>' +
-    order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
 }
 
-var msAArea = null, msACust = null, msAItem = null;
-document.getElementById('anCat').addEventListener('change', function(){
-  state.aCat = this.value === '' ? null : +this.value;
-  if (state.aItems.size && state.aCat !== null){
-    Array.from(state.aItems).forEach(function(i){
-      if (catOf[i] !== state.aCat) state.aItems.delete(i);
-    });
-  }
-  if (msAItem) msAItem.refresh();
-  renderAnalysis();
-});
+var msAArea = null, msACust = null, msACat = null, msAItem = null;
 document.getElementById('anGap').addEventListener('change', function(){
   state.aGap = +this.value; renderAnalysis();
 });
@@ -5441,13 +5482,13 @@ document.getElementById('anNever').addEventListener('change', function(){
   state.aNever = this.value; renderAnalysis();
 });
 document.getElementById('anReset').addEventListener('click', function(){
-  state.aArea.clear(); state.aCust.clear(); state.aCat = null; state.aItems.clear();
+  state.aArea.clear(); state.aCust.clear(); state.aCat.clear(); state.aItems.clear();
   state.aGap = 3; state.aNever = 'exclude';
-  document.getElementById('anCat').value = '';
   document.getElementById('anGap').value = '3';
   document.getElementById('anNever').value = 'exclude';
   if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
+  if (msACat) msACat.refresh();
   if (msAItem) msAItem.refresh();
   renderAnalysis();
 });
@@ -5491,7 +5532,7 @@ document.getElementById('anCsv').addEventListener('click', function(){
    the immediately following month for the same customer site + promotion item.
    Return % = absolute returned cases / previous month's supplied cases. */
 var PRSCAN = null;
-var msPArea = null, msPCust = null, msPItem = null;
+var msPArea = null, msPCust = null, msPCat = null, msPItem = null;
 var promoOpen = {};
 var PROMO_CAP = 700, PROMO_PER_CUST = 18;
 
@@ -5613,23 +5654,20 @@ function promoItemOptions(){
   var out = [];
   for (var i=0;i<NI;i++){
     if (!promoItemOk(i)) continue;
-    if (state.pCat !== null && catOf[i] !== state.pCat) continue;
+    if (state.pCat.size && !state.pCat.has(catOf[i])) continue;
     out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
   }
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
+function promoCategoryOptions(){
+  var seen={}, out=[];
+  for (var i=0;i<NI;i++) if (promoItemOk(i)) seen[catOf[i]]=1;
+  CATS.forEach(function(n,i){ if (seen[i]) out.push({id:i,label:n}); });
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
+}
 function buildPromoCats(){
-  var sel = document.getElementById('pCat');
-  if (!sel) return;
-  var seen = {};
-  for (var i=0;i<NI;i++) if (promoItemOk(i)) seen[catOf[i]] = 1;
-  var order = CATS.map(function(n,i){ return {i:i,n:n}; })
-                  .filter(function(o){ return seen[o.i]; })
-                  .sort(function(a,b){ return a.n < b.n ? -1 : 1; });
-  if (state.pCat !== null && !seen[state.pCat]) state.pCat = null;
-  sel.innerHTML = '<option value="">All categories</option>' +
-    order.map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
-  sel.value = state.pCat === null ? '' : String(state.pCat);
+  pruneCategorySet(state.pCat,promoCategoryOptions());
+  if (msPCat) msPCat.refresh();
 }
 
 function initPromo(){
@@ -5652,6 +5690,18 @@ function initPromo(){
     options:promoCustomerOptions,
     sel:function(){ return state.pCust; },
     changed:function(){ renderPromo(); }
+  });
+  msPCat = MultiSelect('msPCat', {
+    allLabel:'All categories',
+    options:promoCategoryOptions,
+    sel:function(){ return state.pCat; },
+    changed:function(){
+      if (state.pItems.size && state.pCat.size){
+        Array.from(state.pItems).forEach(function(i){ if (!state.pCat.has(catOf[i])) state.pItems.delete(i); });
+      }
+      if (msPItem) msPItem.refresh();
+      renderPromo();
+    }
   });
   msPItem = MultiSelect('msPItem', {
     allLabel:'All promotion items',
@@ -5684,7 +5734,7 @@ function buildPromoGroups(){
     var cid = SITES[d.s][4], a = areaOf[d.s];
     if (state.pArea.size && !state.pArea.has(a)) return;
     if (state.pCust.size && !state.pCust.has(cid)) return;
-    if (state.pCat !== null && catOf[d.i] !== state.pCat) return;
+    if (state.pCat.size && !state.pCat.has(catOf[d.i])) return;
     if (state.pItems.size && !state.pItems.has(d.i)) return;
 
     var key = d.s + ':' + d.i;
@@ -5847,25 +5897,17 @@ document.getElementById('ptbl').addEventListener('click', function(e){
   renderPromo();
 });
 
-document.getElementById('pCat').addEventListener('change', function(){
-  state.pCat = this.value === '' ? null : +this.value;
-  if (state.pItems.size && state.pCat !== null){
-    Array.from(state.pItems).forEach(function(i){ if (catOf[i] !== state.pCat) state.pItems.delete(i); });
-  }
-  if (msPItem) msPItem.refresh();
-  renderPromo();
-});
 document.getElementById('pRet').addEventListener('change', function(){
   state.pRet = +this.value;
   renderPromo();
 });
 document.getElementById('pReset').addEventListener('click', function(){
-  state.pArea.clear(); state.pCust.clear(); state.pCat = null; state.pItems.clear(); state.pRet = 10;
-  document.getElementById('pCat').value = '';
+  state.pArea.clear(); state.pCust.clear(); state.pCat.clear(); state.pItems.clear(); state.pRet = 10;
   document.getElementById('pRet').value = '10';
   promoOpen = {};
   if (msPArea) msPArea.refresh();
   if (msPCust) msPCust.refresh();
+  if (msPCat) msPCat.refresh();
   if (msPItem) msPItem.refresh();
   renderPromo();
 });
@@ -5917,7 +5959,7 @@ function exportPromotionAnalysisExcel(){
     var cid = SITES[s][4], a = areaOf[s];
     if (state.pArea.size && !state.pArea.has(a)) return;
     if (state.pCust.size && !state.pCust.has(cid)) return;
-    if (state.pCat !== null && catOf[i] !== state.pCat) return;
+    if (state.pCat.size && !state.pCat.has(catOf[i])) return;
     if (state.pItems.size && !state.pItems.has(i)) return;
 
     pairs.push({
@@ -5939,7 +5981,7 @@ function exportPromotionAnalysisExcel(){
       var cid=SITES[s][4], a=areaOf[s];
       if (state.pArea.size && !state.pArea.has(a)) continue;
       if (state.pCust.size && !state.pCust.has(cid)) continue;
-      if (state.pCat !== null && catOf[i] !== state.pCat) continue;
+      if (state.pCat.size && !state.pCat.has(catOf[i])) continue;
       if (state.pItems.size && !state.pItems.has(i)) continue;
 
       var key=promoPairKey(s,i), arr=valueMap[key];
@@ -6195,14 +6237,18 @@ function setDep(d){
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
+  if (msCat) msCat.refresh();
   if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
+  if (msACat) msACat.refresh();
   if (msAItem) msAItem.refresh();
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
+  if (msOCat) msOCat.refresh();
   if (msOItem) msOItem.refresh();
   if (msPArea) msPArea.refresh();
   if (msPCust) msPCust.refresh();
+  if (msPCat) msPCat.refresh();
   if (msPItem) msPItem.refresh();
   buildCatFilter();
   buildOutletCats();
@@ -6792,7 +6838,7 @@ function monthlyViewIds(viewYear){
   var regular=[], promo=[], gallon=[], retail=[];
   for (var i=0;i<NI;i++){
     if (!itemVisible(i)) continue;
-    if (state.cat!==null && catOf[i]!==state.cat) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
     var isPromo=ITEMS[i][3]==='Promotion';
     if (isPromo && !state.showPromo) continue;
@@ -7082,7 +7128,7 @@ document.getElementById('visitHist').addEventListener('click', openHistory);
    has this outlet stopped buying", this tab asks "which outlets are growing and
    which are shrinking", under whatever slice of the range you choose. */
 
-var msOArea = null, msOCust = null, msOItem = null;
+var msOArea = null, msOCust = null, msOCat = null, msOItem = null;
 var outletRowsCache = [], outletOpen = {};
 
 /* which items count towards an outlet's figures, given this tab's filters */
@@ -7097,7 +7143,7 @@ function outletItemInScope(i){
     if (state.oSales === 'promo' && !isPromo) return false;
     if (state.oSales === 'reg' && isPromo) return false;
   }
-  if (state.oCat !== null && catOf[i] !== state.oCat) return false;
+  if (state.oCat.size && !state.oCat.has(catOf[i])) return false;
   if (state.oItems.size && !state.oItems.has(i)) return false;
   return true;
 }
@@ -7288,7 +7334,7 @@ function renderOutlet(){
         ? (function(){ var n=''; state.oArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
         : state.oArea.size + ' areas') : '') +
     (state.oSales !== 'all' ? ' · ' + (state.oSales === 'promo' ? 'promo only' : 'regular only') : '') +
-    (state.oCat !== null ? ' · ' + CATS[state.oCat] : '') +
+    (state.oCat.size ? ' · ' + categorySetLabel(state.oCat) : '') +
     (state.oItems.size ? ' · ' + state.oItems.size + ' item' + (state.oItems.size>1?'s':'') : '') +
     (state.oStatus !== 'all' ? ' · ' +
       (state.oStatus === 'up' ? 'growth only' : (state.oStatus === 'down' ? 'decline only' : 'no change only')) : '');
@@ -7327,7 +7373,7 @@ function outletItemOptions(){
     if (!analysisItemInDep(i)) continue;
     if (state.oSales === 'promo' && ITEMS[i][3] !== 'Promotion') continue;
     if (state.oSales === 'reg' && ITEMS[i][3] === 'Promotion') continue;
-    if (state.oCat !== null && catOf[i] !== state.oCat) continue;
+    if (state.oCat.size && !state.oCat.has(catOf[i])) continue;
     out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
   }
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
@@ -7366,6 +7412,18 @@ function initOutlet(){
     sel: function(){ return state.oCust; },
     changed: function(){ renderOutlet(); }
   });
+  msOCat = MultiSelect('msOCat', {
+    allLabel:'All categories',
+    options:outletCategoryOptions,
+    sel:function(){ return state.oCat; },
+    changed:function(){
+      if (state.oItems.size && state.oCat.size){
+        Array.from(state.oItems).forEach(function(i){ if (!state.oCat.has(catOf[i])) state.oItems.delete(i); });
+      }
+      if (msOItem) msOItem.refresh();
+      renderOutlet();
+    }
+  });
   msOItem = MultiSelect('msOItem', {
     allLabel:'All items',
     options: outletItemOptions,
@@ -7374,27 +7432,16 @@ function initOutlet(){
   });
   buildOutletCats();
 }
-function buildOutletCats(){
-  var sel = document.getElementById('oCat');
-  if (!sel) return;
-  var live = {};
-  for (var i=0;i<NI;i++) if (analysisItemInDep(i)) live[catOf[i]] = 1;
-  if (state.oCat !== null && !live[state.oCat]) state.oCat = null;
-  sel.innerHTML = '<option value="">All categories</option>' +
-    CATS.map(function(n,i){ return {i:i, n:n}; })
-        .filter(function(o){ return live[o.i]; })
-        .sort(function(a,b){ return a.n<b.n?-1:1; })
-        .map(function(o){ return '<option value="'+o.i+'">'+esc(o.n)+'</option>'; }).join('');
-  sel.value = state.oCat === null ? '' : String(state.oCat);
+function outletCategoryOptions(){
+  var live={}, out=[];
+  for (var i=0;i<NI;i++) if (analysisItemInDep(i)) live[catOf[i]]=1;
+  CATS.forEach(function(n,i){ if (live[i]) out.push({id:i,label:n}); });
+  return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
-document.getElementById('oCat').addEventListener('change', function(){
-  state.oCat = this.value === '' ? null : +this.value;
-  if (state.oItems.size && state.oCat !== null){
-    Array.from(state.oItems).forEach(function(i){ if (catOf[i] !== state.oCat) state.oItems.delete(i); });
-  }
-  if (msOItem) msOItem.refresh();
-  renderOutlet();
-});
+function buildOutletCats(){
+  pruneCategorySet(state.oCat,outletCategoryOptions());
+  if (msOCat) msOCat.refresh();
+}
 document.getElementById('oSales').addEventListener('change', function(){
   state.oSales = this.value;
   if (msOItem) msOItem.refresh();
@@ -7406,13 +7453,13 @@ document.getElementById('oStatus').addEventListener('change', function(){
 });
 document.getElementById('oReset').addEventListener('click', function(){
   state.oArea.clear(); state.oCust.clear(); state.oItems.clear();
-  state.oCat = null; state.oStatus = 'all'; state.oSales = 'all';
+  state.oCat.clear(); state.oStatus = 'all'; state.oSales = 'all';
   outletOpen = {};
-  document.getElementById('oCat').value = '';
   document.getElementById('oStatus').value = 'all';
   document.getElementById('oSales').value = 'all';
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
+  if (msOCat) msOCat.refresh();
   if (msOItem) msOItem.refresh();
   renderOutlet();
 });
@@ -7506,14 +7553,18 @@ function afterLoad(rebuild){
   if (msArea) msArea.refresh();
   if (msCust) msCust.refresh();
   if (msSite) msSite.refresh();
+  if (msCat) msCat.refresh();
   if (msAArea) msAArea.refresh();
   if (msACust) msACust.refresh();
+  if (msACat) msACat.refresh();
   if (msAItem) msAItem.refresh();
   if (msOArea) msOArea.refresh();
   if (msOCust) msOCust.refresh();
+  if (msOCat) msOCat.refresh();
   if (msOItem) msOItem.refresh();
   if (msPArea) msPArea.refresh();
   if (msPCust) msPCust.refresh();
+  if (msPCat) msPCat.refresh();
   if (msPItem) msPItem.refresh();
   buildOutletCats();
   buildPromoCats();
