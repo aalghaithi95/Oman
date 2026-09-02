@@ -2914,10 +2914,10 @@ function render(){
                    : (T.vB ? 'no '+state.yrA+' base here' : 'no sales in this period');
   var dqTxt = T.qA ? ((dq>0?'+':'')+nf1.format(dq*100)+'% vs '+state.yrA) : 'no '+state.yrA+' base here';
   document.getElementById('kpis').innerHTML =
-    kpi(state.yrB + ' Value · ' + periodLabel(), nf0.format(Math.round(T.vB)),
+    kpi(state.yrB + ' Value · ' + periodLabel(), nf2.format(T.vB),
         dvTxt, T.vA ? cls : 'flat') +
-    kpi('Value vs ' + state.yrA, (T.vB-T.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(T.vB-T.vA))),
-        state.yrA+' base '+nf0.format(Math.round(T.vA)), cls) +
+    kpi('Value vs ' + state.yrA, (T.vB-T.vA>=0?'+':'−')+nf2.format(Math.abs(T.vB-T.vA)),
+        state.yrA+' base '+nf2.format(T.vA), cls) +
     kpi(state.yrB + ' QTY (cases)', nf0.format(Math.round(T.qB)),
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
@@ -4504,8 +4504,8 @@ function visitCategoryWise(){
   }
 
   function f(v){
-    if (Math.abs(v) < 0.0000001) return '0';
-    return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
+    if (Math.abs(v) < 0.0000001) return isValue ? '0.00' : '0';
+    return isValue ? nf2.format(v) : nf2.format(v);
   }
 
   var h='<div class="ovcatwrap"><table class="ovcatmonthly"><thead>'+
@@ -7634,16 +7634,27 @@ function afterLoad(rebuild){
 }
 var wired = false;
 function boot(){
-  showLoader('Looking for data on this device…');
-  snapshotLoad(function(snap){
-    if (snap){
-      applySnapshot(snap);
-      afterLoad(false);
-      hideLoader();
-      return;
-    }
-    showLoader('Reading the sheet…');
-    loadAll(setProgress, function(){ afterLoad(false); hideLoader(); }, fail);
+  /* Accuracy first: always read the live Google Sheet on open.
+     The previous version preferred the IndexedDB snapshot and could therefore
+     display stale totals until Refresh was pressed. The snapshot is now used
+     only as a fallback when the live sheet cannot be reached. */
+  showLoader('Reading the latest data from the sheet…');
+  loadAll(setProgress, function(){
+    afterLoad(false);
+    hideLoader();
+  }, function(liveMsg){
+    showLoader('Live sheet unavailable — checking the saved copy…');
+    snapshotLoad(function(snap){
+      if (snap){
+        applySnapshot(snap);
+        afterLoad(false);
+        hideLoader();
+        setStatus('error', 'Live sheet unavailable. Showing the last saved copy. ' + (liveMsg || ''));
+      } else {
+        hideLoader();
+        fail(liveMsg || 'Could not load the Google Sheet.');
+      }
+    });
   });
 }
 if (window.requestAnimationFrame) requestAnimationFrame(function(){ setTimeout(boot, 20); });
