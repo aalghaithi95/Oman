@@ -4454,9 +4454,9 @@ function categoryWiseItemAllowed(i){
 function categoryWiseSeries(metric, yearOverride){
   var arr = metric === 'value' ? A.mv : A.mq;
   var year = yearOverride == null ? state.yrB : yearOverride, yi = yIdx(year), span = NY*12;
-  var out={}, totalMonths=new Array(12).fill(0);
+  var out={}, totalMonths=new Array(12).fill(0), unmapped=new Array(12).fill(0);
   CATWISE_BASE.forEach(function(c){ out[c]=new Array(12).fill(0); });
-  if (yi < 0) return {year:year, rows:out, totals:totalMonths};
+  if (yi < 0) return {year:year, rows:out, totals:totalMonths, unmapped:unmapped};
 
   for (var i=0;i<NI;i++){
     if (!categoryWiseItemAllowed(i)) continue;
@@ -4469,10 +4469,26 @@ function categoryWiseSeries(metric, yearOverride){
       for (var a=0;a<alloc.length;a++) out[alloc[a][0]][m] += v*alloc[a][1];
     }
   }
+
+  /* The dashboard's actual sales total includes item codes that are outside the
+     embedded assortment master. They are intentionally not presented as an
+     "Other" category, but Category Wise still needs to reconcile to actual sales.
+     Therefore, when Category = All, add those off-list values to the TOTAL only.
+     They are not allocated into a made-up category. */
+  if (!state.cat.size && state.showRegular && OTHER >= 0 && yi >= 0){
+    var obase=OTHER*span+yi*12;
+    for (var om=0;om<12;om++){
+      if (year === YEARS[NY-1] && om > LASTM) continue;
+      unmapped[om]=arr[obase+om]||0;
+    }
+  }
+
   CATWISE_BASE.forEach(function(c){
     for (var m=0;m<12;m++) totalMonths[m] += out[c][m];
   });
-  return {year:year, rows:out, totals:totalMonths};
+  for (var tm=0;tm<12;tm++) totalMonths[tm] += unmapped[tm];
+
+  return {year:year, rows:out, totals:totalMonths, unmapped:unmapped};
 }
 function visitCategoryWise(){
   var metric=VISIT_CAT_METRIC, isValue=metric==='value', d=categoryWiseSeries(metric);
@@ -4526,7 +4542,11 @@ function visitCategoryWise(){
     '<div class="cht">Category Wise</div>'+
     '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+year+(latest?' YTD':'')+'</div>'+
     h+
-    '<div class="ovcatnote">Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.</div>';
+    '<div class="ovcatnote">Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.'+
+    ((!state.cat.size && d.unmapped && d.unmapped.some(function(v){ return Math.abs(v)>0.0000001; }))
+      ? ' Total also includes sales from off-list item codes so it reconciles to actual sales; those values are not shown as an “Other” category.'
+      : '')+
+    '</div>';
 }
 
 
