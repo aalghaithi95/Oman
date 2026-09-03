@@ -794,23 +794,43 @@ body.mdopen #mdWrap{display:block}
 .kpi.clickable:hover .opn{background:#FBF3E1}
 /* a fixed table takes its widths from the first row, and that row is the caption,
    so the columns are sized here instead */
-.imtbl.sitelist{table-layout:fixed}
-.imtbl.sitelist col.w-name{width:35%}
-.imtbl.sitelist col.w-site{width:35%}
-.imtbl.sitelist colgroup col.w-open ~ col.w-area{width:11%}
+.imtbl.sitelist{table-layout:fixed;min-width:0}
+.imtbl.sitelist col.w-name{width:27%}
+.imtbl.sitelist col.w-site{width:30%}
+.imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:13%}
 .imtbl.sitelist col.w-area{width:12%}
 .imtbl.sitelist col.w-val{width:18%}
-.imtbl.sitelist td.c-name,.imtbl.sitelist td.c-site{white-space:normal;word-break:break-word;
+.imtbl.sitelist td.c-name,.imtbl.sitelist td.c-site{white-space:normal;overflow-wrap:anywhere;word-break:break-word;
   line-height:1.25;text-align:left}
-.imtbl.sitelist th{text-align:left}
+.imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area,
+.imtbl.sitelist td.c-val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.imtbl.sitelist th{text-align:left;overflow:hidden;text-overflow:ellipsis}
 .imtbl.sitelist th.n,.imtbl.sitelist td.n{text-align:right}
 .imtbl.sitelist tfoot th{background:var(--paper-2);border:1px solid var(--line);
   padding:6px 8px;font-size:11.5px;text-align:left}
 .imtbl.sitelist tfoot th.n{text-align:right}
-.sitetools{display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px}
-.sitetools .btn{padding:5px 12px;font-size:11.5px}
+.sitetools{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:0 0 10px}
+.site-month-filter{display:inline-flex;align-items:center;gap:6px;margin-right:auto;min-width:0}
+.site-month-filter span{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.site-month-filter select{padding:5px 24px 5px 7px;border:1px solid var(--line);border-radius:var(--r);background:#fff;font-size:11.5px;min-width:110px}
+.sitetools .btn{padding:5px 12px;font-size:11.5px;white-space:nowrap}
 @media (max-width:760px){
-  .imtbl.sitelist{font-size:11px}
+  .imtbl.sitelist{width:100%;min-width:0!important;table-layout:fixed;font-size:8.8px}
+  .imtbl.sitelist col.w-name{width:25%}
+  .imtbl.sitelist col.w-site{width:28%}
+  .imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:13%}
+  .imtbl.sitelist col.w-area{width:14%}
+  .imtbl.sitelist col.w-val{width:20%}
+  .imtbl.sitelist thead tr:last-child th{padding:5px 2px;font-size:7.5px;white-space:normal;line-height:1.1}
+  .imtbl.sitelist tbody td{padding:5px 3px;font-size:8.6px;line-height:1.15}
+  .imtbl.sitelist td.c-val{font-size:8.3px;letter-spacing:-.35px}
+  .imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area{font-size:8.2px}
+  .imtbl.sitelist tfoot th{padding:5px 3px;font-size:8.5px}
+  .sitetools{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+  .site-month-filter{margin-right:0;width:100%}
+  .site-month-filter span{display:none}
+  .site-month-filter select{width:100%;min-width:0;font-size:11px;padding:6px 20px 6px 6px}
+  .sitetools .btn{padding:6px 8px;font-size:10px}
   .kpi .opn{font-size:8px}
 }
 
@@ -2405,12 +2425,15 @@ function ensureA(){
    year, so narrowing the period never adds or removes an outlet. The money
    column does follow the period. */
 var siteBilledA = null, siteBilledB = null, siteValA = null, siteValB = null;
-var siteFirstB = null;      /* first month of the current year the outlet was billed */
+var siteFirstB = null;      /* first month of the compare year the outlet was billed */
+var siteLastA = null;       /* last month of the base year the outlet was billed */
 function aggregate(){
   ensureA();
   buildMask();
   if (!siteFirstB || siteFirstB.length !== SITES.length) siteFirstB = new Int32Array(SITES.length);
+  if (!siteLastA || siteLastA.length !== SITES.length) siteLastA = new Int32Array(SITES.length);
   siteFirstB.fill(-1);
+  siteLastA.fill(-1);
   if (!siteBilledA || siteBilledA.length !== SITES.length){
     siteBilledA = new Uint8Array(SITES.length);
     siteBilledB = new Uint8Array(SITES.length);
@@ -2431,8 +2454,11 @@ function aggregate(){
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
     /* whole-year presence decides who is new and who is lost */
     var billedHere = (fq[k] > 0 || fv[k] > 0);
-    if (yi === ia && billedHere) siteBilledA[fs[k]] = 1;
-    else if (yi === ib && billedHere){
+    if (yi === ia && billedHere){
+      siteBilledA[fs[k]] = 1;
+      var mm1 = fp[k] % 12;
+      if (siteLastA[fs[k]] < 0 || mm1 > siteLastA[fs[k]]) siteLastA[fs[k]] = mm1;
+    } else if (yi === ib && billedHere){
       siteBilledB[fs[k]] = 1;
       var mm2 = fp[k] % 12;
       if (siteFirstB[fs[k]] < 0 || mm2 < siteFirstB[fs[k]]) siteFirstB[fs[k]] = mm2;
@@ -6490,156 +6516,247 @@ document.getElementById('tabs').addEventListener('click', function(e){
 });
 
 /* ================= new and lost outlets =================
-   The two cards open the outlets behind them. A new site shows what it has
-   bought so far this year; a lost one shows what it was worth over the whole of
-   the base year, which is what walking away actually cost. */
-function openSiteList(kind){
-  aggregate();
-  var isNew = kind === 'new', out = [];
-  for (var s=0;s<SITES.length;s++){
-    if (!mask[s]) continue;
-    if (isNew ? !(siteBilledB[s] && !siteBilledA[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
-    out.push({s:s, v: isNew ? siteValB[s] : siteValA[s]});
+   The two cards open the outlets behind them. New customers are grouped by
+   their first billed month in the comparison year; Lost customers are grouped
+   by their last billed month in the base year. The Month filter in the popup
+   narrows the list without changing the main dashboard filters. */
+var siteListData = null;
+
+function siteListMonthValue(s, isNew){
+  return isNew ? (siteFirstB ? siteFirstB[s] : -1)
+               : (siteLastA ? siteLastA[s] : -1);
+}
+function siteListMonthLabel(m, year){
+  return m < 0 ? '—' : MONTHS[m] + " '" + String(year).slice(2);
+}
+function openMonth(s){
+  return siteListMonthLabel(siteFirstB ? siteFirstB[s] : -1, state.yrB);
+}
+function lastBilledMonth(s){
+  return siteListMonthLabel(siteLastA ? siteLastA[s] : -1, state.yrA);
+}
+function siteListFilteredRows(){
+  if (!siteListData) return [];
+  var fm = siteListData.month;
+  return siteListData.allRows.filter(function(r){
+    return fm < 0 || r.month === fm;
+  });
+}
+function siteListMonthOptions(){
+  if (!siteListData) return '<option value="-1">All months</option>';
+  var seen={}, opts=['<option value="-1">All months</option>'];
+  siteListData.allRows.forEach(function(r){ if (r.month >= 0) seen[r.month]=1; });
+  for (var m=0;m<12;m++){
+    if (!seen[m]) continue;
+    opts.push('<option value="'+m+'"'+(siteListData.month===m?' selected':'')+'>'+MONTHS[m]+'</option>');
   }
-  out.sort(function(a,b){ return b.v - a.v; });
+  return opts.join('');
+}
+function renderSiteListBody(){
+  if (!siteListData) return;
+  var isNew=siteListData.isNew;
+  var rows=siteListFilteredRows();
+  var total=rows.reduce(function(a,r){ return a+r.v; },0);
+  siteListData.rows=rows;
+  siteListData.total=total;
 
-  var total = out.reduce(function(a,r){ return a + r.v; }, 0);
-  var valHead = (isNew ? state.yrB : state.yrA) + ' ' + periodLabel();
   document.getElementById('imTitle').textContent =
-    (isNew ? 'New customer sites' : 'Lost customer sites') + ' — ' + out.length;
-  document.getElementById('imSub').textContent =
-    (isNew ? 'Billed in ' + state.yrB + ', nothing in ' + state.yrA
-           : 'Billed in ' + state.yrA + ', nothing in ' + state.yrB) +
-    ' · ' + depLabel() + ' · ' + siteScopeLabel();
+    (isNew ? 'New customer sites' : 'Lost customer sites') + ' — ' + rows.length;
 
-  siteListData = {kind:kind, isNew:isNew, rows:out, total:total, valHead:valHead};
+  var body=document.getElementById('imBody');
+  if (!siteListData.allRows.length){
+    body.innerHTML='<div class="imnote">Nothing to show for this selection.</div>';
+    return;
+  }
 
-  document.getElementById('imBody').innerHTML = out.length
-    ? '<div class="sitetools">' +
-        '<button class="btn ghost" id="slCsv" type="button">Export CSV</button>' +
-        '<button class="btn" id="slPdf" type="button">Download PDF</button>' +
-      '</div>' +
-      '<table class="imtbl vhist sitelist">' +
-      (isNew
-        ? '<colgroup><col class="w-name"><col class="w-site"><col class="w-open"><col class="w-area"><col class="w-val"></colgroup>'
-        : '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>') +
+  var monthTitle=isNew ? 'Open Month' : 'Last Billed';
+  var colClass=isNew ? 'w-open' : 'w-last';
+  var cellClass=isNew ? 'c-open' : 'c-last';
+
+  var html =
+    '<div class="sitetools">' +
+      '<label class="site-month-filter"><span>Month</span><select id="slMonth" aria-label="'+monthTitle+' filter">'+
+        siteListMonthOptions()+
+      '</select></label>'+
+      '<button class="btn ghost" id="slCsv" type="button">Export CSV</button>' +
+      '<button class="btn" id="slPdf" type="button">Download PDF</button>' +
+    '</div>';
+
+  if (!rows.length){
+    html += '<div class="imnote">No customer sites match the selected month.</div>';
+    body.innerHTML=html;
+    return;
+  }
+
+  html +=
+    '<table class="imtbl vhist sitelist">' +
+      '<colgroup><col class="w-name"><col class="w-site"><col class="'+colClass+'"><col class="w-area"><col class="w-val"></colgroup>' +
       '<thead>' +
-        '<tr class="cap"><th colspan="' + (isNew ? 5 : 4) + '">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
+        '<tr class="cap"><th colspan="5">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
         '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th>' +
-        (isNew ? '<th class="c-open">Open Month</th>' : '') +
-        '<th class="c-area">Area</th><th class="n c-val">' + esc(valHead) + '</th></tr>' +
+        '<th class="'+cellClass+'">'+monthTitle+'</th>' +
+        '<th class="c-area">Area</th><th class="n c-val">' + esc(siteListData.valHead) + '</th></tr>' +
       '</thead><tbody>' +
-      out.map(function(r){
+      rows.map(function(r){
+        var monthText=isNew ? openMonth(r.s) : lastBilledMonth(r.s);
         return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
                '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
-               (isNew ? '<td class="c-open">' + esc(openMonth(r.s)) + '</td>' : '') +
+               '<td class="'+cellClass+'">' + esc(monthText) + '</td>' +
                '<td class="c-area">' + esc(areaLabel(areaOf[r.s])) + '</td>' +
                '<td class="n c-val">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
       }).join('') +
-      '</tbody><tfoot><tr><th colspan="' + (isNew ? 4 : 3) + '">Total</th>' +
+      '</tbody><tfoot><tr><th colspan="4">Total</th>' +
       '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
       '<div class="imnote">' + (isNew
-        ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA + '.'
+        ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA +
+          '. The popup Month filter uses the first billed month in ' + state.yrB + '.'
         : 'Outlets that bought in ' + state.yrA + ' and have not ordered at all in ' + state.yrB +
-          ' — the business at stake.') +
-      ' Who is on this list is judged on the whole of each year, so the period picker never ' +
-      'changes the names; the value column shows ' + periodLabel() +
-      '. Follows the area, customer and site pickers above.</div>'
-    : '<div class="imnote">Nothing to show for this selection.</div>';
+          ' — the business at stake. The popup Month filter uses the last billed month in ' + state.yrA + '.') +
+      ' Membership is still judged on the whole of each year; the value column shows ' + periodLabel() +
+      '. Follows the area, customer and site pickers above.</div>';
 
-  document.body.classList.add('imopen');
-  document.getElementById('imWrap').scrollTop = 0;
+  body.innerHTML=html;
 }
+
+function openSiteList(kind){
+  aggregate();
+  var isNew=kind==='new', out=[];
+  for (var s=0;s<SITES.length;s++){
+    if (!mask[s]) continue;
+    if (isNew ? !(siteBilledB[s] && !siteBilledA[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
+    out.push({
+      s:s,
+      v:isNew ? siteValB[s] : siteValA[s],
+      month:siteListMonthValue(s,isNew)
+    });
+  }
+  out.sort(function(a,b){ return b.v-a.v; });
+
+  var valHead=(isNew ? state.yrB : state.yrA)+' '+periodLabel();
+  document.getElementById('imSub').textContent =
+    (isNew ? 'Billed in '+state.yrB+', nothing in '+state.yrA
+           : 'Billed in '+state.yrA+', nothing in '+state.yrB) +
+    ' · '+depLabel()+' · '+siteScopeLabel();
+
+  siteListData={
+    kind:kind,
+    isNew:isNew,
+    allRows:out,
+    rows:out.slice(),
+    month:-1,
+    total:out.reduce(function(a,r){ return a+r.v; },0),
+    valHead:valHead
+  };
+
+  renderSiteListBody();
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop=0;
+}
+
 document.getElementById('kpis').addEventListener('click', function(e){
-  var card = e.target.closest('.kpi.clickable');
+  var card=e.target.closest('.kpi.clickable');
   if (!card) return;
   openSiteList(card.dataset.open);
 });
 
 /* ---------- taking the list away with you ---------- */
-var siteListData = null;
-/* the month the outlet first billed this year */
-function openMonth(s){
-  var m = siteFirstB ? siteFirstB[s] : -1;
-  return m < 0 ? '' : MONTHS[m] + " '" + String(state.yrB).slice(2);
-}
 function siteListName(ext){
-  if (!siteListData) return 'sites.' + ext;
-  return 'Delicio ' + (siteListData.isNew ? 'new' : 'lost') + ' customer sites - ' +
-         depLabel().replace(/[\\/:*?"<>|]/g,'-') + ' - ' +
-         (siteListData.isNew ? state.yrB : state.yrA) + ' ' + periodLabel() + '.' + ext;
+  if (!siteListData) return 'sites.'+ext;
+  var monthPart=siteListData.month>=0 ? ' - '+MONTHS[siteListData.month] : '';
+  return 'Delicio '+(siteListData.isNew ? 'new' : 'lost')+' customer sites - '+
+         depLabel().replace(/[\\/:*?"<>|]/g,'-')+' - '+
+         (siteListData.isNew ? state.yrB : state.yrA)+' '+periodLabel()+monthPart+'.'+ext;
 }
 function siteListCsv(){
   if (!siteListData || !siteListData.rows.length) return;
-  var head = ['Customer','Customer Site','Site Code','Area','Channel','Last Active Salesman',
-              siteListData.valHead];
-  var lines = [head.join(',')];
+  var monthHead=siteListData.isNew ? 'Open Month' : 'Last Billed';
+  var head=['Customer','Customer Site',monthHead,'Site Code','Area','Channel','Last Active Salesman',
+            siteListData.valHead];
+  var lines=[head.join(',')];
+
   siteListData.rows.forEach(function(r){
-    var s = SITES[r.s];
+    var s=SITES[r.s];
+    var monthText=siteListData.isNew ? openMonth(r.s) : lastBilledMonth(r.s);
     lines.push([
-      '"' + String(s[0]).replace(/"/g,'""') + '"',
-      '"' + String(s[1]).replace(/"/g,'""') + '"',
+      '"'+String(s[0]).replace(/"/g,'""')+'"',
+      '"'+String(s[1]).replace(/"/g,'""')+'"',
+      '"'+monthText.replace(/"/g,'""')+'"',
       s[2],
-      '"' + String(areaLabel(areaOf[r.s])).replace(/"/g,'""') + '"',
+      '"'+String(areaLabel(areaOf[r.s])).replace(/"/g,'""')+'"',
       s[3],
-      '"' + String(s[5] || '').replace(/"/g,'""') + '"',
+      '"'+String(s[5]||'').replace(/"/g,'""')+'"',
       r.v.toFixed(2)
     ].join(','));
   });
-  lines.push(['Total','','','','','', siteListData.total.toFixed(2)].join(','));
-  var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = siteListName('csv');
+  lines.push(['Total','','','','','','',siteListData.total.toFixed(2)].join(','));
+
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=siteListName('csv');
   a.click();
   URL.revokeObjectURL(a.href);
 }
 function siteListPdf(){
   if (!siteListData || !siteListData.rows.length) return;
-  var d = new Date();
-  var stamp = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  var rows = siteListData.rows.map(function(r){
-    var s = SITES[r.s];
-    return [s[0], s[1], areaLabel(areaOf[r.s]), s[5] || '-',
+  var d=new Date();
+  var stamp=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  var monthHead=siteListData.isNew ? 'OPEN MONTH' : 'LAST BILLED';
+
+  var rows=siteListData.rows.map(function(r){
+    var s=SITES[r.s];
+    var monthText=siteListData.isNew ? openMonth(r.s) : lastBilledMonth(r.s);
+    return [s[0],s[1],monthText,areaLabel(areaOf[r.s]),s[5]||'-',
             r.v ? nf0.format(Math.round(r.v)) : '-'];
   });
-  rows.push(['TOTAL', '', '', '', nf0.format(Math.round(siteListData.total))]);
-  var bytes = reportPdf({
-    title: siteListData.isNew ? 'New customer sites' : 'Lost customer sites',
-    period: yearsLabel(),
-    yrA: state.yrA, yrB: state.yrB,
-    cols: [
-      {t:'CUSTOMER',      w:150},
-      {t:'CUSTOMER SITE', w:150},
-      {t:'AREA',          w:58},
-      {t:'SALESMAN',      w:78},
-      {t:siteListData.valHead.toUpperCase(), w:79, a:'r'}
+  rows.push(['TOTAL','','','','',nf0.format(Math.round(siteListData.total))]);
+
+  var bytes=reportPdf({
+    title:siteListData.isNew ? 'New customer sites' : 'Lost customer sites',
+    period:yearsLabel(),
+    yrA:state.yrA, yrB:state.yrB,
+    cols:[
+      {t:'CUSTOMER',w:122},
+      {t:'CUSTOMER SITE',w:128},
+      {t:monthHead,w:58},
+      {t:'AREA',w:55},
+      {t:'SALESMAN',w:72},
+      {t:siteListData.valHead.toUpperCase(),w:80,a:'r'}
     ],
-    note: (siteListData.isNew
-      ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA + '.'
-      : 'Outlets that bought in ' + state.yrA + ' and have not ordered at all in ' + state.yrB +
-        ' - the business at stake.') +
-      ' Membership is judged on the whole of each year; the value column covers ' + periodLabel() + '.',
-    meta: [
-      ['Report', siteListData.isNew ? 'New customer sites' : 'Lost customer sites'],
-      ['Run on', stamp],
-      ['Department', depLabel()],
-      ['Selection', scopeNames()],
-      ['Compared', state.yrB + ' vs ' + state.yrA + ' \u00b7 ' + periodLabel()],
-      ['Outlets', String(siteListData.rows.length)],
-      ['Value', nf0.format(Math.round(siteListData.total))]
+    note:(siteListData.isNew
+      ? 'Outlets that bought in '+state.yrB+' and never in '+state.yrA+'.'
+      : 'Outlets that bought in '+state.yrA+' and have not ordered at all in '+state.yrB+
+        ' - the business at stake.')+
+      ' The popup month filter is based on '+(siteListData.isNew ? 'first billed month.' : 'last billed month.')+
+      ' Membership is judged on the whole of each year; the value column covers '+periodLabel()+'.',
+    meta:[
+      ['Report',siteListData.isNew ? 'New customer sites' : 'Lost customer sites'],
+      ['Run on',stamp],
+      ['Department',depLabel()],
+      ['Selection',scopeNames()],
+      ['Month',siteListData.month<0 ? 'All months' : MONTHS[siteListData.month]],
+      ['Compared',state.yrB+' vs '+state.yrA+' · '+periodLabel()],
+      ['Outlets',String(siteListData.rows.length)],
+      ['Value',nf0.format(Math.round(siteListData.total))]
     ]
-  }, rows);
-  var blob = new Blob([bytes], {type:'application/pdf'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = siteListName('pdf');
+  },rows);
+
+  var blob=new Blob([bytes],{type:'application/pdf'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download=siteListName('pdf');
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  setTimeout(function(){ URL.revokeObjectURL(url); },4000);
 }
+
 document.getElementById('imBody').addEventListener('click', function(e){
   if (e.target.closest('#slCsv')) siteListCsv();
   else if (e.target.closest('#slPdf')) siteListPdf();
+});
+document.getElementById('imBody').addEventListener('change', function(e){
+  if (!e.target || e.target.id!=='slMonth' || !siteListData) return;
+  siteListData.month=+e.target.value;
+  renderSiteListBody();
 });
 
 /* ================= performance by area =================
