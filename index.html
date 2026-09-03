@@ -493,8 +493,12 @@ body.imopen{overflow:hidden}
 .ovpromo-wrap .ovtbl tr.pi th,.ovpromo-wrap .ovtbl tr.pi td{background:#F4F7F6;font-weight:600}
 .ovpromo-wrap .ovtbl tr.pi td{font-size:10.5px}
 .ovpromo-note{font-size:10px;color:var(--muted);text-align:center;margin-top:8px}
+.ovpromo-desktop{display:block}
+.ovpromo-mobile{display:none}
 .ovrd-desktop{display:block}
 .ovrd-mobile{display:none}
+.ovcat-desktop{display:block}
+.ovcat-mobile{display:none}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
@@ -537,6 +541,47 @@ body.imopen{overflow:hidden}
   .ovmobtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
   .ovmobtbl tr.tot th,.ovmobtbl tr.tot td{background:#F7F9F8;font-weight:600}
   .ovmobtbl .z{color:var(--muted)}
+
+  /* Category Wise mobile: keep values inside their own cells and only show active months. */
+  .ovcat-desktop{display:none}
+  .ovcat-mobile{display:block}
+  .ovcat-mobile .ovcatmobwrap{overflow-x:auto;padding-top:4px;-webkit-overflow-scrolling:touch}
+  .ovcatmobtbl{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed;font-size:9px;margin-top:6px}
+  .ovcatmobtbl .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:9.5px;text-align:center;
+    padding:6px 3px;border:1px solid #E4CDBE;letter-spacing:.02em}
+  .ovcatmobtbl thead tr:last-child th{background:#fff;border:1px solid var(--line);padding:5px 2px;
+    font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.02em;text-transform:none;
+    color:var(--muted);text-align:center;white-space:nowrap}
+  .ovcatmobtbl thead tr:last-child th:first-child{text-align:left;width:98px}
+  .ovcatmobtbl tbody th{background:#FFF9D6;border:1px solid var(--line);padding:6px 4px;text-align:left;
+    font-weight:600;font-size:8.8px;white-space:normal;line-height:1.15;word-break:break-word}
+  .ovcatmobtbl td{border:1px solid var(--line);padding:5px 3px;text-align:center;
+    font-family:'IBM Plex Mono',monospace;font-size:8.3px;white-space:nowrap;overflow:hidden}
+  .ovcatmobtbl td .ly{margin-left:2px;font-size:7px;vertical-align:1px}
+  .ovcatmobtbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)!important;color:transparent}
+  .ovcatmobtbl .tot{font-weight:600;background:#F7F9F8}
+  .ovcatmobtbl .cont{font-weight:600}
+  .ovcatmobtbl tr.grand th,.ovcatmobtbl tr.grand td{font-weight:700;background:#F1F4F2;border-top:1.5px solid var(--ink-3)}
+
+  /* Promo % mobile: same idea as Monthly Run Down, months in rows and each year in its own compact table. */
+  .ovpromo-desktop{display:none}
+  .ovpromo-mobile{display:block}
+  .ovpromo-mobile .ovrundown{overflow-x:auto;padding:4px 0 2px;-webkit-overflow-scrolling:touch}
+  .ovpromogrid{display:grid;grid-template-columns:repeat(2,minmax(255px,1fr));gap:8px;min-width:518px}
+  .ovpromotbl{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed;font-size:9px;margin:0}
+  .ovpromotbl .cap th{background:#FBEDE4;color:var(--ink);font-weight:600;font-size:9.5px;text-align:center;
+    padding:6px 3px;border:1px solid #E4CDBE;letter-spacing:.02em}
+  .ovpromotbl thead tr:last-child th{background:#fff;border:1px solid var(--line);padding:5px 2px;
+    font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.02em;text-transform:none;
+    color:var(--muted);text-align:center;white-space:nowrap}
+  .ovpromotbl thead tr:last-child th:first-child{text-align:left;width:42px}
+  .ovpromotbl tbody th{background:#FFF9D6;border:1px solid var(--line);padding:5px 3px;text-align:left;
+    font-weight:600;font-size:8.5px;white-space:nowrap}
+  .ovpromotbl td{border:1px solid var(--line);padding:5px 3px;text-align:center;
+    font-family:'IBM Plex Mono',monospace;font-size:8.4px;white-space:nowrap;letter-spacing:-.2px}
+  .ovpromotbl td.off{background:repeating-linear-gradient(135deg,#FAFAF8,#FAFAF8 4px,#F1F1EE 4px,#F1F1EE 8px)}
+  .ovpromotbl tr.tot th,.ovpromotbl tr.tot td{background:#F7F9F8;font-weight:600}
+  .ovpromotbl tr.pi th,.ovpromotbl tr.pi td{background:#F4F7F6;font-weight:600}
   #tbl tbody td.desc{text-decoration-color:rgba(19,76,140,.45)}
 }
 
@@ -4490,6 +4535,7 @@ function categoryWiseSeries(metric, yearOverride){
 
   return {year:year, rows:out, totals:totalMonths, unmapped:unmapped};
 }
+
 function visitCategoryWise(){
   var metric=VISIT_CAT_METRIC, isValue=metric==='value', d=categoryWiseSeries(metric);
   var prev=categoryWiseSeries(metric, state.yrA);
@@ -4508,31 +4554,37 @@ function visitCategoryWise(){
     return isValue ? nf0.format(Math.round(v)) : nf2.format(v);
   }
 
-  var h='<div class="ovcatwrap"><table class="ovcatmonthly"><thead>'+
-        '<tr class="cap"><th colspan="15">'+title+' ('+year+(latest?' YTD':'')+')</th></tr>'+
-        '<tr><th>Category</th>';
-  for (var m=0;m<12;m++) h += '<th>'+MONTHS[m]+'</th>';
-  h += '<th>Total</th><th>Cont</th></tr></thead><tbody>';
-
-  CATWISE_BASE.forEach(function(c){
-    var vals=d.rows[c], prevVals=prev.rows[c], tot=0, prevTot=0;
-    h += '<tr><th>'+esc(c)+'</th>';
+  function tableHtml(cls, onlyActiveMonths){
+    var months = [];
     for (var m=0;m<12;m++){
-      if (m < startM || m > endM){ h += '<td class="off"></td>'; continue; }
-      var v=vals[m]||0, pv=prevVals[m]||0; tot+=v; prevTot+=pv;
-      h += '<td>'+f(v)+arrowLYCW(pv,v)+'</td>';
+      if (!onlyActiveMonths || (m >= startM && m <= endM)) months.push(m);
     }
-    var cont=yearTotal ? tot/yearTotal*100 : 0;
-    var prevCont=prevYearTotal ? prevTot/prevYearTotal*100 : 0;
-    h += '<td class="tot">'+f(tot)+arrowLYCW(prevTot,tot)+'</td><td class="cont">'+nf2.format(cont)+'%'+arrowLYCW(prevCont,cont)+'</td></tr>';
-  });
 
-  h += '<tr class="grand"><th>Total</th>';
-  for (var m=0;m<12;m++){
-    if (m < startM || m > endM){ h += '<td class="off"></td>'; continue; }
-    h += '<td>'+f(d.totals[m])+arrowLYCW(prev.totals[m]||0,d.totals[m]||0)+'</td>';
+    var h='<div class="'+cls+'"><div class="ovcatmobwrap"><table class="'+(cls==='ovcat-mobile'?'ovcatmobtbl':'ovcatmonthly')+'"><thead>'+
+          '<tr class="cap"><th colspan="'+(months.length+3)+'">'+title+' ('+year+(latest?' YTD':'')+')</th></tr>'+
+          '<tr><th>Category</th>';
+    months.forEach(function(m){ h += '<th>'+MONTHS[m]+'</th>'; });
+    h += '<th>Total</th><th>Cont</th></tr></thead><tbody>';
+
+    CATWISE_BASE.forEach(function(c){
+      var vals=d.rows[c], prevVals=prev.rows[c], tot=0, prevTot=0;
+      h += '<tr><th>'+esc(c)+'</th>';
+      months.forEach(function(m){
+        var v=vals[m]||0, pv=prevVals[m]||0; tot+=v; prevTot+=pv;
+        h += '<td>'+f(v)+arrowLYCW(pv,v)+'</td>';
+      });
+      var cont=yearTotal ? tot/yearTotal*100 : 0;
+      var prevCont=prevYearTotal ? prevTot/prevYearTotal*100 : 0;
+      h += '<td class="tot">'+f(tot)+arrowLYCW(prevTot,tot)+'</td><td class="cont">'+nf2.format(cont)+'%'+arrowLYCW(prevCont,cont)+'</td></tr>';
+    });
+
+    h += '<tr class="grand"><th>Total</th>';
+    months.forEach(function(m){
+      h += '<td>'+f(d.totals[m])+arrowLYCW(prev.totals[m]||0,d.totals[m]||0)+'</td>';
+    });
+    h += '<td class="tot">'+f(yearTotal)+arrowLYCW(prevYearTotal,yearTotal)+'</td><td class="cont">100.00%</td></tr></tbody></table></div></div>';
+    return h;
   }
-  h += '<td class="tot">'+f(yearTotal)+arrowLYCW(prevYearTotal,yearTotal)+'</td><td class="cont">100.00%</td></tr></tbody></table></div>';
 
   return visitViewButtons('category')+
     '<div class="ovmetricbar catmetric">'+
@@ -4541,7 +4593,8 @@ function visitCategoryWise(){
     '</div>'+
     '<div class="cht">Category Wise</div>'+
     '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+year+(latest?' YTD':'')+'</div>'+
-    h+
+    tableHtml('ovcat-desktop', false)+
+    tableHtml('ovcat-mobile', true)+
     '<div class="ovcatnote">Cross-category promotion packs are split back into the normal base categories using the uploaded workbook allocation.'+
     ((!state.cat.size && d.unmapped && d.unmapped.some(function(v){ return Math.abs(v)>0.0000001; }))
       ? ' Total also includes sales from off-list item codes so it reconciles to actual sales; those values are not shown as an “Other” category.'
@@ -4667,6 +4720,7 @@ function visitValueChart(){
 
 
 
+
 function visitPromoPercentage(){
   var metric=VISIT_CAT_METRIC, isValue=metric==='value';
   var arr=isValue ? A.mv : A.mq, span=NY*12;
@@ -4709,7 +4763,7 @@ function visitPromoPercentage(){
     return prom/den*100;
   }
 
-  function table(y){
+  function desktopTable(y){
     var d=buildYear(y), latest=(y===2026), regTot=0, proTot=0, grandTot=0;
     var cap=(isValue?'SALES IN VALUE':'SALES IN VOLUME (CASES)')+' — '+y+(latest?' YTD':'');
     var h='<table class="ovtbl"><thead>'+
@@ -4753,8 +4807,34 @@ function visitPromoPercentage(){
     return h;
   }
 
-  var tables='';
-  years.forEach(function(y){ tables+=table(y); });
+  function mobileTable(y){
+    var d=buildYear(y), latest=(y===2026), regTot=0, proTot=0, grandTot=0;
+    var cap=(isValue?'SALES IN VALUE':'SALES IN VOLUME (CASES)')+' — '+y+(latest?' YTD':'');
+    var h='<table class="ovpromotbl"><thead>'+
+      '<tr class="cap"><th colspan="5">'+cap+'</th></tr>'+
+      '<tr><th>Month</th><th>Total</th><th>Regular</th><th>Promo</th><th>Promo %</th></tr></thead><tbody>';
+
+    for (var m=0;m<12;m++){
+      h += '<tr><th>'+MONTHS[m]+'</th>';
+      if (!isActive(y,m)){
+        h += '<td class="off"></td><td class="off"></td><td class="off"></td><td class="off"></td></tr>';
+        continue;
+      }
+      var rv=d.regular[m]||0, pv=d.promo[m]||0, tv=rv+pv;
+      regTot += rv; proTot += pv; grandTot += tv;
+      h += '<td>'+f(tv)+'</td><td>'+f(rv)+'</td><td>'+f(pv)+'</td><td>'+nf2.format(intensity(rv,pv))+'%</td></tr>';
+    }
+
+    h += '<tr class="tot"><th>Total</th><td>'+f(grandTot)+'</td><td>'+f(regTot)+'</td><td>'+f(proTot)+'</td><td>'+nf2.format(intensity(regTot,proTot))+'%</td></tr>';
+    h += '</tbody></table>';
+    return h;
+  }
+
+  var desktopTables='', mobileTables='';
+  years.forEach(function(y){
+    desktopTables += desktopTable(y);
+    mobileTables += mobileTable(y);
+  });
 
   return visitViewButtons('promo')+
     '<div class="ovmetricbar catmetric">'+
@@ -4763,7 +4843,8 @@ function visitPromoPercentage(){
     '</div>'+
     '<div class="cht">Promo %</div>'+
     '<div class="chs">'+depLabel()+' · '+scopeNames()+' · Regular vs Promotion</div>'+
-    '<div class="ovpromo-wrap">'+tables+'</div>'+
+    '<div class="ovpromo-desktop"><div class="ovpromo-wrap">'+desktopTables+'</div></div>'+
+    '<div class="ovpromo-mobile"><div class="ovrundown"><div class="ovpromogrid">'+mobileTables+'</div></div></div>'+
     '<div class="ovpromo-note">Promo Intensity = Promotion ÷ (Regular + Promotion). 2025 stays full-year; 2026 follows the selected month period.</div>';
 }
 
