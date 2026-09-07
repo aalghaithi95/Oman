@@ -270,35 +270,50 @@ tr.ok td.desc{color:var(--pos)}
 
 /* ---------- Tab 1 Customer Wise ---------- */
 .ovcustwrap{
-  overflow:auto;-webkit-overflow-scrolling:touch;padding-top:5px;
-  max-height:455px;border-bottom:1px solid var(--line)
+  overflow:auto;-webkit-overflow-scrolling:touch;padding:0;
+  max-height:455px;border:1px solid var(--line);background:#fff;
+  position:relative;isolation:isolate
 }
 .ovcusttbl{
-  width:100%;min-width:920px;border-collapse:collapse;table-layout:fixed;
-  font-size:11px;margin-top:8px
+  width:100%;min-width:920px;border-collapse:separate;border-spacing:0;table-layout:fixed;
+  font-size:11px;margin:0;background:#fff
 }
+/* Sticky individual header cells are more reliable than sticky THEAD in
+   Safari/Chrome when the table scrolls both vertically and horizontally.
+   Explicit header heights remove any gap where row names could bleed through. */
 .ovcusttbl .cap th{
-  position:sticky;top:0;z-index:7;background:#FBEDE4;color:var(--ink);
-  font-weight:600;font-size:11px;text-align:center;padding:7px 5px;
-  border:1px solid #E4CDBE;letter-spacing:.03em
+  position:sticky;top:0;z-index:32;height:32px;box-sizing:border-box;
+  background:#FBEDE4;color:var(--ink);font-weight:600;font-size:11px;
+  text-align:center;padding:0 5px;line-height:30px;
+  border:0;border-bottom:1px solid #E4CDBE;letter-spacing:.03em;
+  background-clip:padding-box
 }
 .ovcusttbl thead tr:last-child th{
-  position:sticky;top:33px;z-index:6;background:#fff;border:1px solid var(--line);
-  padding:6px 5px;font-family:'IBM Plex Mono',monospace;font-size:9px;
-  letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
-  text-align:center;white-space:nowrap
+  position:sticky;top:32px;z-index:31;height:31px;box-sizing:border-box;
+  background:#fff;border:0;border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);padding:0 5px;line-height:30px;
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted);text-align:center;white-space:nowrap;
+  background-clip:padding-box
 }
-.ovcusttbl thead tr:last-child th:first-child{text-align:left;width:122px;color:var(--ink)}
+.ovcusttbl thead tr:last-child th:first-child{border-left:1px solid var(--line)}
+.ovcusttbl thead tr:last-child th:first-child{text-align:left;width:122px;color:var(--ink);border-left:1px solid var(--line)}
 .ovcusttbl tbody th{
-  background:#FFF9D6;border:1px solid var(--line);padding:7px 7px;text-align:left;
-  font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  position:relative;z-index:1;background:#FFF9D6;
+  border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:7px 7px;text-align:left;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis
 }
 .ovcusttbl tbody td{
-  border:1px solid var(--line);padding:7px 5px;text-align:center;
-  font-family:'IBM Plex Mono',monospace;white-space:nowrap;overflow:hidden
+  position:relative;z-index:1;background:#fff;
+  border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:7px 5px;text-align:center;font-family:'IBM Plex Mono',monospace;
+  white-space:nowrap;overflow:hidden
 }
+.ovcusttbl tbody tr > :first-child{border-left:1px solid var(--line)}
 .ovcusttbl .tot{font-weight:600;background:#F7F9F8}
-.ovcusttbl .vsly{font-weight:600;width:68px}
+.ovcusttbl .vsly{font-weight:600;width:68px;cursor:help}
+.cwdetailsec .vsly{cursor:help}
 .ovcusttbl .vsly.pos{color:var(--pos)}
 .ovcusttbl .vsly.neg{color:var(--neg)}
 .ovcusttbl .ly{margin-left:3px;font-size:8px;vertical-align:1px}
@@ -318,12 +333,49 @@ tr.ok td.desc{color:var(--pos)}
 .cwdetailsec .imtbl{margin-bottom:12px}
 .cwdetailsec .imtbl + .imtbl{margin-top:16px}
 
+.cwcatlink{
+  display:block;width:100%;border:0;background:none;padding:0;margin:0;
+  color:var(--ink);font:inherit;font-weight:600;text-align:left;cursor:pointer
+}
+.cwcatlink:hover{color:var(--accent-2);text-decoration:underline;text-underline-offset:2px}
+
+.cwitemtools{display:flex;justify-content:flex-end;gap:8px;margin:0 0 9px}
+.cwitemtools .btn{padding:6px 11px;font-size:11px}
+.cwitemwrap{overflow:auto;-webkit-overflow-scrolling:touch;max-height:62vh;border:1px solid var(--line)}
+.cwitemtbl{width:100%;min-width:780px;border-collapse:collapse;table-layout:fixed;font-size:11px}
+.cwitemtbl th,.cwitemtbl td{border:1px solid var(--line);padding:7px 7px}
+.cwitemtbl thead th{
+  background:#fff;font-family:'IBM Plex Mono',monospace;font-size:9px;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-align:left
+}
+.cwitemtbl thead th.n,.cwitemtbl td.n{text-align:right}
+.cwitemtbl tbody td{background:#fff}
+.cwitemtbl td.desc{white-space:normal;overflow-wrap:anywhere;line-height:1.2}
+.cwitemtbl td.type{white-space:nowrap}
+.cwitemtbl tfoot th,.cwitemtbl tfoot td{
+  position:sticky;bottom:0;z-index:8;
+  background:#F4F7F6!important;color:var(--ink)!important;font-weight:700;
+  border-top:1px solid var(--ink-3)
+}
+.cwitemtbl tfoot th{text-align:right;padding-right:10px}
+.cwitemtbl tfoot td.n{color:var(--ink)!important}
+.cwitemtbl .chg{cursor:help;font-weight:600}
+.cwitemtbl .chg.pos{color:var(--pos)}
+.cwitemtbl .chg.neg{color:var(--neg)}
+.cwitemtbl col.code{width:11%}
+.cwitemtbl col.desc{width:33%}
+.cwitemtbl col.type{width:11%}
+.cwitemtbl col.val{width:10%}
+.cwitemtbl col.chg{width:9%}
+.cwitemtbl col.cases{width:8%}
+
 /* Customer Site list inside Customer Wise drill-down */
 .cwsitewrap{
   overflow:auto;-webkit-overflow-scrolling:touch;max-height:340px;
-  border:1px solid var(--line);border-radius:4px
+  border:1px solid var(--line);border-radius:4px;background:#fff;
+  position:relative;isolation:isolate
 }
-.cwsitewrap .ovcusttbl{margin-top:0;border:0;min-width:980px}
+.cwsitewrap .ovcusttbl{margin:0;border:0;min-width:980px}
 .cwsitewrap .ovcusttbl thead tr:last-child th:first-child{width:220px}
 .cwsitewrap .ovcusttbl tbody th{white-space:normal;overflow:visible;text-overflow:clip;vertical-align:top}
 .cwsitewrap .cwsitelink{
@@ -331,6 +383,12 @@ tr.ok td.desc{color:var(--pos)}
   white-space:normal!important;overflow:visible!important;text-overflow:clip!important;
   overflow-wrap:anywhere;word-break:normal
 }
+.cwsiteflag{
+  display:inline-block;margin:3px 4px 0 0;padding:1px 5px;border-radius:2px;
+  font-family:'IBM Plex Mono',monospace;font-size:7.5px;letter-spacing:.06em;font-weight:700
+}
+.cwsiteflag.new{background:#EAF6F1;color:var(--pos);border:1px solid #B9DED0}
+.cwsiteflag.lost{background:#FCEBE7;color:var(--neg);border:1px solid #E6BBB1}
 
 @media (max-width:760px){
   .ovtools{gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:68%}
@@ -342,8 +400,8 @@ tr.ok td.desc{color:var(--pos)}
 
   .ovcustwrap{max-height:390px}
   .ovcusttbl{min-width:850px;font-size:9px}
-  .ovcusttbl .cap th{font-size:9.5px;padding:6px 3px}
-  .ovcusttbl thead tr:last-child th{top:30px;padding:5px 2px;font-size:7.7px;letter-spacing:.02em}
+  .ovcusttbl .cap th{height:29px;line-height:27px;font-size:9.5px;padding:0 3px}
+  .ovcusttbl thead tr:last-child th{top:29px;height:28px;line-height:27px;padding:0 2px;font-size:7.7px;letter-spacing:.02em}
   .ovcusttbl thead tr:last-child th:first-child{width:94px}
   .ovcusttbl tbody th{padding:5px 4px;font-size:8.6px}
   .ovcusttbl tbody td{padding:5px 3px;font-size:8.3px;letter-spacing:-.2px}
@@ -353,6 +411,10 @@ tr.ok td.desc{color:var(--pos)}
   .cwsitewrap .ovcusttbl{min-width:920px}
   .cwsitewrap .ovcusttbl thead tr:last-child th:first-child{width:170px}
   .cwsitewrap .cwsitelink{font-size:8.5px;line-height:1.18}
+  .cwitemwrap{max-height:66vh}
+  .cwitemtbl{min-width:720px;font-size:9px}
+  .cwitemtbl th,.cwitemtbl td{padding:5px 4px}
+  .cwitemtbl thead th{font-size:7.7px}
 }
 
 /* ---------- phone: the aisle-walk layout ---------- */
@@ -4715,6 +4777,48 @@ function visitCategoryWise(){
 var CUSTWISE_GROUPS = [{"key":"Lulu","names":["EMKE GROUP [LULU GROUP INTL]"]},{"key":"Nesto","names":["NESTO HYPERMARKET L.L.C."]},{"key":"Makkah","names":["MAKKAH HYPERMARKET"]},{"key":"Ramez","names":["RAMEZ INTERNATIONAL"]},{"key":"Hypermax","names":["MAJID AL FUTTAIM HYPERMARKETS L.L.C"]},{"key":"Online","names":["DELIVERY HERO STORES LLC"]},{"key":"Others","names":[]},{"key":"Karama","names":["HURMEZ ENTERPRISES UNITED LLC"]},{"key":"Jazeera","names":["AL JAZEERA INTERNATIONAL SHOPPING LLC"]},{"key":"Badia","names":["AL HARMAL CO TRAD LLC"]},{"key":"Ezza","names":["MAJAN AL ZAHIRAH LLC"]},{"key":"Fouz","names":["SINSILA MIDDLE EAST LLC"]},{"key":"K.M","names":["K.M. HYPERMARKET - SOLE PROPRIETORSHIP LLC"]},{"key":"Saihoot","names":["BADAR AL ZAMAN MODERN ENT TRAD"]},{"key":"Tamam","names":["AL TAMAM INTERNATIONAL LLC","SUHOOL AL TAMAM LLC"]},{"key":"SAF","names":["SAF NATIONAL"]},{"key":"Falaj","names":["TAJ AL- FALAJ TRAD CONT LLC"]},{"key":"Amri","names":["AL AMRI CENTRE FOR FOOD STUFF SUPPLYING & CONSUMABLE LLC"]},{"key":"Isteqrar","names":["AL-ISTEQRAR AL-OMANIA TRADING & CONT"]},{"key":"Jahra","names":["AL JAHRA HYPERMARKET LLC"]},{"key":"Nawa","names":["ABU LUJAIN AL SAIDI TRADING"]},{"key":"Discounters","names":["ABDUL KARIM YAHYA","AL BARAKA INTERNATIONAL BUSINESS CO L.L.C","AL MARJAN DISCOUNT CENTER SPC","AL MARJAN TRADING LLC","AL QABAIL GIFT MARKET LLC","AL SALAM DISCOUNT CENTRE","AL SHARQIYA DISCOUNT LLC","AL SHARQIYAH DISCOUNT LLC","AL-QABAYEL DISCOUNT CENTRE L.L.C","AMWAJ DISCOUNT CENTER","AYOUB AND HIS PARTNER TRADING LLC","AYOUB MOSADEGH TRAD","BUDGET INVESTMENT LLC","DAY TO DAY GLOBAL CENTER LLC","EBRI DREEMS LLC","EMIRATES FLOWER MARKET","GIFT VILLAGE DISCOUNTS","MOHAMMED ABDULLAH ZAMANI INTERNATIONAL TRADING","MOKHTAR GIFT MARKETS","NAJMAT MAJAN AL ZHABIA","NOJOOM AL KHALEEJ MARKETING LLC","NOOR BARKA INTERNATIONAL LLC","PROJECTS  PEARL AL-SAWADER LLC","RIAL DISCOUNT CENTER LLC","SOROUH AL  MASNAH INTERNATIONAL DISCOUNTS LLC","STARS GIFT CENTER LLC","ZAVAYA AL NUJUM SPC","ZAVAYA SOHAR INTERNATIONAL INVESTMENT LLC","ZAWAYA JALAN INTL LLC","DELMA DISCOUNT CENTER","AL MANDOOS DISCOUNT CENTER","DAY BY DAY SHOPPING","SOROUH SAHAM DISCOUNT LLC","ATLAS DISCOUNT CENTER LLC","EBRAHIM RAFIEI INVESTMENT LLC","AL SHANFARI & AL KHONJI TRADING LLC","DAY TO DAY FOR TRADING LIMITED PARTNERSHIP","AL WAFI GOLDEN DISCOUNT CENTER LLC","RAEIS INTERNATIONAL","ZAVAYA AL AMERAT INTERNATIONAL LLC","DREAMS DISCOUNT CENTER LLC","ABU GHRYB AL MZRWTRAD SPC","AL QASAR AL RAQI NEW LLC","MANAL DISCOUNT CENTER LLC","QAYIDY LIMITED LLC","GOLDEN AL AIN GIFT LLC","SALALAH TRADING INVESTMENT AND TOURISM SERVICES CO.LLC","SALALAH GIFT MARKETS LLC","EMERATES GIFT MARKET-SEEB","AL MADNDOOS DISCOUNT CENTER","AL SALAMA DISCOUNT CENTER-4","AL WAFI DISCOUNT CENTER LLC","STARS GIFT CENTER NEW LLC","TOOBA INTERNATIONAL TRADE LLC"]}];
 var CUSTWISE_MAP = Object.create(null);
 
+/* Customer Wise drill-down navigation.
+   Keeps the user's place when moving Customer -> Customer Site -> Category Items. */
+var CUSTWISE_NAV = null;
+var CUSTWISE_BACK_STACK = [];
+var CUSTWISE_CAT_EXPORT = null;
+
+function custWisePushCurrent(){
+  if (!CUSTWISE_NAV) return;
+  CUSTWISE_BACK_STACK.push({
+    state:{
+      type:CUSTWISE_NAV.type,
+      key:CUSTWISE_NAV.key,
+      siteKey:CUSTWISE_NAV.siteKey || null,
+      category:CUSTWISE_NAV.category || null
+    },
+    scroll:(document.getElementById('imWrap') || {scrollTop:0}).scrollTop || 0
+  });
+}
+
+function custWiseRenderState(st,scrollTop){
+  if (!st) return;
+  if (st.type==='category'){
+    openCustomerWiseCategoryItems(st.key,st.siteKey,st.category);
+  } else {
+    openCustomerWiseDetail(st.key,st.type==='site' ? st.siteKey : null);
+  }
+  if (scrollTop){
+    setTimeout(function(){
+      var w=document.getElementById('imWrap');
+      if (w) w.scrollTop=scrollTop;
+    },0);
+  }
+}
+
+function custWiseBack(){
+  if (!CUSTWISE_NAV || !CUSTWISE_BACK_STACK.length) return false;
+  var prev=CUSTWISE_BACK_STACK.pop();
+  custWiseRenderState(prev.state,prev.scroll);
+  return true;
+}
+
+
 function custWiseNorm(s){
   return String(s == null ? '' : s).toUpperCase().replace(/\s+/g,' ').trim();
 }
@@ -4786,7 +4890,12 @@ function customerWiseData(metric){
            String(a.key).localeCompare(String(b.key));
   });
 
-  return {rows:list,startM:startM,endM:endM};
+  var grandTotal=list.reduce(function(a,r){ return a+(r.total||0); },0);
+  list.forEach(function(r){
+    r.cont=grandTotal ? (r.total/grandTotal*100) : 0;
+  });
+
+  return {rows:list,startM:startM,endM:endM,grandTotal:grandTotal};
 }
 
 function custWisePct(base,cur){
@@ -4801,6 +4910,27 @@ function custWisePct(base,cur){
   };
 }
 
+function custWiseDeltaTitle(base,cur,isValue){
+  var d=(cur||0)-(base||0);
+  var label=d>0.0001 ? 'Growth' : (d<-0.0001 ? 'Decline' : 'No change');
+  var amount=Math.abs(d);
+  if (isValue){
+    return label+': OMR '+nf0.format(Math.round(amount));
+  }
+  return label+': '+nf2.format(amount)+' cases';
+}
+
+function custWiseValueCasesDeltaTitle(baseV,curV,baseQ,curQ){
+  var dv=(curV||0)-(baseV||0);
+  var dq=(curQ||0)-(baseQ||0);
+
+  var vLabel=dv>0.0001 ? 'Value Growth' : (dv<-0.0001 ? 'Value Decline' : 'Value No change');
+  var qLabel=dq>0.0001 ? 'Cases Growth' : (dq<-0.0001 ? 'Cases Decline' : 'Cases No change');
+
+  return vLabel+': OMR '+nf0.format(Math.round(Math.abs(dv)))+
+         ' | '+qLabel+': '+nf2.format(Math.abs(dq));
+}
+
 function visitCustomerWise(){
   var metric=VISIT_CAT_METRIC, isValue=metric==='value';
   var d=customerWiseData(metric), months=[];
@@ -4813,11 +4943,11 @@ function visitCustomerWise(){
 
   var title=isValue?'Sales in Value':'Sales in Cases';
   var h='<div class="ovcustwrap"><table class="ovcusttbl"><thead>'+
-        '<tr class="cap"><th colspan="'+(months.length+3)+'">'+title+' ('+state.yrB+
+        '<tr class="cap"><th colspan="'+(months.length+4)+'">'+title+' ('+state.yrB+
         (state.yrB===YEARS[NY-1]?' YTD':'')+')</th></tr>'+
         '<tr><th>Customer</th>';
   months.forEach(function(m){ h+='<th>'+MONTHS[m]+'</th>'; });
-  h+='<th>Total</th><th>Vs LY</th></tr></thead><tbody>';
+  h+='<th>Total</th><th>Cont</th><th>Vs LY</th></tr></thead><tbody>';
 
   d.rows.forEach(function(r){
     var pct=custWisePct(r.prevTotal,r.total);
@@ -4830,7 +4960,8 @@ function visitCustomerWise(){
     });
 
     h+='<td class="tot">'+f(r.total)+arrowLYCW(r.prevTotal,r.total)+'</td>'+
-       '<td class="vsly '+pct.cls+'">'+pct.text+'</td></tr>';
+       '<td class="cont">'+nf2.format(r.cont||0)+'%</td>'+
+       '<td class="vsly '+pct.cls+'" title="'+esc(custWiseDeltaTitle(r.prevTotal,r.total,isValue))+'">'+pct.text+'</td></tr>';
   });
 
   h+='</tbody></table></div>';
@@ -5078,9 +5209,13 @@ function customerWiseRunDownValue(g){
 
   d+='<tr class="imvs"><th>% Vs '+String(g.prevYear).slice(-2)+'</th>';
   for (var m=0;m<12;m++){
-    d+=(g.currValue[m]===null)?'<td class="off"></td>':'<td>'+pct(g.prevValue[m],g.currValue[m])+'</td>';
+    d+=(g.currValue[m]===null)
+      ? '<td class="off"></td>'
+      : '<td class="vsly" title="'+esc(custWiseDeltaTitle(g.prevValue[m],g.currValue[m],true))+'">'+
+          pct(g.prevValue[m],g.currValue[m])+'</td>';
   }
-  d+='<td class="tot">'+pct(prevSame,currYtd)+'</td></tr></tbody></table></div>';
+  d+='<td class="tot vsly" title="'+esc(custWiseDeltaTitle(prevSame,currYtd,true))+'">'+
+      pct(prevSame,currYtd)+'</td></tr></tbody></table></div>';
 
   var mob='<div class="m-only"><table class="imtbl imtblv"><thead>'+
     '<tr class="cap"><th colspan="'+(g.has2024?5:4)+'">MONTHLY RUN DOWN — SALES IN VALUE</th></tr>'+
@@ -5095,12 +5230,16 @@ function customerWiseRunDownValue(g){
          '<td class="n">'+num(g.prevValue[m])+'</td>'+
          (g.currValue[m]===null
            ? '<td class="off"></td><td class="off"></td>'
-           : '<td class="n">'+num(g.currValue[m])+'</td><td class="n">'+pct(g.prevValue[m],g.currValue[m])+'</td>')+
+           : '<td class="n">'+num(g.currValue[m])+'</td>'+
+             '<td class="n vsly" title="'+esc(custWiseDeltaTitle(g.prevValue[m],g.currValue[m],true))+'">'+
+               pct(g.prevValue[m],g.currValue[m])+'</td>')+
          '</tr>';
   }
   mob+='<tr class="imvs"><th>Total</th>'+
        (g.has2024?'<td class="n">'+num(total24)+'</td>':'')+
-       '<td class="n">'+num(prevFull)+'</td><td class="n">'+num(currYtd)+'</td><td class="n">'+pct(prevSame,currYtd)+'</td></tr>'+
+       '<td class="n">'+num(prevFull)+'</td><td class="n">'+num(currYtd)+'</td>'+
+       '<td class="n vsly" title="'+esc(custWiseDeltaTitle(prevSame,currYtd,true))+'">'+
+         pct(prevSame,currYtd)+'</td></tr>'+
        '</tbody></table></div>';
   return d+mob;
 }
@@ -5137,18 +5276,21 @@ function customerWisePromoValue(g){
     h+='<tr><th>Regular</th>';
     for (var m=0;m<12;m++){
       if (reg[m]===null){ h+='<td class="off"></td>'; continue; }
-      regTot+=reg[m]||0; h+='<td>'+num(reg[m]||0)+'</td>';
+      regTot+=reg[m]||0;
+      h+='<td>'+num(reg[m]||0)+'</td>';
     }
     h+='<td class="tot">'+num(regTot)+'</td></tr>';
 
     h+='<tr><th>Promotion</th>';
     for (var m=0;m<12;m++){
       if (promo[m]===null){ h+='<td class="off"></td>'; continue; }
-      proTot+=promo[m]||0; h+='<td>'+num(promo[m]||0)+'</td>';
+      proTot+=promo[m]||0;
+      h+='<td>'+num(promo[m]||0)+'</td>';
     }
     h+='<td class="tot">'+num(proTot)+'</td></tr>';
 
-    h+='<tr class="imvs"><th>Promo Intensity</th>';
+    /* Same calculation as before; only the row NAME changes. */
+    h+='<tr class="imvs"><th>Promo %</th>';
     for (var m=0;m<12;m++){
       if (reg[m]===null || promo[m]===null){ h+='<td class="off"></td>'; continue; }
       h+='<td>'+intensity(reg[m]||0,promo[m]||0)+'</td>';
@@ -5172,10 +5314,13 @@ function customerWisePromoValue(g){
       }
       var rv=reg[m]||0,pv=promo[m]||0,tv=rv+pv;
       regTot+=rv; proTot+=pv; grand+=tv;
-      h+='<td class="n">'+num(tv)+'</td><td class="n">'+num(rv)+'</td><td class="n">'+num(pv)+'</td><td class="n">'+intensity(rv,pv)+'</td></tr>';
+      h+='<td class="n">'+num(tv)+'</td><td class="n">'+num(rv)+'</td>'+
+         '<td class="n">'+num(pv)+'</td><td class="n">'+intensity(rv,pv)+'</td></tr>';
     }
-    h+='<tr class="imvs"><th>Total</th><td class="n">'+num(grand)+'</td><td class="n">'+num(regTot)+'</td><td class="n">'+num(proTot)+'</td><td class="n">'+intensity(regTot,proTot)+'</td></tr>'+
-       '</tbody></table>';
+
+    h+='<tr class="imvs"><th>Total</th><td class="n">'+num(grand)+'</td>'+
+       '<td class="n">'+num(regTot)+'</td><td class="n">'+num(proTot)+'</td>'+
+       '<td class="n">'+intensity(regTot,proTot)+'</td></tr></tbody></table>';
     return h;
   }
 
@@ -5258,7 +5403,10 @@ function customerWiseCategoryValue(key,g,siteKey){
 
   CATWISE_BASE.forEach(function(c){
     var ct=0,pt=0;
-    h+='<tr><th>'+esc(c)+'</th>';
+    h+='<tr><th><button class="cwcatlink" type="button" data-cwcat="'+encodeURIComponent(c)+
+       '" data-cwkey="'+encodeURIComponent(key)+'" data-cwsitekey="'+
+       encodeURIComponent(siteKey||'')+'" title="View items sold in '+g.prevYear+' vs '+g.currYear+'">'+
+       esc(c)+'</button></th>';
     activeMonths.forEach(function(m){
       var cv=currRows[c][m]||0, pv=prevRows[c][m]||0;
       ct+=cv; pt+=pv;
@@ -5266,7 +5414,7 @@ function customerWiseCategoryValue(key,g,siteKey){
     });
     var cont=currGrand ? ct/currGrand*100 : 0;
     h+='<td class="tot">'+num(ct)+arrowLYCW(pt,ct)+'</td>'+
-       '<td>'+nf2.format(cont)+'%</td><td>'+pct(pt,ct)+'</td></tr>';
+       '<td>'+nf2.format(cont)+'%</td><td class="vsly" title="'+esc(custWiseDeltaTitle(pt,ct,true))+'">'+pct(pt,ct)+'</td></tr>';
   });
 
   h+='<tr class="imvs"><th>Total</th>';
@@ -5274,11 +5422,185 @@ function customerWiseCategoryValue(key,g,siteKey){
     h+='<td>'+num(currTotals[m])+arrowLYCW(prevTotals[m]||0,currTotals[m]||0)+'</td>';
   });
   h+='<td class="tot">'+num(currGrand)+arrowLYCW(prevSameGrand,currGrand)+'</td>'+
-     '<td>100.00%</td><td>'+pct(prevSameGrand,currGrand)+'</td></tr>'+
+     '<td>100.00%</td><td class="vsly" title="'+esc(custWiseDeltaTitle(prevSameGrand,currGrand,true))+'">'+pct(prevSameGrand,currGrand)+'</td></tr>'+
      '</tbody></table></div>';
 
   return h;
 }
+
+
+function customerWiseCategoryItemRows(key,siteKey,category){
+  aggregate();
+
+  var y25=2025,y26=2026, i25=yIdx(y25),i26=yIdx(y26);
+  if (i25<0) y25=state.yrA,i25=yIdx(y25);
+  if (i26<0) y26=state.yrB,i26=yIdx(y26);
+
+  var endM=(y26===YEARS[NY-1]) ? LASTM : 11;
+  var byItem={};
+
+  if (F && i25>=0 && i26>=0){
+    var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+
+    for (var k=0;k<N;k++){
+      var s=fs[k],i=fi[k];
+      if (!mask[s]) continue;
+      if (!factCounted(fd[k],i)) continue;
+      if (state.cat.size && !state.cat.has(catOf[i])) continue;
+      if (!customerWiseScopeMatch(s,key,siteKey)) continue;
+      if (isOther(i)) continue;
+
+      var alloc=categoryWiseAlloc(ITEMS[i][2]);
+      var weight=0;
+      for (var a=0;a<alloc.length;a++){
+        if (alloc[a][0]===category){ weight=alloc[a][1]; break; }
+      }
+      if (!weight) continue;
+
+      var p=fp[k],yi=(p/12)|0,m=p%12;
+      if (m>endM || (yi!==i25 && yi!==i26)) continue;
+
+      var r=byItem[i];
+      if (!r){
+        var it=ITEMS[i];
+        r=byItem[i]={
+          i:i,
+          code:it[0],
+          desc:it[1],
+          type:it[3]==='Promotion' ? 'Promo' : 'Regular',
+          v25:0,v26:0,q25:0,q26:0
+        };
+      }
+
+      if (yi===i25){
+        r.v25+=(fv[k]||0)*weight;
+        r.q25+=(fq[k]||0)*weight;
+      } else {
+        r.v26+=(fv[k]||0)*weight;
+        r.q26+=(fq[k]||0)*weight;
+      }
+    }
+  }
+
+  var rows=Object.keys(byItem).map(function(i){ return byItem[i]; })
+    .filter(function(r){
+      return Math.abs(r.v25)>0.0000001 || Math.abs(r.v26)>0.0000001 ||
+             Math.abs(r.q25)>0.0000001 || Math.abs(r.q26)>0.0000001;
+    });
+
+  rows.sort(function(a,b){
+    return b.v26-a.v26 || b.v25-a.v25 || String(a.desc).localeCompare(String(b.desc));
+  });
+
+  return {rows:rows,year25:y25,year26:y26,endM:endM};
+}
+
+function customerWiseCategoryItemsCsv(){
+  if (!CUSTWISE_CAT_EXPORT || !CUSTWISE_CAT_EXPORT.rows.length) return;
+
+  var d=CUSTWISE_CAT_EXPORT;
+  var y25=String(d.year25).slice(-2)+"'";
+  var y26=String(d.year26).slice(-2)+"'";
+  var head=['Item Code','Item Desc','Sales Type',
+            y26+' Value',y25+' Value','Value Change %',
+            y26+' Cases',y25+' Cases'];
+  var lines=[head.join(',')];
+
+  d.rows.forEach(function(r){
+    var chg=(Math.abs(r.v25)<0.0000001)
+      ? (Math.abs(r.v26)<0.0000001 ? 0 : '')
+      : ((r.v26-r.v25)/Math.abs(r.v25)*100);
+
+    lines.push([
+      r.code,
+      '"'+String(r.desc).replace(/"/g,'""')+'"',
+      r.type,
+      r.v26.toFixed(2),r.v25.toFixed(2),
+      chg==='' ? '' : chg.toFixed(1),
+      r.q26.toFixed(2),r.q25.toFixed(2)
+    ].join(','));
+  });
+
+  var blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=('Delicio '+d.key+' '+(d.siteName ? d.siteName+' ' : '')+
+              d.category+' items '+d.year25+' vs '+d.year26+'.csv')
+              .replace(/[\\/:*?"<>|]/g,'-');
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function openCustomerWiseCategoryItems(key,siteKey,category){
+  var d=customerWiseCategoryItemRows(key,siteKey,category);
+  var isSite=!!siteKey,siteName='';
+
+  if (isSite){
+    var info=customerWiseSiteLatestInfo(key,siteKey);
+    if (info.rep>=0 && SITES[info.rep]) siteName=SITES[info.rep][1];
+  }
+
+  CUSTWISE_NAV={type:'category',key:key,siteKey:siteKey||null,category:category};
+  CUSTWISE_CAT_EXPORT={
+    rows:d.rows,year25:d.year25,year26:d.year26,
+    key:key,siteKey:siteKey||null,siteName:siteName,category:category
+  };
+
+  document.getElementById('imTitle').innerHTML=
+    esc(category)+' <span class="code">Items</span>';
+  document.getElementById('imSub').textContent=
+    (isSite ? siteName+' · '+key : key)+' · '+depLabel()+
+    ' · Jan–'+MONTHS[d.endM]+' '+d.year25+' vs '+d.year26;
+
+  var t25=String(d.year25).slice(-2)+"'";
+  var t26=String(d.year26).slice(-2)+"'";
+  var tv25=0,tv26=0,tq25=0,tq26=0;
+
+  var h='<div class="cwitemtools">'+
+          '<button class="btn ghost" id="cwCatCsv" type="button">Export CSV</button>'+
+        '</div>'+
+        '<div class="cwitemwrap"><table class="cwitemtbl">'+
+          '<colgroup><col class="code"><col class="desc"><col class="type">'+
+          '<col class="val"><col class="val"><col class="chg"><col class="cases"><col class="cases"></colgroup>'+
+          '<thead><tr><th>Item Code</th><th>Item Desc</th><th>Sales Type</th>'+
+          '<th class="n">'+t26+' Value</th><th class="n">'+t25+' Value</th>'+
+          '<th class="n">Change %</th>'+
+          '<th class="n">'+t26+' Cases</th><th class="n">'+t25+' Cases</th></tr></thead><tbody>';
+
+  if (!d.rows.length){
+    h+='<tr><td colspan="8">No item sales found for this category and customer selection.</td></tr>';
+  } else {
+    d.rows.forEach(function(r){
+      tv25+=r.v25;tv26+=r.v26;tq25+=r.q25;tq26+=r.q26;
+      var cp=custWisePct(r.v25,r.v26);
+      h+='<tr>'+
+        '<td>'+esc(String(r.code))+'</td>'+
+        '<td class="desc">'+esc(r.desc)+'</td>'+
+        '<td class="type">'+esc(r.type)+'</td>'+
+        '<td class="n">'+nf0.format(Math.round(r.v26))+'</td>'+
+        '<td class="n">'+nf0.format(Math.round(r.v25))+'</td>'+
+        '<td class="n chg '+cp.cls+'" title="'+esc(custWiseValueCasesDeltaTitle(r.v25,r.v26,r.q25,r.q26))+'">'+cp.text+'</td>'+
+        '<td class="n">'+nf2.format(r.q26)+'</td>'+
+        '<td class="n">'+nf2.format(r.q25)+'</td>'+
+        '</tr>';
+    });
+  }
+
+  var tcp=custWisePct(tv25,tv26);
+  h+='</tbody><tfoot><tr><th colspan="3">Total</th>'+
+     '<td class="n">'+nf0.format(Math.round(tv26))+'</td>'+
+     '<td class="n">'+nf0.format(Math.round(tv25))+'</td>'+
+     '<td class="n chg '+tcp.cls+'" title="'+esc(custWiseValueCasesDeltaTitle(tv25,tv26,tq25,tq26))+'">'+tcp.text+'</td>'+
+     '<td class="n">'+nf2.format(tq26)+'</td>'+
+     '<td class="n">'+nf2.format(tq25)+'</td></tr></tfoot></table></div>'+
+     '<div class="imnote">Items are grouped by item code and sorted by '+d.year26+
+     ' sales value. Cross-category promotional packs use the same allocation as the Category Wise table, so the totals reconcile to the clicked category.</div>';
+
+  document.getElementById('imBody').innerHTML=h;
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop=0;
+}
+
 
 
 function customerWiseSiteData(key){
@@ -5289,69 +5611,76 @@ function customerWiseSiteData(key){
   var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
   var byCode={};
 
-  /* One row per customer-site CODE. This prevents old/new site names for the
-     same code appearing as duplicate rows. */
-  for (var s=0;s<SITES.length;s++){
-    if (!mask[s]) continue;
-    if (custWiseGroupForSite(s)!==key) continue;
+  /* Build the list from actual facts rather than the site master:
+     - factCounted() enforces the active CPD / FSD / All channel.
+     - only site codes with positive selling in the selected year are retained.
+     - historical renamed site records are still consolidated by site code. */
+  if (F && currYi>=0){
+    var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
 
-    var siteKey=custWiseSiteCodeKey(s);
-    if (!siteKey) siteKey='__SITE_'+s;
-
-    if (!byCode[siteKey]){
-      byCode[siteKey]={
-        siteKey:siteKey,
-        members:[],
-        memberSet:{},
-        rep:s,
-        latestP:-1,
-        curr:new Array(12).fill(0),
-        prev:new Array(12).fill(0),
-        total:0,
-        prevTotal:0
-      };
-    }
-    byCode[siteKey].members.push(s);
-    byCode[siteKey].memberSet[s]=1;
-  }
-
-  if (F && currYi>=0 && prevYi>=0){
-    var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fd=F.d,N=fs.length;
     for (var k=0;k<N;k++){
       var s=fs[k],i=fi[k];
       if (!mask[s]) continue;
       if (custWiseGroupForSite(s)!==key) continue;
+      if (!factCounted(fd[k],i)) continue;
+      if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
       var siteKey=custWiseSiteCodeKey(s);
       if (!siteKey) siteKey='__SITE_'+s;
-      var r=byCode[siteKey];
-      if (!r) continue;
 
-      /* The most recently used record for this code supplies the displayed name. */
+      var r=byCode[siteKey];
+      if (!r){
+        r=byCode[siteKey]={
+          siteKey:siteKey,
+          rep:s,
+          latestP:-1,
+          curr:new Array(12).fill(0),
+          prev:new Array(12).fill(0),
+          total:0,
+          prevTotal:0,
+          currentYearActive:false,
+          priorYearActive:false,
+          cont:0,
+          isNew:false,
+          isLost:false
+        };
+      }
+
+      /* Latest used record supplies the site name for this customer-site code. */
       if (fp[k]>r.latestP || (fp[k]===r.latestP && s>=r.rep)){
         r.latestP=fp[k];
         r.rep=s;
       }
 
-      if (!factCounted(fd[k],i)) continue;
-      if (state.cat.size && !state.cat.has(catOf[i])) continue;
-
       var p=fp[k],yi=(p/12)|0,m=p%12;
+      var billed=(fq[k]>0 || fv[k]>0);
+
       if (yi===currYi){
+        if (billed) r.currentYearActive=true;
         if (state.yrB===YEARS[NY-1] && m>LASTM) continue;
         r.curr[m]+=fv[k];
       } else if (yi===prevYi){
+        if (billed) r.priorYearActive=true;
         r.prev[m]+=fv[k];
       }
     }
   }
 
-  var rows=Object.keys(byCode).map(function(k){ return byCode[k]; });
+  /* User requirement: show only sites actively selling in the selected year. */
+  var rows=Object.keys(byCode).map(function(k){ return byCode[k]; })
+    .filter(function(r){ return r.currentYearActive; });
+
   rows.forEach(function(r){
     for (var m=startM;m<=endM;m++){
       r.total+=r.curr[m]||0;
       r.prevTotal+=r.prev[m]||0;
     }
+
+    /* NEW = active in selected year but no activity in LY.
+       LOST = still active somewhere in selected year, but has dropped to zero
+       in the selected period while LY had sales in the same period. */
+    r.isNew=(r.currentYearActive && !r.priorYearActive);
+    r.isLost=(r.currentYearActive && r.prevTotal>0 && r.total<=0);
   });
 
   rows.sort(function(a,b){
@@ -5360,7 +5689,12 @@ function customerWiseSiteData(key){
     return b.total-a.total || b.prevTotal-a.prevTotal || an.localeCompare(bn);
   });
 
-  return {rows:rows,startM:startM,endM:endM};
+  var grandTotal=rows.reduce(function(a,r){ return a+(r.total||0); },0);
+  rows.forEach(function(r){
+    r.cont=grandTotal ? (r.total/grandTotal*100) : 0;
+  });
+
+  return {rows:rows,startM:startM,endM:endM,grandTotal:grandTotal};
 }
 
 function customerWiseSiteList(key){
@@ -5373,24 +5707,29 @@ function customerWiseSiteList(key){
   }
 
   var h='<div class="cwsitewrap"><table class="ovcusttbl"><thead>'+
-        '<tr class="cap"><th colspan="'+(months.length+3)+'">CUSTOMER SITES — SALES IN VALUE ('+
+        '<tr class="cap"><th colspan="'+(months.length+4)+'">CUSTOMER SITES — SALES IN VALUE ('+
           state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+')</th></tr>'+
         '<tr><th>Customer Site</th>';
   months.forEach(function(m){ h+='<th>'+MONTHS[m]+'</th>'; });
-  h+='<th>Total</th><th>Vs LY</th></tr></thead><tbody>';
+  h+='<th>Total</th><th>Cont</th><th>Vs LY</th></tr></thead><tbody>';
 
   if (!d.rows.length){
-    h+='<tr><th colspan="'+(months.length+3)+'">No customer sites in the current selection.</th></tr>';
+    h+='<tr><th colspan="'+(months.length+4)+'">No active customer sites in '+state.yrB+
+       ' for the current channel and selection.</th></tr>';
   } else {
     d.rows.forEach(function(r){
       var pct=custWisePct(r.prevTotal,r.total);
       var site=SITES[r.rep] || [];
       var siteName=site[1] || 'Unnamed customer site';
+      var flags='';
+      if (r.isNew) flags+='<span class="cwsiteflag new">NEW</span>';
+      if (r.isLost) flags+='<span class="cwsiteflag lost">LOST</span>';
 
       h+='<tr><th>'+
           '<button class="cwlink cwsitelink" type="button" data-cwsitekey="'+
             encodeURIComponent(r.siteKey)+'" data-cwkey="'+encodeURIComponent(key)+
             '" title="Open customer-site details">'+esc(siteName)+'</button>'+
+          flags+
         '</th>';
 
       months.forEach(function(m){
@@ -5399,12 +5738,14 @@ function customerWiseSiteList(key){
       });
 
       h+='<td class="tot">'+num(r.total)+arrowLYCW(r.prevTotal,r.total)+'</td>'+
-         '<td class="vsly '+pct.cls+'">'+pct.text+'</td></tr>';
+         '<td class="cont">'+nf2.format(r.cont||0)+'%</td>'+
+         '<td class="vsly '+pct.cls+'" title="'+esc(custWiseDeltaTitle(r.prevTotal,r.total,true))+'">'+pct.text+'</td></tr>';
     });
   }
 
   h+='</tbody></table></div>'+
-     '<div class="ovcustnote">One row is shown per customer-site code, using the latest-used site name for that code. Site names wrap so the full name remains visible. Click a site to open the same graph, Monthly Run Down, Promo Split and Category Wise analysis for that site only.</div>';
+     '<div class="ovcustnote">Only customer sites with active positive selling in '+state.yrB+
+     ' for the selected channel are shown. NEW indicates a site active this year with no LY activity; LOST flags an active-year site that has dropped to zero in the selected period versus LY. One row is kept per customer-site code using its latest-used name.</div>';
   return h;
 }
 
@@ -5414,6 +5755,8 @@ function openCustomerWiseDetail(key,siteKey){
      Customer Site selection is keyed by customer-site CODE so renamed/duplicate
      historical rows are merged into one site view. */
   var isSite=(siteKey !== null && siteKey !== undefined);
+  CUSTWISE_NAV={type:isSite?'site':'customer',key:key,siteKey:isSite?siteKey:null,category:null};
+  CUSTWISE_CAT_EXPORT=null;
   var g=customerWiseGraphSeries(key,isSite?siteKey:null);
 
   var group=null;
@@ -5480,15 +5823,36 @@ function openCustomerWiseDetail(key,siteKey){
 }
 
 function openCustomerWiseGraph(key){
+  CUSTWISE_BACK_STACK=[];
+  CUSTWISE_NAV=null;
   openCustomerWiseDetail(key,null);
 }
 
 function openCustomerSiteGraph(key,siteKey){
+  custWisePushCurrent();
   openCustomerWiseDetail(key,siteKey);
 }
 
 /* Customer Site rows are interactive inside the Customer Wise popup. */
 document.getElementById('imBody').addEventListener('click', function(e){
+  var csv=e.target.closest('#cwCatCsv');
+  if (csv){
+    customerWiseCategoryItemsCsv();
+    return;
+  }
+
+  var cat=e.target.closest('.cwcatlink');
+  if (cat){
+    var ckey=decodeURIComponent(cat.dataset.cwkey || '');
+    var csite=decodeURIComponent(cat.dataset.cwsitekey || '');
+    var cname=decodeURIComponent(cat.dataset.cwcat || '');
+    if (ckey && cname){
+      custWisePushCurrent();
+      openCustomerWiseCategoryItems(ckey,csite||null,cname);
+    }
+    return;
+  }
+
   var b=e.target.closest('.cwsitelink');
   if (!b) return;
   var siteKey=decodeURIComponent(b.dataset.cwsitekey || '');
@@ -6066,6 +6430,17 @@ function openMonthCell(cell){
 
 function closeItem(){
   document.body.classList.remove('mdopen');
+
+  /* Inside Customer Wise, X / Escape behaves like Back until the root
+     customer detail is reached. Example: Site -> Customer; Items -> Category's
+     Customer/Site detail. */
+  if (CUSTWISE_NAV){
+    if (custWiseBack()) return;
+    CUSTWISE_NAV=null;
+    CUSTWISE_BACK_STACK=[];
+    CUSTWISE_CAT_EXPORT=null;
+  }
+
   document.body.classList.remove('imopen');
   document.body.classList.remove('immonthly');
 }
