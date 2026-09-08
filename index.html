@@ -4813,7 +4813,11 @@ function visitCategoryWise(){
    Short names and customer references come directly from the uploaded
    "Cust LIST.xlsx". Any customer not explicitly mapped is grouped under Others. */
 var CUSTWISE_GROUPS = [{"key":"Lulu","names":["EMKE GROUP [LULU GROUP INTL]"]},{"key":"Nesto","names":["NESTO HYPERMARKET L.L.C."]},{"key":"Makkah","names":["MAKKAH HYPERMARKET"]},{"key":"Ramez","names":["RAMEZ INTERNATIONAL"]},{"key":"Hypermax","names":["MAJID AL FUTTAIM HYPERMARKETS L.L.C"]},{"key":"Online","names":["DELIVERY HERO STORES LLC"]},{"key":"Others","names":[]},{"key":"Karama","names":["HURMEZ ENTERPRISES UNITED LLC"]},{"key":"Jazeera","names":["AL JAZEERA INTERNATIONAL SHOPPING LLC"]},{"key":"Badia","names":["AL HARMAL CO TRAD LLC"]},{"key":"Ezza","names":["MAJAN AL ZAHIRAH LLC"]},{"key":"Fouz","names":["SINSILA MIDDLE EAST LLC"]},{"key":"K.M","names":["K.M. HYPERMARKET - SOLE PROPRIETORSHIP LLC"]},{"key":"Saihoot","names":["BADAR AL ZAMAN MODERN ENT TRAD"]},{"key":"Tamam","names":["AL TAMAM INTERNATIONAL LLC","SUHOOL AL TAMAM LLC"]},{"key":"SAF","names":["SAF NATIONAL"]},{"key":"Falaj","names":["TAJ AL- FALAJ TRAD CONT LLC"]},{"key":"Amri","names":["AL AMRI CENTRE FOR FOOD STUFF SUPPLYING & CONSUMABLE LLC"]},{"key":"Isteqrar","names":["AL-ISTEQRAR AL-OMANIA TRADING & CONT"]},{"key":"Jahra","names":["AL JAHRA HYPERMARKET LLC"]},{"key":"Nawa","names":["ABU LUJAIN AL SAIDI TRADING"]},{"key":"Discounters","names":["ABDUL KARIM YAHYA","AL BARAKA INTERNATIONAL BUSINESS CO L.L.C","AL MARJAN DISCOUNT CENTER SPC","AL MARJAN TRADING LLC","AL QABAIL GIFT MARKET LLC","AL SALAM DISCOUNT CENTRE","AL SHARQIYA DISCOUNT LLC","AL SHARQIYAH DISCOUNT LLC","AL-QABAYEL DISCOUNT CENTRE L.L.C","AMWAJ DISCOUNT CENTER","AYOUB AND HIS PARTNER TRADING LLC","AYOUB MOSADEGH TRAD","BUDGET INVESTMENT LLC","DAY TO DAY GLOBAL CENTER LLC","EBRI DREEMS LLC","EMIRATES FLOWER MARKET","GIFT VILLAGE DISCOUNTS","MOHAMMED ABDULLAH ZAMANI INTERNATIONAL TRADING","MOKHTAR GIFT MARKETS","NAJMAT MAJAN AL ZHABIA","NOJOOM AL KHALEEJ MARKETING LLC","NOOR BARKA INTERNATIONAL LLC","PROJECTS  PEARL AL-SAWADER LLC","RIAL DISCOUNT CENTER LLC","SOROUH AL  MASNAH INTERNATIONAL DISCOUNTS LLC","STARS GIFT CENTER LLC","ZAVAYA AL NUJUM SPC","ZAVAYA SOHAR INTERNATIONAL INVESTMENT LLC","ZAWAYA JALAN INTL LLC","DELMA DISCOUNT CENTER","AL MANDOOS DISCOUNT CENTER","DAY BY DAY SHOPPING","SOROUH SAHAM DISCOUNT LLC","ATLAS DISCOUNT CENTER LLC","EBRAHIM RAFIEI INVESTMENT LLC","AL SHANFARI & AL KHONJI TRADING LLC","DAY TO DAY FOR TRADING LIMITED PARTNERSHIP","AL WAFI GOLDEN DISCOUNT CENTER LLC","RAEIS INTERNATIONAL","ZAVAYA AL AMERAT INTERNATIONAL LLC","DREAMS DISCOUNT CENTER LLC","ABU GHRYB AL MZRWTRAD SPC","AL QASAR AL RAQI NEW LLC","MANAL DISCOUNT CENTER LLC","QAYIDY LIMITED LLC","GOLDEN AL AIN GIFT LLC","SALALAH TRADING INVESTMENT AND TOURISM SERVICES CO.LLC","SALALAH GIFT MARKETS LLC","EMERATES GIFT MARKET-SEEB","AL MADNDOOS DISCOUNT CENTER","AL SALAMA DISCOUNT CENTER-4","AL WAFI DISCOUNT CENTER LLC","STARS GIFT CENTER NEW LLC","TOOBA INTERNATIONAL TRADE LLC"]}];
+/* FSD Customer Wise shortcuts come from Sheet 2 (FSD) of the attached customer list.
+   CPD continues to use CUSTWISE_GROUPS above without any change. */
+var CUSTWISE_GROUPS_FSD = [{"key":"Others","names":[]},{"key":"WASAL AL JAZEERAH","names":["WASAL AL JAZEERAH TRADING CO"]},{"key":"AL RIYAMI Group","names":["AL RIYAMI TRADING GROUP"]},{"key":"CHICKEN VILLE","names":["CHICKEN VILLE"]},{"key":"CANOON TRADING","names":["CANOON TRADING LLC"]},{"key":"Al Mango","names":["AHMED SAID MODERN PROJECTS"]},{"key":"Dominos","names":["AL AMAR FOODS CO.LLC"]},{"key":"MANABA AL KHAIR","names":["MANABA AL KHAIR"]},{"key":"Italian Barista","names":["AL-TOOBI NEW ENTERPRISES"]},{"key":"Lulu","names":["EMKE GROUP [LULU GROUP INTL]"]},{"key":"AL ISMAILY","names":["GULF PROJECT CITY"]},{"key":"QWAFIL AL -BUSTAN","names":["QWAFIL AL -BUSTAN ENT.EST"]},{"key":"BASHAHIR AL MAJD","names":["BASHAHIR AL MAJD TRAD LLC"]},{"key":"FAJAR MUSCAT","names":["FAJAR MUSCAT SUPPLIES LLC"]},{"key":"Nizwa New Star","names":["NIZWA NEW STAR LLC"]},{"key":"Badar Shopping","names":["MODERN TAKAFUL PROJECTS"]},{"key":"AYHAM AL SARAYJI","names":["AYHAM AL SARAYJI TRADING SPC"]},{"key":"NATIONAL SOLIDATORY","names":["NATIONAL SOLIDATORY TRAD CO LLC"]},{"key":"Jazeera","names":["AL JAZEERA INTERNATIONAL SHOPPING LLC"]}];
 var CUSTWISE_MAP = Object.create(null);
+var CUSTWISE_MAP_FSD = Object.create(null);
 
 /* Customer Wise drill-down navigation.
    Keeps the user's place when moving Customer -> Customer Site -> Category Items. */
@@ -4861,15 +4865,71 @@ function custWiseBack(){
 function custWiseNorm(s){
   return String(s == null ? '' : s).toUpperCase().replace(/\s+/g,' ').trim();
 }
-(function buildCustWiseMap(){
+var CUSTWISE_GROUPS_ALL = [];
+var CUSTWISE_MAP_ALL = Object.create(null);
+
+function custWiseGroups(){
+  if (state.dep === 'FSD') return CUSTWISE_GROUPS_FSD;
+  if (state.dep === 'ALL') return CUSTWISE_GROUPS_ALL;
+  return CUSTWISE_GROUPS;  /* CPD unchanged */
+}
+function custWiseActiveMap(){
+  if (state.dep === 'FSD') return CUSTWISE_MAP_FSD;
+  if (state.dep === 'ALL') return CUSTWISE_MAP_ALL;
+  return CUSTWISE_MAP;     /* CPD unchanged */
+}
+(function buildCustWiseMaps(){
   CUSTWISE_GROUPS.forEach(function(g){
     g.names.forEach(function(n){ CUSTWISE_MAP[custWiseNorm(n)] = g.key; });
+  });
+  CUSTWISE_GROUPS_FSD.forEach(function(g){
+    g.names.forEach(function(n){ CUSTWISE_MAP_FSD[custWiseNorm(n)] = g.key; });
+  });
+
+  /* ALL view:
+     1) Start with the CPD mapping exactly as-is.
+     2) Add FSD-only customer names.
+     3) If the same actual account exists in CPD and FSD, CPD's shortcut wins,
+        so CPD + FSD sales roll into one customer total instead of two rows.
+     4) Merge duplicate shortcut keys such as Lulu into one group. */
+  var allByKey=Object.create(null);
+
+  CUSTWISE_GROUPS.forEach(function(g){
+    var copy={key:g.key,names:g.names.slice()};
+    CUSTWISE_GROUPS_ALL.push(copy);
+    allByKey[g.key]=copy;
+    g.names.forEach(function(n){
+      CUSTWISE_MAP_ALL[custWiseNorm(n)]=g.key;
+    });
+  });
+
+  CUSTWISE_GROUPS_FSD.forEach(function(g){
+    var target=allByKey[g.key];
+    if (!target){
+      target={key:g.key,names:[]};
+      CUSTWISE_GROUPS_ALL.push(target);
+      allByKey[g.key]=target;
+    }
+
+    g.names.forEach(function(n){
+      var norm=custWiseNorm(n);
+      /* Same actual customer in both lists remains one combined account. */
+      var existing=CUSTWISE_MAP_ALL[norm];
+      if (existing){
+        var existingGroup=allByKey[existing];
+        if (existingGroup && existingGroup.names.indexOf(n)<0) existingGroup.names.push(n);
+        return;
+      }
+
+      CUSTWISE_MAP_ALL[norm]=g.key;
+      if (target.names.indexOf(n)<0) target.names.push(n);
+    });
   });
 })();
 
 function custWiseGroupForSite(s){
   var customer = SITES[s] ? SITES[s][0] : '';
-  return CUSTWISE_MAP[custWiseNorm(customer)] || 'Others';
+  return custWiseActiveMap()[custWiseNorm(customer)] || 'Others';
 }
 
 function customerWiseData(metric){
@@ -4880,7 +4940,8 @@ function customerWiseData(metric){
   var endM = (state.yrB === YEARS[NY-1]) ? Math.min(state.m2, LASTM) : state.m2;
   var rows = {};
 
-  CUSTWISE_GROUPS.forEach(function(g){
+  var groups=custWiseGroups();
+  groups.forEach(function(g){
     rows[g.key] = {
       key:g.key,
       names:g.names,
@@ -4915,7 +4976,7 @@ function customerWiseData(metric){
     }
   }
 
-  var list=CUSTWISE_GROUPS.map(function(g){ return rows[g.key]; });
+  var list=groups.map(function(g){ return rows[g.key]; });
   list.forEach(function(r){
     for (var m=startM;m<=endM;m++){
       r.total += r.curr[m] || 0;
@@ -4923,12 +4984,15 @@ function customerWiseData(metric){
     }
   });
 
-  /* Highest selected-period sales first, as requested. */
+  /* Highest selected-period sales first.
+     In ALL, each account already contains its combined CPD + FSD sales. */
   list.sort(function(a,b){
     return b.total-a.total || b.prevTotal-a.prevTotal ||
            String(a.key).localeCompare(String(b.key));
   });
 
+  /* Contribution remains against the complete customer universe, even though
+     ALL displays only its top 22 rows. */
   var grandTotal=list.reduce(function(a,r){ return a+(r.total||0); },0);
   var prevGrandTotal=list.reduce(function(a,r){ return a+(r.prevTotal||0); },0);
   list.forEach(function(r){
@@ -4936,8 +5000,10 @@ function customerWiseData(metric){
     r.prevCont=prevGrandTotal ? (r.prevTotal/prevGrandTotal*100) : 0;
   });
 
+  var displayList=(state.dep==='ALL') ? list.slice(0,22) : list;
+
   return {
-    rows:list,startM:startM,endM:endM,
+    rows:displayList,startM:startM,endM:endM,
     grandTotal:grandTotal,prevGrandTotal:prevGrandTotal
   };
 }
@@ -5020,7 +5086,11 @@ function visitCustomerWise(){
     '<div class="chs">'+depLabel()+' · '+scopeNames()+' · '+state.yrB+
       (state.yrB===YEARS[NY-1]?' YTD':'')+' vs '+state.yrA+' same period</div>'+
     h+
-    '<div class="ovcustnote">Customer shortcuts follow the uploaded customer list. Others includes every customer not mapped in that list. Rows are sorted from highest to lowest sales for the selected period. Click a customer name for the 2025 full-year vs 2026 YTD graph.</div>';
+    '<div class="ovcustnote">'+
+      (state.dep==='ALL'
+        ? 'All combines CPD + FSD sales into one total when the same customer account appears in both lists. The top 22 accounts are shown from highest to lowest combined sales for the selected period.'
+        : 'Customer shortcuts follow the '+(state.dep==='FSD'?'FSD (Sheet 2)':'CPD')+' customer list. Rows are sorted from highest to lowest sales for the selected period.')+
+      ' Others includes every customer not mapped in the active list. Click a customer name for the 2025 full-year vs 2026 YTD graph.</div>';
 }
 
 function custWiseSiteCodeKeyFromValue(code){
@@ -5845,7 +5915,7 @@ function openCustomerWiseDetail(key,siteKey){
   var g=customerWiseGraphSeries(key,isSite?siteKey:null);
 
   var group=null;
-  CUSTWISE_GROUPS.forEach(function(x){ if (x.key===key) group=x; });
+  custWiseGroups().forEach(function(x){ if (x.key===key) group=x; });
 
   var titleText,refText,subScope;
   if (isSite){
