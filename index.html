@@ -1150,6 +1150,12 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #ptbl tr.pitem td{background:#FBFBF9;color:var(--muted)}
 #ptbl tr.pitem td.p-item{padding-left:18px;color:var(--ink)}
 #ptbl tr.pitem td.p-cat{font-size:10.5px}
+#ptbl .pitemlink{
+  display:block;width:100%;border:0;background:none;padding:0;margin:0;
+  color:var(--ink);font:inherit;text-align:left;cursor:pointer;
+  white-space:normal;line-height:1.2
+}
+#ptbl .pitemlink:hover{color:var(--accent-2);text-decoration:underline;text-underline-offset:2px}
 #ptbl .prate{display:inline-block;min-width:52px;text-align:right;font-weight:600}
 #ptbl .prate.high{color:var(--neg)}
 #ptbl .empty{padding:28px;text-align:center;color:var(--muted);font-size:12px}
@@ -7279,8 +7285,9 @@ function renderPromo(){
         st.items.forEach(function(it){
           html += '<tr class="pitem">' +
             '<td class="p-site"></td>' +
-            '<td class="p-item">' + esc(ITEMS[it.i][1]) +
-              ' <span class="mono" style="display:block;font-size:9px;color:var(--muted)">' + ITEMS[it.i][0] + '</span></td>' +
+            '<td class="p-item"><button class="pitemlink" type="button" data-pitem="'+it.i+'" data-psite="'+st.s+'" ' +
+              'title="Open monthly item detail">' + esc(ITEMS[it.i][1]) + '</button>' +
+              '<span class="mono" style="display:block;font-size:9px;color:var(--muted)">' + ITEMS[it.i][0] + '</span></td>' +
             '<td class="p-cat">' + esc(ITEMS[it.i][2]) + '</td>' +
             '<td class="num p-sales">' + fmtS(it.sales) + '</td>' +
             '<td class="num p-events">' + nf0.format(it.events) + '</td>' +
@@ -7302,7 +7309,193 @@ function renderPromo(){
   document.getElementById('ptbl').insertAdjacentHTML('beforeend', html);
 }
 
+
+function promoItemDetailSeries(siteId,itemId){
+  var years=[2024,2025,2026].filter(function(y){ return yIdx(y)>=0; });
+  var q={},v={};
+  years.forEach(function(y){
+    q[y]=new Array(12);
+    v[y]=new Array(12);
+    for (var m=0;m<12;m++){
+      var future=(y===YEARS[NY-1] && m>LASTM);
+      q[y][m]=future?null:0;
+      v[y][m]=future?null:0;
+    }
+  });
+
+  if (F){
+    var fs=F.s,fi=F.i,fp=F.p,fq=F.q,fv=F.v,fd=F.d,N=fs.length;
+    for (var k=0;k<N;k++){
+      if (fs[k]!==siteId || fi[k]!==itemId) continue;
+      if (!factCounted(fd[k],itemId)) continue;
+      var p=fp[k],yi=(p/12)|0,m=p%12,y=YEARS[yi];
+      if (!q[y] || q[y][m]===null) continue;
+      q[y][m]+=fq[k];
+      v[y][m]+=fv[k];
+    }
+  }
+  return {years:years,q:q,v:v};
+}
+
+function promoItemDetailGraph(itemId,d){
+  var prev=d.q[2025] ? 2025 : d.years[Math.max(0,d.years.length-2)];
+  var curr=d.q[2026] ? 2026 : d.years[d.years.length-1];
+  var a=d.q[prev]||new Array(12).fill(0);
+  var b=d.q[curr]||new Array(12).fill(0);
+  var av=d.v[prev]||new Array(12).fill(0);
+  var bv=d.v[curr]||new Array(12).fill(0);
+
+  var maxV=0,minV=0;
+  [a,b].forEach(function(vals){
+    vals.forEach(function(x){
+      if (x===null || x===undefined) return;
+      if (x>maxV) maxV=x;
+      if (x<minV) minV=x;
+    });
+  });
+
+  var step=niceStep((maxV-minV)||Math.max(Math.abs(maxV),Math.abs(minV),1),5);
+  var top=Math.ceil(Math.max(0,maxV)/step)*step;
+  var bottom=Math.floor(Math.min(0,minV)/step)*step;
+  if (top===bottom){ top+=step; bottom-=step; }
+  if (top===0 && bottom<0) top=step;
+
+  var W=980,H=300,L=65,R=15,T=20,B=42,PW=W-L-R,PH=H-T-B;
+  var xAt=function(i){ return L+PW*i/11; };
+  var yAt=function(x){ return T+((top-x)/(top-bottom))*PH; };
+  var grid='',yl='',xl='';
+
+  var ticks=Math.max(1,Math.round((top-bottom)/step));
+  for (var t=0;t<=ticks;t++){
+    var gv=bottom+t*step,y=yAt(gv);
+    grid+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(W-R)+'" y2="'+y.toFixed(1)+
+          '" stroke="'+(Math.abs(gv)<step/1000?'#8FA0A6':'#E3E7E5')+'" stroke-width="1"></line>';
+    yl+='<text x="'+(L-9)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" fill="#6A7D84" font-size="10">'+
+        nf0.format(Math.round(gv))+'</text>';
+  }
+  for (var m=0;m<12;m++){
+    xl+='<text x="'+xAt(m).toFixed(1)+'" y="'+(H-14)+'" text-anchor="middle" fill="#6A7D84" font-size="10">'+MONTHS[m]+'</text>';
+  }
+
+  function pts(vals,valueVals,year,fill){
+    var s='';
+    for (var m=0;m<12;m++){
+      if (vals[m]===null || vals[m]===undefined) continue;
+      var cx=xAt(m).toFixed(1),cy=yAt(vals[m]).toFixed(1);
+      s+='<g class="impoint">'+
+           '<circle class="imdot" cx="'+cx+'" cy="'+cy+'" r="4" fill="'+fill+'"></circle>'+
+           '<circle class="imhit" cx="'+cx+'" cy="'+cy+'" r="14" data-year="'+year+
+             '" data-month="'+m+'" data-cases="'+(vals[m]||0)+'" data-value="'+(valueVals[m]||0)+'"></circle>'+
+         '</g>';
+    }
+    return s;
+  }
+
+  return '<div class="imchart">'+
+    '<div class="cht">Monthly cases trend, Jan–Dec</div>'+
+    '<div class="chs">Last two years · '+prev+' vs '+curr+'</div>'+
+    '<svg class="chsvg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Promotion item monthly cases trend">'+
+      '<rect width="'+W+'" height="'+H+'" fill="#fff"></rect>'+grid+
+      '<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="#8FA0A6"></line>'+
+      '<line x1="'+L+'" y1="'+(H-B)+'" x2="'+(W-R)+'" y2="'+(H-B)+'" stroke="#8FA0A6"></line>'+
+      yl+xl+
+      '<path d="'+svgLinePath(a,xAt,yAt)+'" fill="none" stroke="#C6B2B0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>'+
+      '<path d="'+svgLinePath(b,xAt,yAt)+'" fill="none" stroke="#A10716" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>'+
+      pts(a,av,prev,'#C6B2B0')+pts(b,bv,curr,'#A10716')+
+    '</svg>'+
+    '<div class="chlegend"><span class="lg"><span class="sw prev"></span>'+prev+'</span>'+
+      '<span class="lg"><span class="sw curr"></span>'+curr+'</span></div>'+
+    '<div class="chnote">Hover around any monthly dot to see the month, cases and exact OMR sales value.</div>'+
+    '<div class="imtip" id="imTip"></div>'+
+  '</div>';
+}
+
+function promoItemYearTable(d,title,isValue){
+  function f(x){
+    if (x===null || x===undefined) return '';
+    if (Math.abs(x)<1e-9) return '–';
+    return isValue ? nf0.format(Math.round(x)) : nf2.format(x);
+  }
+  function change(base,cur){
+    if (cur===null || cur===undefined) return '';
+    if (Math.abs(base)<1e-9) return Math.abs(cur)<1e-9 ? '–' : 'NEW';
+    var p=(cur-base)/Math.abs(base)*100;
+    return (p>0?'+':'')+nf1.format(p)+'%';
+  }
+
+  var years=[2024,2025,2026].filter(function(y){ return d[y]!==undefined; });
+  var prev=2025,curr=2026;
+  var h='<table class="imtbl"><thead><tr class="cap"><th colspan="14">'+title+'</th></tr>'+
+        '<tr><th></th>';
+  for (var m=0;m<12;m++) h+='<th>'+MONTHS[m]+'</th>';
+  h+='<th>Total</th></tr></thead><tbody>';
+
+  years.forEach(function(y){
+    var total=0;
+    h+='<tr><th>'+y+(y===YEARS[NY-1]?' YTD':'')+'</th>';
+    for (var m=0;m<12;m++){
+      var x=d[y][m];
+      if (x===null){ h+='<td class="off"></td>'; continue; }
+      total+=x||0;
+      h+='<td>'+f(x)+'</td>';
+    }
+    h+='<td class="tot">'+f(total)+'</td></tr>';
+  });
+
+  if (d[prev] && d[curr]){
+    var currTot=0,prevSame=0;
+    h+='<tr class="imvs"><th>% Vs 25</th>';
+    for (var m=0;m<12;m++){
+      if (d[curr][m]===null){ h+='<td class="off"></td>'; continue; }
+      currTot+=d[curr][m]||0;
+      prevSame+=d[prev][m]||0;
+      h+='<td>'+change(d[prev][m]||0,d[curr][m]||0)+'</td>';
+    }
+    h+='<td class="tot">'+change(prevSame,currTot)+'</td></tr>';
+  }
+
+  return h+'</tbody></table>';
+}
+
+function openPromotionItemDetail(siteId,itemId){
+  var it=ITEMS[itemId],site=SITES[siteId];
+  if (!it || !site) return;
+
+  CUSTWISE_NAV=null;
+  CUSTWISE_BACK_STACK=[];
+  CUSTWISE_CAT_EXPORT=null;
+
+  var d=promoItemDetailSeries(siteId,itemId);
+
+  document.getElementById('imTitle').innerHTML=
+    esc(it[1])+' <span class="code">'+it[0]+'</span>';
+  document.getElementById('imSub').textContent=
+    it[2]+' · '+(it[3]==='Promotion'?'Promo':'Regular')+' · '+site[0]+' — '+site[1];
+
+  document.getElementById('imBody').innerHTML=
+    promoItemDetailGraph(itemId,d)+
+    '<div class="d-only">'+
+      promoItemYearTable(d.q,'Sales in Volume (cases)',false)+
+      promoItemYearTable(d.v,'Sales in Value',true)+
+    '</div>'+
+    '<div class="m-only">'+
+      promoItemYearTable(d.q,'Sales in Volume (cases)',false)+
+      promoItemYearTable(d.v,'Sales in Value',true)+
+    '</div>'+
+    '<div class="imnote">2024 and 2025 are shown as full-year history. 2026 runs through '+MONTHS[LASTM]+
+      '. Figures are restricted to this customer site and follow the active CPD / FSD / All channel.</div>';
+
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop=0;
+}
+
 document.getElementById('ptbl').addEventListener('click', function(e){
+  var itemBtn=e.target.closest('.pitemlink');
+  if (itemBtn){
+    openPromotionItemDetail(+itemBtn.dataset.psite,+itemBtn.dataset.pitem);
+    return;
+  }
+
   var row = e.target.closest('tr.psite');
   if (!row) return;
   var key = row.dataset.key;
@@ -7502,9 +7695,29 @@ function exportPromotionAnalysisExcel(){
   function monthlySheet(name,isValue){
     var years=[2024,2025,2026].filter(function(y){ return yIdx(y)>=0; });
     var rows=[], yearRow='<Row ss:Height="20">', startCol=7;
-    var bandWidth=selectedMonths.length+1; /* selected months + Total */
+
+    /* Historical years always export the complete Jan-Dec history.
+       Only the current 2026 band follows the Promotion Analysis period filter. */
+    function monthsForYear(y){
+      if (y===2024 || y===2025){
+        var full=[];
+        for (var m=0;m<12;m++) full.push(m);
+        return full;
+      }
+      return selectedMonths.slice();
+    }
+    function exportBandTotal(r,y,isValue,months){
+      var total=0;
+      months.forEach(function(m){
+        var v=isValue ? monthlyValue(r,y,m) : monthlyQty(r,y,m);
+        if (v!==null) total+=v;
+      });
+      return total;
+    }
 
     years.forEach(function(y){
+      var ym=monthsForYear(y);
+      var bandWidth=ym.length+1;
       yearRow += '<Cell ss:Index="'+startCol+'" ss:MergeAcross="'+(bandWidth-1)+'" ss:StyleID="Year">' +
                  '<Data ss:Type="String">'+y+(y===2026?' YTD':'')+'</Data></Cell>';
       startCol += bandWidth;
@@ -7516,8 +7729,9 @@ function exportPromotionAnalysisExcel(){
       sCell('Area','Head') + sCell('Customer','Head') + sCell('Customer Site','Head') +
       sCell('Category','Head') + sCell('Item Code','Head') + sCell('Promotion Item','Head');
 
-    years.forEach(function(){
-      selectedMonths.forEach(function(m){ h+=sCell(MONTHS[m],'Head'); });
+    years.forEach(function(y){
+      var ym=monthsForYear(y);
+      ym.forEach(function(m){ h+=sCell(MONTHS[m],'Head'); });
       h+=sCell('Total','Head');
     });
 
@@ -7536,11 +7750,12 @@ function exportPromotionAnalysisExcel(){
         sCell(ITEMS[r.i][1],'OutlierText');
 
       years.forEach(function(y){
-        selectedMonths.forEach(function(m){
+        var ym=monthsForYear(y);
+        ym.forEach(function(m){
           var v=isValue ? monthlyValue(r,y,m) : monthlyQty(r,y,m);
           row += (v===null) ? blank('OutlierNum') : nCell(v,'OutlierNum');
         });
-        row += nCell(selectedTotal(r,y,isValue),'OutlierNum');
+        row += nCell(exportBandTotal(r,y,isValue,ym),'OutlierNum');
       });
 
       row += nCell(r.supply,'OutlierNum') +
@@ -7552,13 +7767,16 @@ function exportPromotionAnalysisExcel(){
       rows.push(row);
     });
 
-    var totalCols=6 + years.length*bandWidth + 5;
+    var historicalCols=0;
+    years.forEach(function(y){ historicalCols += monthsForYear(y).length+1; });
+    var totalCols=6 + historicalCols + 5;
+
     return '<Worksheet ss:Name="'+xmlEsc(name)+'">' +
       '<Table ss:ExpandedColumnCount="'+totalCols+'" ss:ExpandedRowCount="'+rows.length+'" x:FullColumns="1" x:FullRows="1">' +
         '<Column ss:Index="1" ss:Width="90"/><Column ss:Index="2" ss:Width="150"/>' +
         '<Column ss:Index="3" ss:Width="170"/><Column ss:Index="4" ss:Width="105"/>' +
         '<Column ss:Index="5" ss:Width="78"/><Column ss:Index="6" ss:Width="270"/>' +
-        '<Column ss:Index="7" ss:Span="'+(years.length*bandWidth-1)+'" ss:Width="72"/>' +
+        '<Column ss:Index="7" ss:Span="'+(historicalCols-1)+'" ss:Width="72"/>' +
         rows.join('') +
       '</Table>' +
       '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
