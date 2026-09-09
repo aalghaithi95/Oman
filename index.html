@@ -1749,9 +1749,9 @@ body.immonthly #imWrap .imcard{max-width:1500px}
           <th class="p-item">Promotion Item</th>
           <th class="p-cat">Category</th>
           <th class="r p-sales" id="pSalesHead"></th>
-          <th class="r p-events">Return Events</th>
           <th class="r p-supply">Supplied Cases</th>
           <th class="r p-return">Returned Cases</th>
+          <th class="r p-events">Return Events</th>
           <th class="r p-rate">Return %</th>
           <th class="p-last">Last Return</th>
         </tr></thead>
@@ -7192,13 +7192,33 @@ function renderAnalysis(){
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
 }
 
+/* Keep the user's place when expanding/collapsing grouped rows. Re-rendering a
+   table body can otherwise reset the internal scroll container (and on some
+   browsers the page itself) back to the top. */
+function keepExpandedView(scrollId, renderFn){
+  var sc=document.getElementById(scrollId);
+  var top=sc ? sc.scrollTop : 0;
+  var left=sc ? sc.scrollLeft : 0;
+  var pageX=window.pageXOffset || document.documentElement.scrollLeft || 0;
+  var pageY=window.pageYOffset || document.documentElement.scrollTop || 0;
+
+  renderFn();
+
+  function restore(){
+    if (sc){ sc.scrollTop=top; sc.scrollLeft=left; }
+    window.scrollTo(pageX,pageY);
+  }
+  restore();
+  if (window.requestAnimationFrame) requestAnimationFrame(restore);
+}
+
 /* Expand/collapse the suppressed gaps for one customer without changing filters. */
 document.getElementById('antbl').addEventListener('click', function(e){
   var btn=e.target.closest('.anmorebtn');
   if (!btn) return;
   var cid=+btn.dataset.acust;
   anCustOpen[cid]=!anCustOpen[cid];
-  renderAnalysis();
+  keepExpandedView('anScroll', renderAnalysis);
 });
 
 /* items offered for selection follow the category above — pick Dressings and the
@@ -7875,7 +7895,7 @@ function renderPromo(){
     kpi('Returned Cases', nf2.format(ret), 'cases returned in qualifying events', ret?'down':'flat') +
     kpi('Return %', supply ? nf1.format(ret/supply*100)+'%' : '—', 'returned ÷ positive supply for selected period', ret?'down':'flat');
 
-  document.getElementById('pSalesHead').textContent = promoAnalysisYear() + ' ' + periodLabel() + ' Sales';
+  document.getElementById('pSalesHead').textContent = yy(promoAnalysisYear()) + ' Sales';
   document.getElementById('pCount').textContent =
     items + ' promotion item' + (items===1?'':'s') + ' · ' + sites + ' site' + (sites===1?'':'s');
   document.getElementById('pScope').textContent =
@@ -7890,9 +7910,9 @@ function renderPromo(){
       ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
       g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
       '<td class="num p-sales">' + fmtS(g.sales) + '</td>' +
-      '<td class="num p-events">' + nf0.format(g.events) + '</td>' +
       '<td class="num p-supply">' + nf2.format(g.supply) + '</td>' +
       '<td class="num p-return">' + nf2.format(g.ret) + '</td>' +
+      '<td class="num p-events">' + nf0.format(g.events) + '</td>' +
       '<td class="num p-rate">' + promoRate(g.rate) + '</td>' +
       '<td class="p-last">' + promoLast(g.last) + '</td></tr>';
 
@@ -7908,9 +7928,9 @@ function renderPromo(){
           esc(areaLabel(areaOf[st.s])) + '</span></td>' +
         '<td class="p-item"></td><td class="p-cat"></td>' +
         '<td class="num p-sales">' + fmtS(st.sales) + '</td>' +
-        '<td class="num p-events">' + nf0.format(st.events) + '</td>' +
         '<td class="num p-supply">' + nf2.format(st.supply) + '</td>' +
         '<td class="num p-return">' + nf2.format(st.ret) + '</td>' +
+        '<td class="num p-events">' + nf0.format(st.events) + '</td>' +
         '<td class="num p-rate">' + promoRate(st.rate) + '</td>' +
         '<td class="p-last">' + promoLast(st.last) + '</td></tr>';
 
@@ -7922,9 +7942,9 @@ function renderPromo(){
               'title="Open monthly item detail">' + esc(ITEMS[it.i][1]) + '</button></td>' +
             '<td class="p-cat">' + esc(ITEMS[it.i][2]) + '</td>' +
             '<td class="num p-sales">' + fmtS(it.sales) + '</td>' +
-            '<td class="num p-events">' + nf0.format(it.events) + '</td>' +
             '<td class="num p-supply">' + nf2.format(it.supply) + '</td>' +
             '<td class="num p-return">' + nf2.format(it.ret) + '</td>' +
+            '<td class="num p-events">' + nf0.format(it.events) + '</td>' +
             '<td class="num p-rate">' + promoRate(it.rate) + '</td>' +
             '<td class="p-last">' + promoLast(it.last) + '</td></tr>';
         });
@@ -7960,7 +7980,7 @@ document.getElementById('ptbl').addEventListener('click', function(e){
   if (moreBtn){
     var cid=+moreBtn.dataset.pcust;
     promoCustOpen[cid]=!promoCustOpen[cid];
-    renderPromo();
+    keepExpandedView('pScroll', renderPromo);
     return;
   }
 
@@ -9538,7 +9558,7 @@ document.getElementById('otbl').addEventListener('click', function(e){
   if (moreBtn){
     var cid=+moreBtn.dataset.ocust;
     outletCustOpen[cid]=!outletCustOpen[cid];
-    renderOutlet();
+    keepExpandedView('oScroll', renderOutlet);
     return;
   }
 
