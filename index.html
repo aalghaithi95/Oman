@@ -557,9 +557,10 @@ tr.ok td.desc{color:var(--pos)}
 .status.stale .dot{background:var(--accent)}
 .status.error{border-color:#E3B5AA;background:var(--neg-bg);color:var(--neg)}
 .status.error .dot{background:var(--neg)}
-#refreshBtn{flex:none;background:none;border:1px solid var(--line);color:var(--ink);
+#refreshBtn,#convertBtn{flex:none;background:none;border:1px solid var(--line);color:var(--ink);
   padding:4px 9px;border-radius:var(--r);cursor:pointer;font-size:11px}
-#refreshBtn:hover{border-color:var(--ink-3)}
+#refreshBtn:hover,#convertBtn:hover{border-color:var(--ink-3)}
+#convertBtn.on{background:var(--accent);border-color:var(--accent);color:#20180A;font-weight:600}
 .yrsel{display:flex;align-items:center;gap:5px}
 .yrsel select{background:var(--ink-2);border:1px solid #2E5462;color:#EAF2F0;padding:5px 7px;border-radius:var(--r);font-size:12px}
 .yrsel span{color:#5C8189;font-size:11px}
@@ -1085,10 +1086,11 @@ body.neopen .necard{transform:translateY(0)}
 }
 
 /* ---------- desktop: refresh by the compare filter, visit history in the panel head ---------- */
-.railslot{display:flex;align-items:center;margin-right:12px}
-.railslot #refreshBtn{background:none;border:1px solid #2E5462;color:#9DBDB8;
+.railslot{display:flex;align-items:center;gap:5px;margin-right:12px}
+.railslot #refreshBtn,.railslot #convertBtn{background:none;border:1px solid #2E5462;color:#9DBDB8;
   padding:5px 11px;border-radius:var(--r);font-size:11px;cursor:pointer}
-.railslot #refreshBtn:hover{color:#fff;border-color:#5C8189}
+.railslot #refreshBtn:hover,.railslot #convertBtn:hover{color:#fff;border-color:#5C8189}
+.railslot #convertBtn.on{background:var(--accent);border-color:var(--accent);color:#20180A;font-weight:600}
 .headslot{display:inline-flex;align-items:center;gap:5px}
 .headslot #visitHist,.headslot #monthlyViewBtn{padding:5px 11px;font-size:11.5px}
 @media (max-width:760px){
@@ -1376,7 +1378,7 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     </div>
   </div>
 
-  <div class="status loading" id="status"><span class="dot"></span><span class="msg" id="statusMsg">Connecting…</span><button id="refreshBtn" type="button">Refresh</button></div>
+  <div class="status loading" id="status"><span class="dot"></span><span class="msg" id="statusMsg">Connecting…</span><button id="refreshBtn" type="button">Refresh</button><button id="convertBtn" class="on" type="button" aria-pressed="true" title="Case conversion is active">Convert</button></div>
 
   <div class="ovchart" id="visitValueChart"></div>
 
@@ -1970,9 +1972,10 @@ function depLabel(){
        : (state.dep === 'FSD' ? 'Food Service only' : 'CPD only');
 }
 var YEARS = [], NY = 0, LASTM = 11;
-var F = null;            /* {s,i,p,v,q} typed arrays — the whole dataset, in memory */
+var F = null;            /* facts; q points to raw or converted cases */
 var loadedAt = null;
-var DATA_VERSION = 11;
+var CASE_CONVERT = true;  /* Column R shipped cases ÷ Column U conversion; active by default */
+var DATA_VERSION = 12;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -2009,7 +2012,7 @@ function gviz(query, ok, fail){
 function cell(r, i){ var c = r.c && r.c[i]; return (c && c.v !== null && c.v !== undefined) ? c.v : null; }
 function num(v){ return typeof v === 'number' ? v : cnum(v); }
 
-var COL = {dep:'A', item:'D', cust:'G', code:'K', site:'L', chan:'N', yr:'O', mnth:'P', sales:'Q', cases:'R'};
+var COL = {dep:'A', item:'D', cust:'G', code:'K', site:'L', chan:'N', yr:'O', mnth:'P', sales:'Q', cases:'R', conv:'U'};
 
 /* ---------- on-device snapshot (IndexedDB; localStorage is far too small) ---------- */
 var IDB_NAME = 'delicio-oman', IDB_STORE = 'snapshot';
@@ -2046,10 +2049,34 @@ function snapshotClear(cb){
   });
 }
 
+function syncConvertButton(){
+  var b=document.getElementById('convertBtn');
+  if (!b) return;
+  b.classList.toggle('on', CASE_CONVERT);
+  b.setAttribute('aria-pressed', CASE_CONVERT ? 'true' : 'false');
+  b.title=CASE_CONVERT
+    ? 'Case conversion is active: shipped cases ÷ Column U conversion'
+    : 'Case conversion is off: showing raw shipped cases';
+}
+function applyCaseConversion(){
+  if (!F){ syncConvertButton(); return; }
+  if (!F.qRaw) F.qRaw=F.q;
+  if (!F.qConv) F.qConv=F.qRaw;
+  F.q=CASE_CONVERT ? F.qConv : F.qRaw;
+  A=null; LIVE=null; AN=null; PRSCAN=null; AREASCAN=null;
+  syncConvertButton();
+}
+
 function applySnapshot(snap){
   if (snap && snap.f && !snap.f.d) snap.f.d = new Uint8Array(snap.f.s.length);
   SITES = snap.sites; YEARS = snap.years.slice(); NY = YEARS.length;
   F = snap.f; loadedAt = snap.at;
+  if (F){
+    if (!F.qRaw) F.qRaw=F.q;
+    if (!F.qConv) F.qConv=F.qRaw;
+    F.q=CASE_CONVERT ? F.qConv : F.qRaw;
+  }
+  syncConvertButton();
   if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
   CUSTOMERS = []; sitesByCust = {};
   var seen = {};
@@ -2093,7 +2120,8 @@ function csvUrl(){
 var C_DEP = 0, C_ITEM = 3, C_CUST = 6, C_CODE = 10, C_SITE = 11, C_CHAN = 13,
     C_YR = 14, C_MNTH = 15, C_SALES = 16, C_CASES = 17, C_STOCK = 18,   /* S = stock */
     C_COLL = 8, C_CITY = 12,                        /* I = collector, M = city / area */
-    C_ASTOCK = 19;                                  /* T = stock held in the area */
+    C_ASTOCK = 19,                                  /* T = stock held in the area */
+    C_CONV = 20;                                    /* U = shipped-case conversion divisor */
 
 /* Warehouse stock, looked up VLOOKUP-style: the same figure repeats on every row
    of an item, so it is ASSIGNED per item code, never summed. */
@@ -2135,22 +2163,26 @@ function Buckets(){
   this.cap = 1 << 16; this.n = 0;
   this.key = new Float64Array(this.cap);
   this.v = new Float64Array(this.cap);
-  this.q = new Float64Array(this.cap);
+  this.qRaw = new Float64Array(this.cap);
+  this.qConv = new Float64Array(this.cap);
 }
-Buckets.prototype.add = function(k, v, q){
+Buckets.prototype.add = function(k, v, qRaw, qConv){
   var slot = this.map[k];
   if (slot === undefined){
     if (this.n === this.cap){
       this.cap *= 2;
       var K = new Float64Array(this.cap); K.set(this.key); this.key = K;
       var V = new Float64Array(this.cap); V.set(this.v); this.v = V;
-      var Q = new Float64Array(this.cap); Q.set(this.q); this.q = Q;
+      var QR = new Float64Array(this.cap); QR.set(this.qRaw); this.qRaw = QR;
+      var QC = new Float64Array(this.cap); QC.set(this.qConv); this.qConv = QC;
     }
     slot = this.n++;
     this.map[k] = slot;
     this.key[slot] = k;
   }
-  this.v[slot] += v; this.q[slot] += q;
+  this.v[slot] += v;
+  this.qRaw[slot] += qRaw;
+  this.qConv[slot] += qConv;
 };
 
 /* Numbers arrive formatted the way the sheet displays them: "1,234.5", sometimes
@@ -2229,6 +2261,7 @@ function loadAll(progress, ok, fail){
     }
     if (!isNaN(rawCode)){
       for (var cc=STOCK_FIRST; cc<=STOCK_LAST && cc<f.length; cc++){
+        if (cc === C_CONV) continue; /* U is the case conversion field, never stock */
         var sTxt = f[cc];
         if (sTxt === undefined) continue;
         sTxt = String(sTxt).trim();
@@ -2271,19 +2304,22 @@ function loadAll(progress, ok, fail){
     if (ii === undefined){ badItems++; ii = OTHER; }    /* counted, never listed */
     if (abs < 0) return;
     var m = mm, y = yy;
-    var v = cnum(f[C_SALES]), q = cnum(f[C_CASES]);
+    var v = cnum(f[C_SALES]), qRaw = cnum(f[C_CASES]);
+    var conv = (f.length > C_CONV) ? cnum(f[C_CONV]) : 0;
+    var qConv = Math.abs(conv) > 0.0000000001 ? (qRaw / conv) : qRaw;
     /* last active salesman = whoever serviced the outlet on its most recent
-       shipping month; returns alone do not count as activity */
-    if (q > 0 && abs >= (sitePosP[si] === undefined ? -1 : sitePosP[si])){
+       shipping month; returns alone do not count as activity. Conversion does not
+       change the sign, so raw shipped cases are sufficient for activity. */
+    if (qRaw > 0 && abs >= (sitePosP[si] === undefined ? -1 : sitePosP[si])){
       sitePosP[si] = abs;
       var coll = (f[C_COLL] || '').trim();
       if (coll) sites[si][5] = coll;
     }
-    if (!v && !q) return;
+    if (!v && !qRaw) return;
     yearSeen[y] = 1;
     rows++;
     /* one bucket per site x item x year x month */
-    B.add(((((si * NI + ii) * 64 + (y - 2000)) * 12 + m) * 2) + dep, v, q);
+    B.add(((((si * NI + ii) * 64 + (y - 2000)) * 12 + m) * 2) + dep, v, qRaw, qConv);
   }
 
   function feed(text){
@@ -2318,7 +2354,7 @@ function loadAll(progress, ok, fail){
 
     var n = B.n;
     var fs = new Int32Array(n), fi = new Int32Array(n), fp = new Int32Array(n),
-        fv = new Float64Array(n), fq = new Float64Array(n), fd = new Uint8Array(n);
+        fv = new Float64Array(n), fqRaw = new Float64Array(n), fqConv = new Float64Array(n), fd = new Uint8Array(n);
     for (var k=0;k<n;k++){
       var key = B.key[k];
       var dp = key % 2; key = (key - dp) / 2;
@@ -2326,7 +2362,7 @@ function loadAll(progress, ok, fail){
       var y = (key % 64) + 2000; key = (key - (y - 2000)) / 64;
       var ii = key % NI;
       var si = (key - ii) / NI;
-      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fq[k] = B.q[k]; fd[k] = dp;
+      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fqRaw[k] = B.qRaw[k]; fqConv[k] = B.qConv[k]; fd[k] = dp;
     }
     B = null;
 
@@ -2335,6 +2371,7 @@ function loadAll(progress, ok, fail){
     if (pick < 0){
       var best = 0;
       for (var pc=STOCK_FIRST; pc<=STOCK_LAST; pc++){
+        if (pc === C_CONV) continue;                    /* U is case conversion */
         if (pc === C_ASTOCK && aStockHits) continue;   /* that column is the area stock */
         if (stockHits[pc] > best){ best = stockHits[pc]; pick = pc; }
       }
@@ -2357,7 +2394,7 @@ function loadAll(progress, ok, fail){
     }
     var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites,
                 aStock: aStockHits ? aStockMap : null,
-                f:{s:fs, i:fi, p:fp, v:fv, q:fq, d:fd}};
+                f:{s:fs, i:fi, p:fp, v:fv, qRaw:fqRaw, qConv:fqConv, q:(CASE_CONVERT?fqConv:fqRaw), d:fd}};
     function complete(){
       snap.stock = STOCK; snap.stockAt = stockAt;
       applySnapshot(snap);
@@ -2425,23 +2462,26 @@ function Grow(){
   this.cap = 1 << 16; this.n = 0;
   this.s = new Int32Array(this.cap); this.i = new Int32Array(this.cap);
   this.p = new Int32Array(this.cap); this.v = new Float64Array(this.cap);
-  this.q = new Float64Array(this.cap);
+  this.qRaw = new Float64Array(this.cap); this.qConv = new Float64Array(this.cap);
 }
-Grow.prototype.push = function(s, i, p, v, q){
+Grow.prototype.push = function(s, i, p, v, qRaw, qConv){
   if (this.n === this.cap){
     this.cap *= 2;
     var S = new Int32Array(this.cap); S.set(this.s); this.s = S;
     var I = new Int32Array(this.cap); I.set(this.i); this.i = I;
     var P = new Int32Array(this.cap); P.set(this.p); this.p = P;
     var V = new Float64Array(this.cap); V.set(this.v); this.v = V;
-    var Q = new Float64Array(this.cap); Q.set(this.q); this.q = Q;
+    var QR = new Float64Array(this.cap); QR.set(this.qRaw); this.qRaw = QR;
+    var QC = new Float64Array(this.cap); QC.set(this.qConv); this.qConv = QC;
   }
   var n = this.n++;
-  this.s[n] = s; this.i[n] = i; this.p[n] = p; this.v[n] = v; this.q[n] = q;
+  this.s[n] = s; this.i[n] = i; this.p[n] = p; this.v[n] = v;
+  this.qRaw[n] = qRaw; this.qConv[n] = qConv;
 };
 Grow.prototype.done = function(){
+  var qRaw=this.qRaw.slice(0,this.n), qConv=this.qConv.slice(0,this.n);
   return {s:this.s.slice(0,this.n), i:this.i.slice(0,this.n), p:this.p.slice(0,this.n),
-          v:this.v.slice(0,this.n), q:this.q.slice(0,this.n)};
+          v:this.v.slice(0,this.n), qRaw:qRaw, qConv:qConv, q:(CASE_CONVERT?qConv:qRaw)};
 };
 
 function loadViaGviz(progress, ok, fail){
@@ -2499,10 +2539,10 @@ function loadViaGviz(progress, ok, fail){
   }
   function runChunk(c, attempt){
     active++;
-    gviz("select " + COL.code + ", " + COL.item + ", sum(" + COL.sales + "), sum(" + COL.cases + ") " +
+    gviz("select " + COL.code + ", " + COL.item + ", " + COL.conv + ", sum(" + COL.sales + "), sum(" + COL.cases + ") " +
          "where " + COL.dep + " = 'CPD' and " + COL.yr + " = " + c.y +
          " and " + COL.mnth + " = '" + String(c.mLabel).replace(/'/g,"''") + "'" +
-         " group by " + COL.code + ", " + COL.item,
+         " group by " + COL.code + ", " + COL.item + ", " + COL.conv,
       function(t){
         if (failed) return;
         var p = yIndex[c.y]*12 + c.m, rows = t.rows;
@@ -2513,9 +2553,11 @@ function loadViaGviz(progress, ok, fail){
           if (si === undefined) continue;
           var ii = imap[typeof item === 'number' ? item : parseInt(String(item).replace(/\D/g,''),10)];
           if (ii === undefined) continue;               /* not on the master item list */
-          var val = num(cell(rows[r],2)), qty = num(cell(rows[r],3));
-          if (!val && !qty) continue;
-          buf.push(si, ii, p, val, qty);
+          var conv = num(cell(rows[r],2));
+          var val = num(cell(rows[r],3)), qtyRaw = num(cell(rows[r],4));
+          var qtyConv = Math.abs(conv) > 0.0000000001 ? (qtyRaw / conv) : qtyRaw;
+          if (!val && !qtyRaw) continue;
+          buf.push(si, ii, p, val, qtyRaw, qtyConv);
         }
         t.rows = null; rows = null;
         active--; finished++; doneRows += c.n;
@@ -3950,6 +3992,13 @@ document.getElementById('refreshBtn').addEventListener('click', function(){
     });
   });
 });
+document.getElementById('convertBtn').addEventListener('click', function(){
+  CASE_CONVERT=!CASE_CONVERT;
+  applyCaseConversion();
+  renderHead();
+  renderActiveTab();
+});
+syncConvertButton();
 
 /* ---------- exports ---------- */
 function exportSummaryCsv(){
@@ -8368,15 +8417,19 @@ var wideMQ = window.matchMedia ? window.matchMedia('(min-width:761px)') : null;
 function placeControls(){
   var wide = wideMQ ? wideMQ.matches : true;
   var refresh = document.getElementById('refreshBtn');
+  var convert = document.getElementById('convertBtn');
   var hist = document.getElementById('visitHist');
   var monthly = document.getElementById('monthlyViewBtn');
   var slotR = document.getElementById('refreshSlot');
   var slotH = document.getElementById('histSlot');
   var status = document.getElementById('status');
   var audit = document.querySelector('.audit');
-  if (refresh){
+  if (refresh || convert){
     var homeR = wide ? slotR : status;
-    if (homeR && refresh.parentNode !== homeR) homeR.appendChild(refresh);
+    if (homeR){
+      if (refresh && refresh.parentNode !== homeR) homeR.appendChild(refresh);
+      if (convert && convert.parentNode !== homeR) homeR.appendChild(convert);
+    }
   }
   if (audit){
     var homeH = wide ? slotH : audit;
