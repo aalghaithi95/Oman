@@ -1869,21 +1869,23 @@ function liveScan(){
 function areaLabel(i){ return AREAS[i] || ''; }
 
 /* ---------- stock held in each area ---------- */
-var ASTOCK = null, ASTOCK_RAW = null;
+var ASTOCK = null, ASTOCK_RAW = null, ASTOCK_CONV_RAW = null;
 function buildAreaStock(){
-  if (!ASTOCK_RAW || !AREAS.length || !NI) return;
+  var source = CASE_CONVERT ? (ASTOCK_CONV_RAW || ASTOCK_RAW) : ASTOCK_RAW;
+  ASTOCK = null;
+  if (!source || !AREAS.length || !NI) return;
   var n = NI * AREAS.length;
   ASTOCK = new Float64Array(n);
   var keys = {};
   for (var a=0;a<AREAS.length;a++) keys[String(AREAS[a]).toUpperCase()] = a;
-  for (var k in ASTOCK_RAW){
+  for (var k in source){
     var cut = k.lastIndexOf('|');
     if (cut < 0) continue;
     var code = cint(k.slice(0, cut)), ar = keys[k.slice(cut+1)];
     if (ar === undefined) continue;
     var ii = imap[code];
     if (ii === undefined) continue;
-    ASTOCK[ii * AREAS.length + ar] = ASTOCK_RAW[k];
+    ASTOCK[ii * AREAS.length + ar] = source[k];
   }
 }
 /* the area stock relevant to what is on screen: one area shows its own figure,
@@ -1974,8 +1976,8 @@ function depLabel(){
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* facts; q points to raw or converted cases */
 var loadedAt = null;
-var CASE_CONVERT = true;  /* Column R shipped cases ÷ Column U conversion; active by default */
-var DATA_VERSION = 12;
+var CASE_CONVERT = true;  /* Cases (R), Stock (S) and Area Stock (T) ÷ Column U conversion; active by default */
+var DATA_VERSION = 13;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -2055,14 +2057,17 @@ function syncConvertButton(){
   b.classList.toggle('on', CASE_CONVERT);
   b.setAttribute('aria-pressed', CASE_CONVERT ? 'true' : 'false');
   b.title=CASE_CONVERT
-    ? 'Case conversion is active: shipped cases ÷ Column U conversion'
-    : 'Case conversion is off: showing raw shipped cases';
+    ? 'Conversion is active: Cases, Stock and Area Stock ÷ Column U'
+    : 'Conversion is off: showing raw Cases, Stock and Area Stock';
 }
 function applyCaseConversion(){
-  if (!F){ syncConvertButton(); return; }
-  if (!F.qRaw) F.qRaw=F.q;
-  if (!F.qConv) F.qConv=F.qRaw;
-  F.q=CASE_CONVERT ? F.qConv : F.qRaw;
+  if (F){
+    if (!F.qRaw) F.qRaw=F.q;
+    if (!F.qConv) F.qConv=F.qRaw;
+    F.q=CASE_CONVERT ? F.qConv : F.qRaw;
+  }
+  syncStockConversion();
+  buildAreaStock();
   A=null; LIVE=null; AN=null; PRSCAN=null; AREASCAN=null;
   syncConvertButton();
 }
@@ -2077,10 +2082,16 @@ function applySnapshot(snap){
     F.q=CASE_CONVERT ? F.qConv : F.qRaw;
   }
   syncConvertButton();
-  if (snap.stock && snap.stock.length === NI){ STOCK = snap.stock; stockAt = snap.stockAt || null; }
+  STOCK_RAW = (snap.stockRaw && snap.stockRaw.length === NI) ? snap.stockRaw
+            : ((snap.stock && snap.stock.length === NI) ? snap.stock : null);
+  STOCK_CONV = (snap.stockConv && snap.stockConv.length === NI) ? snap.stockConv : STOCK_RAW;
+  stockAt = snap.stockAt || null;
+  syncStockConversion();
   CUSTOMERS = []; sitesByCust = {};
   var seen = {};
-  ASTOCK = null; ASTOCK_RAW = (snap && snap.aStock) ? snap.aStock : null;
+  ASTOCK = null;
+  ASTOCK_RAW = (snap && (snap.aStockRaw || snap.aStock)) ? (snap.aStockRaw || snap.aStock) : null;
+  ASTOCK_CONV_RAW = (snap && snap.aStockConv) ? snap.aStockConv : ASTOCK_RAW;
   AREAS = []; areaOf = new Int32Array(SITES.length);
   var seenArea = {};
   SITES.forEach(function(r, i){
@@ -2125,7 +2136,10 @@ var C_DEP = 0, C_ITEM = 3, C_CUST = 6, C_CODE = 10, C_SITE = 11, C_CHAN = 13,
 
 /* Warehouse stock, looked up VLOOKUP-style: the same figure repeats on every row
    of an item, so it is ASSIGNED per item code, never summed. */
-var STOCK = null, stockAt = null, stockNote = '', stockFrom = '';
+var STOCK = null, STOCK_RAW = null, STOCK_CONV = null, stockAt = null, stockNote = '', stockFrom = '';
+function syncStockConversion(){
+  STOCK = CASE_CONVERT ? (STOCK_CONV || STOCK_RAW) : STOCK_RAW;
+}
 function stockOf(i){ return STOCK ? STOCK[i] : 0; }
 function colLetter(i){
   var out = ''; i = i + 1;
@@ -2138,25 +2152,30 @@ function fetchStockViaGviz(done){
   var settled = false;
   function once(n){ if (settled) return; settled = true; done(n); }
   setTimeout(function(){ once(0); }, 12000);
-  gviz("select " + COL.item + ", max(S) where " + COL.dep + " = 'CPD' group by " + COL.item,
+  gviz("select " + COL.item + ", max(S), max(" + COL.conv + ") where " + COL.dep + " = 'CPD' group by " + COL.item,
     function(t){
-      var arr = new Float64Array(NI), matched = 0;
+      var rawArr = new Float64Array(NI), convArr = new Float64Array(NI), matched = 0;
       for (var r=0;r<t.rows.length;r++){
-        var code = cell(t.rows[r],0), v = cell(t.rows[r],1);
+        var code = cell(t.rows[r],0), v = cell(t.rows[r],1), conv = cell(t.rows[r],2);
         if (code === null || v === null) continue;
         var ii = imap[typeof code === 'number' ? Math.round(code) : cint(code)];
         if (ii === undefined) continue;
-        arr[ii] = (typeof v === 'number') ? v : cnum(v);
+        var raw = (typeof v === 'number') ? v : cnum(v);
+        var div = (typeof conv === 'number') ? conv : cnum(conv);
+        rawArr[ii] = raw;
+        convArr[ii] = Math.abs(div) > 0.0000000001 ? (raw / div) : raw;
         matched++;
       }
       if (matched){
-        STOCK = arr; stockAt = new Date().toISOString(); stockNote = '';
+        STOCK_RAW = rawArr; STOCK_CONV = convArr; syncStockConversion();
+        stockAt = new Date().toISOString(); stockNote = '';
         stockFrom = 'live sheet query (column S) · ' + matched + ' of ' + NI + ' items matched';
       }
       once(matched);
     },
     function(){ once(0); });
 }
+
 
 function Buckets(){
   this.map = {};                 /* composite key -> slot */
@@ -2226,9 +2245,9 @@ function splitCsv(line){
 
 function loadAll(progress, ok, fail){
   var sites = [], codeIdx = {}, siteLastP = [], sitePosP = [], yearSeen = {}, B = new Buckets();
-  var STOCK_FIRST = 18, STOCK_LAST = 25, stockMaps = [], stockHits = [];
-  var aStockMap = {}, aStockHits = 0;
-  for (var sc=STOCK_FIRST; sc<=STOCK_LAST; sc++){ stockMaps[sc] = {}; stockHits[sc] = 0; }
+  var STOCK_FIRST = 18, STOCK_LAST = 25, stockRawMaps = [], stockConvMaps = [], stockHits = [];
+  var aStockRawMap = {}, aStockConvMap = {}, aStockHits = 0;
+  for (var sc=STOCK_FIRST; sc<=STOCK_LAST; sc++){ stockRawMaps[sc] = {}; stockConvMaps[sc] = {}; stockHits[sc] = 0; }
   var headers = [], namedCol = -1, widest = 0;
   var rows = 0, bytes = 0, header = true, tail = '', badItems = 0;
 
@@ -2246,28 +2265,36 @@ function loadAll(progress, ok, fail){
     if (f.length < 18) return;
     if (f.length > widest) widest = f.length;
 
-    /* stock is read before any CPD / item-list filtering, so a value sitting on a
-       row the dashboard otherwise skips is still picked up */
+    /* Stock is read before any CPD / item-list filtering, so a value sitting on a
+       row the dashboard otherwise skips is still picked up. Column U is the same
+       conversion divisor used for Cases, Warehouse Stock and Area Stock. */
     var rawCode = cint(f[C_ITEM]);
-    /* column T holds the stock sitting in that row's own area, so it is kept per
-       item AND per area rather than as a single figure per item */
+    var rowConv = (f.length > C_CONV) ? cnum(f[C_CONV]) : 0;
+    function rowConverted(raw){ return Math.abs(rowConv) > 0.0000000001 ? (raw / rowConv) : raw; }
+
+    /* Column T holds the stock sitting in that row's own area, so it is kept per
+       item AND per area rather than as a single figure per item. */
     if (!isNaN(rawCode) && f.length > C_ASTOCK){
       var aTxt = String(f[C_ASTOCK] == null ? '' : f[C_ASTOCK]).trim();
       if (aTxt !== '' && /\d/.test(aTxt)){
         var acity = (f[C_CITY] || '').replace(/\s+/g,' ').trim().toUpperCase() || 'UNSPECIFIED';
-        aStockMap[rawCode + '|' + acity] = cnum(aTxt);
+        var aRaw = cnum(aTxt), aKey = rawCode + '|' + acity;
+        aStockRawMap[aKey] = aRaw;
+        aStockConvMap[aKey] = rowConverted(aRaw);
         aStockHits++;
       }
     }
     if (!isNaN(rawCode)){
       for (var cc=STOCK_FIRST; cc<=STOCK_LAST && cc<f.length; cc++){
-        if (cc === C_CONV) continue; /* U is the case conversion field, never stock */
+        if (cc === C_CONV) continue; /* U is the conversion field, never stock */
         var sTxt = f[cc];
         if (sTxt === undefined) continue;
         sTxt = String(sTxt).trim();
         if (sTxt === '' || !/\d/.test(sTxt)) continue;
-        if (stockMaps[cc][rawCode] === undefined) stockHits[cc]++;
-        stockMaps[cc][rawCode] = cnum(sTxt);
+        if (stockRawMaps[cc][rawCode] === undefined) stockHits[cc]++;
+        var sRaw = cnum(sTxt);
+        stockRawMaps[cc][rawCode] = sRaw;
+        stockConvMaps[cc][rawCode] = rowConverted(sRaw);
       }
     }
     /* both departments are loaded now; each fact remembers which one it is so the
@@ -2305,7 +2332,7 @@ function loadAll(progress, ok, fail){
     if (abs < 0) return;
     var m = mm, y = yy;
     var v = cnum(f[C_SALES]), qRaw = cnum(f[C_CASES]);
-    var conv = (f.length > C_CONV) ? cnum(f[C_CONV]) : 0;
+    var conv = rowConv;
     var qConv = Math.abs(conv) > 0.0000000001 ? (qRaw / conv) : qRaw;
     /* last active salesman = whoever serviced the outlet on its most recent
        shipping month; returns alone do not count as activity. Conversion does not
@@ -2378,25 +2405,32 @@ function loadAll(progress, ok, fail){
     }
     var stockPending = false;
     if (pick >= 0){
-      var sArr = new Float64Array(NI), matched = 0, map = stockMaps[pick];
+      var sRawArr = new Float64Array(NI), sConvArr = new Float64Array(NI), matched = 0;
+      var rawMap = stockRawMaps[pick], convMap = stockConvMaps[pick];
       for (var mi=0; mi<NI; mi++){
-        var mv = map[ITEMS[mi][0]];
-        if (mv !== undefined){ sArr[mi] = mv; matched++; }
+        var codeNow = ITEMS[mi][0], mvRaw = rawMap[codeNow], mvConv = convMap[codeNow];
+        if (mvRaw !== undefined){
+          sRawArr[mi] = mvRaw;
+          sConvArr[mi] = (mvConv !== undefined ? mvConv : mvRaw);
+          matched++;
+        }
       }
-      STOCK = sArr; stockAt = new Date().toISOString(); stockNote = '';
+      STOCK_RAW = sRawArr; STOCK_CONV = sConvArr; syncStockConversion();
+      stockAt = new Date().toISOString(); stockNote = '';
       stockFrom = 'column ' + colLetter(pick) +
                   (headers[pick] ? ' (' + String(headers[pick]).trim() + ')' : '') +
                   ' · ' + matched + ' of ' + NI + ' items matched';
     } else {
-      STOCK = null; stockFrom = '';
+      STOCK = null; STOCK_RAW = null; STOCK_CONV = null; stockFrom = '';
       stockNote = 'No stock found in column S of the sheet. Widest row: ' + widest + ' columns.';
       stockPending = true;
     }
     var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites,
-                aStock: aStockHits ? aStockMap : null,
+                aStockRaw: aStockHits ? aStockRawMap : null,
+                aStockConv: aStockHits ? aStockConvMap : null,
                 f:{s:fs, i:fi, p:fp, v:fv, qRaw:fqRaw, qConv:fqConv, q:(CASE_CONVERT?fqConv:fqRaw), d:fd}};
     function complete(){
-      snap.stock = STOCK; snap.stockAt = stockAt;
+      snap.stockRaw = STOCK_RAW; snap.stockConv = STOCK_CONV; snap.stock = STOCK; snap.stockAt = stockAt;
       applySnapshot(snap);
       snapshotSave(snap);
       ok();
@@ -2577,7 +2611,7 @@ function loadViaGviz(progress, ok, fail){
   function finish(){
     progress('Preparing the dashboard…', 0.98);
     var snap = {
-      version: DATA_VERSION, stock: STOCK, stockAt: stockAt,
+      version: DATA_VERSION, stock: STOCK, stockRaw: STOCK_RAW, stockConv: STOCK_CONV, stockAt: stockAt,
       at: new Date().toISOString(),
       years: years,
       sites: sites,
