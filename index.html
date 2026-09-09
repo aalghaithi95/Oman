@@ -848,6 +848,11 @@ body.mdopen #mdWrap{display:block}
 
 #antbl tr.more td{background:#FBF3E1;color:var(--accent-2);font-size:11px;padding:6px 10px;
   border-bottom:1px solid var(--line)}
+#antbl .anmorebtn{
+  width:100%;border:0;background:none;color:var(--accent-2);padding:0;margin:0;
+  font:inherit;text-align:left;cursor:pointer;font-weight:600
+}
+#antbl .anmorebtn:hover{text-decoration:underline;text-underline-offset:2px}
 
 #antbl .gap.ret{background:var(--neg-bg);border-color:#E3B5AA;color:var(--neg)}
 
@@ -1165,6 +1170,12 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #otbl .never{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--neg)}
 #otbl tr.ocat td{background:#FBFBF9;color:var(--muted);font-size:11.5px}
 #otbl tr.ocat td.o-cat{padding-left:16px}
+#otbl .omorebtn{
+  width:100%;border:0;background:none;color:var(--accent-2);padding:0;margin:0;
+  font:inherit;text-align:left;cursor:pointer;font-weight:600
+}
+#otbl .omorebtn:hover{text-decoration:underline;text-underline-offset:2px}
+#otbl tr.more td{background:#FBF3E1;color:var(--accent-2);font-size:11px;padding:6px 10px}
 .ostat{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;
   text-transform:uppercase;padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
 .ostat.up{color:var(--pos);border-color:#A7CDB5;background:var(--pos-bg)}
@@ -1194,6 +1205,17 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #ptbl tr.pitem td{background:#FBFBF9;color:var(--muted)}
 #ptbl tr.pitem td.p-item{padding-left:18px;color:var(--ink)}
 #ptbl tr.pitem td.p-cat{font-size:10.5px}
+#ptbl .pitemlink{
+  display:block;width:100%;border:0;background:none;padding:0;margin:0;
+  color:var(--ink);font:inherit;text-align:left;cursor:pointer;
+  white-space:normal;line-height:1.2
+}
+#ptbl .pitemlink:hover{color:var(--accent-2);text-decoration:underline;text-underline-offset:2px}
+#ptbl .pmorebtn{
+  width:100%;border:0;background:none;color:var(--accent-2);padding:0;margin:0;
+  font:inherit;text-align:left;cursor:pointer;font-weight:600
+}
+#ptbl .pmorebtn:hover{text-decoration:underline;text-underline-offset:2px}
 #ptbl .prate{display:inline-block;min-width:52px;text-align:right;font-weight:600}
 #ptbl .prate.high{color:var(--neg)}
 #ptbl .empty{padding:28px;text-align:center;color:var(--muted);font-size:12px}
@@ -1264,7 +1286,7 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 <div class="rail">
   <div class="brand">
     <h1>Delicio</h1><span class="sep"></span>
-    <span class="sub">Oman · CPD · Customer Performance</span>
+    <span class="sub">Oman · Customer Performance</span>
   </div>
   <div class="spacer"></div>
   <div class="railslot" id="refreshSlot"></div>
@@ -1286,8 +1308,8 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 <div class="wrap">
 
   <div class="tabs" id="tabs">
-    <button class="tab on" type="button" data-t="visit">Market Visit</button>
-    <button class="tab" type="button" data-t="analysis">Analysis</button>
+    <button class="tab on" type="button" data-t="visit">Overview</button>
+    <button class="tab" type="button" data-t="analysis">Gap Analysis</button>
     <button class="tab" type="button" data-t="outlet">Outlet Performance</button>
     <button class="tab" type="button" data-t="promo">Promotion Analysis</button>
   </div>
@@ -3823,10 +3845,7 @@ function wirePeriod(){
     state.yrB = +this.value; renderHead(); renderActiveTab(); syncPresets();
   });
   PRESETS = [
-    {n:'YTD', a:0, b:LASTM},
-    {n:'Q1', a:0, b:2},
-    {n:'Q2', a:3, b:5},
-    {n:'Full yr', a:0, b:11}
+    {n:'YTD', a:0, b:LASTM}
   ];
   document.getElementById('presets').innerHTML = PRESETS.map(function(p,i){
     return '<button class="chip" data-i="'+i+'">'+p.n+'</button>';
@@ -7048,6 +7067,7 @@ function buildAnalysisRows(){
 }
 
 var AN_CAP = 600, AN_PER_CUST = 12;
+var anCustOpen = {}; /* customer-level: show all suppressed gaps */
 function renderAnalysis(){
   if (!F) return;
   var A2 = analysisScan();
@@ -7096,12 +7116,13 @@ function renderAnalysis(){
   }
   /* the biggest customer can have hundreds of gaps — show its worst dozen, then
      move on, so the page covers many customers instead of one */
-  var html = '', lastCust = -1, inCust = 0, printed = 0;
+  var html = '', lastCust = -1, inCust = 0, printed = 0, showAllGaps = false;
   for (var j=0;j<anRows.length && printed < AN_CAP;j++){
     var d = anRows[j];
     if (d.cid !== lastCust){
       if (lastCust !== -1) html += '</tbody>';
       lastCust = d.cid; inCust = 0;
+      showAllGaps = !!anCustOpen[d.cid];
       var cnt = perCust[d.cid], cl = lossCust[d.cid];
       var gA = custTotA[d.cid] || 0, gB = custTotB[d.cid] || 0;
       var cDiff = gB - gA;
@@ -7116,10 +7137,12 @@ function renderAnalysis(){
               '<td></td><td></td><td></td></tr>';
     }
     inCust++;
-    if (inCust > AN_PER_CUST){
+    if (!showAllGaps && inCust > AN_PER_CUST){
       if (inCust === AN_PER_CUST + 1){
-        html += '<tr class="more"><td colspan="11">' + (perCust[d.cid] - AN_PER_CUST) +
-                ' more gaps for ' + esc(CUSTOMERS[d.cid]) + ' — filter to this customer, or export the CSV, to see them all</td></tr>';
+        var hidden = Math.max(0, perCust[d.cid] - AN_PER_CUST);
+        html += '<tr class="more"><td colspan="11"><button class="anmorebtn" type="button" data-acust="'+d.cid+'">' +
+                '▾ Show ' + hidden + ' more gap' + (hidden===1?'':'s') + ' for ' + esc(CUSTOMERS[d.cid]) +
+                '</button></td></tr>';
       }
       continue;
     }
@@ -7139,6 +7162,12 @@ function renderAnalysis(){
       '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td>' +
       '<td class="num a-astock">' + areaStockCell(areaStockSite(d.i, d.s)) + '</td>' +
       '<td class="a-last">' + gapLabel(d.lp, d.la, A2.ref) + '</td></tr>';
+
+    if (showAllGaps && perCust[d.cid] > AN_PER_CUST &&
+        (j === anRows.length - 1 || anRows[j+1].cid !== d.cid)){
+      html += '<tr class="more"><td colspan="11"><button class="anmorebtn" type="button" data-acust="'+d.cid+'">' +
+              '▴ Show fewer gaps for ' + esc(CUSTOMERS[d.cid]) + '</button></td></tr>';
+    }
   }
   if (html) html += '</tbody>';
   var tbl = document.getElementById('antbl');
@@ -7148,7 +7177,7 @@ function renderAnalysis(){
     '<tbody id="anBody"><tr><td colspan="11" class="empty">No gaps match these filters — every item is being supplied.</td></tr></tbody>');
   document.getElementById('anCount').textContent =
     nf0.format(anRows.length) + ' opportunities · ' + Object.keys(perCust).length + ' customers' +
-    (anRows.length > printed ? ' · showing the worst ' + AN_PER_CUST + ' per customer' : '');
+    (anRows.length > printed ? ' · some gaps are collapsed' : '');
   syncAnHeadHeight();
   anStuck = null;
   measureGroups();
@@ -7162,6 +7191,15 @@ function renderAnalysis(){
         ' sales this year excluded' : '') +
     (state.aNever === 'only' ? ' · never supplied only' : (state.aNever === 'include' ? ' · never supplied included' : ''));
 }
+
+/* Expand/collapse the suppressed gaps for one customer without changing filters. */
+document.getElementById('antbl').addEventListener('click', function(e){
+  var btn=e.target.closest('.anmorebtn');
+  if (!btn) return;
+  var cid=+btn.dataset.acust;
+  anCustOpen[cid]=!anCustOpen[cid];
+  renderAnalysis();
+});
 
 /* items offered for selection follow the category above — pick Dressings and the
    list holds dressings only */
@@ -7179,7 +7217,7 @@ function analysisItemOptions(){
     if (ITEMS[i][3] === 'Promotion') continue;
     if (!analysisItemInDep(i)) continue;
     if (state.aCat.size && !state.aCat.has(catOf[i])) continue;
-    out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
+    out.push({id:i, label:ITEMS[i][1]});
   }
   out.sort(function(a,b){ return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0); });
   return out;
@@ -7361,7 +7399,8 @@ document.getElementById('anCsv').addEventListener('click', function(){
 var PRSCAN = null;
 var msPArea = null, msPCust = null, msPCat = null, msPItem = null;
 var promoOpen = {};
-var PROMO_CAP = 700, PROMO_PER_CUST = 18;
+var promoCustOpen = {}; /* customer-level: show all suppressed outlets */
+var PROMO_CAP = 5000, PROMO_PER_CUST = 18;
 
 function promoItemOk(i){
   return !isOther(i) && ITEMS[i][3] === 'Promotion';
@@ -7482,7 +7521,7 @@ function promoItemOptions(){
   for (var i=0;i<NI;i++){
     if (!promoItemOk(i)) continue;
     if (state.pCat.size && !state.pCat.has(catOf[i])) continue;
-    out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
+    out.push({id:i, label:ITEMS[i][1]});
   }
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
@@ -7625,6 +7664,196 @@ function buildPromoGroups(){
   return groups;
 }
 
+
+function promoReturnItemSeries(siteId,itemId){
+  var q={},v={};
+  YEARS.forEach(function(y,yi){
+    q[y]=new Array(12);
+    v[y]=new Array(12);
+    for (var m=0;m<12;m++){
+      var future=(yi===NY-1 && m>LASTM);
+      q[y][m]=future?null:0;
+      v[y][m]=future?null:0;
+    }
+  });
+
+  if (F){
+    var fs=F.s,fi=F.i,fp=F.p,fq=F.q,fv=F.v,fd=F.d,N=fs.length;
+    for (var k=0;k<N;k++){
+      if (fs[k]!==siteId || fi[k]!==itemId) continue;
+      if (!factCounted(fd[k],itemId)) continue;
+      var p=fp[k],yi=(p/12)|0,m=p%12,y=YEARS[yi];
+      if (!q[y] || q[y][m]===null) continue;
+      q[y][m]+=fq[k];
+      v[y][m]+=fv[k];
+    }
+  }
+  return {q:q,v:v};
+}
+
+function promoReturnItemChart(itemId,d){
+  var latest=YEARS[NY-1], prev=YEARS[Math.max(0,NY-2)];
+  var a=d.q[prev]||new Array(12).fill(0), b=d.q[latest]||new Array(12).fill(0);
+  var av=d.v[prev]||new Array(12).fill(0), bv=d.v[latest]||new Array(12).fill(0);
+  var maxV=0,minV=0;
+
+  [a,b].forEach(function(vals){
+    vals.forEach(function(x){
+      if (x===null || x===undefined) return;
+      if (x>maxV) maxV=x;
+      if (x<minV) minV=x;
+    });
+  });
+
+  var step=niceStep((maxV-minV)||Math.max(Math.abs(maxV),Math.abs(minV),1),5);
+  var top=Math.ceil(Math.max(0,maxV)/step)*step;
+  var bottom=Math.floor(Math.min(0,minV)/step)*step;
+  if (top===bottom){ top+=step; bottom-=step; }
+  if (top===0 && bottom<0) top=step;
+
+  var W=760,H=270,L=58,R=12,T=16,B=38,PW=W-L-R,PH=H-T-B;
+  var xAt=function(i){ return L+PW*i/11; };
+  var yAt=function(x){ return T+((top-x)/(top-bottom))*PH; };
+  var grid='',yl='',xl='';
+  var ticks=Math.max(1,Math.round((top-bottom)/step));
+
+  for (var t=0;t<=ticks;t++){
+    var gv=bottom+t*step,y=yAt(gv),zero=Math.abs(gv)<step/1000;
+    grid+='<line x1="'+L+'" y1="'+y.toFixed(1)+'" x2="'+(W-R)+'" y2="'+y.toFixed(1)+
+          '" stroke="'+(zero?'#8FA0A6':'#E3E7E5')+'" stroke-width="'+(zero?'1.5':'1')+'"></line>';
+    yl+='<text x="'+(L-8)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">'+
+        nf0.format(Math.round(gv))+'</text>';
+  }
+  for (var m=0;m<12;m++){
+    xl+='<text x="'+xAt(m).toFixed(1)+'" y="'+(H-12)+'" text-anchor="middle" fill="#6A7D84" font-size="11" font-family="Archivo, sans-serif">'+MONTHS[m]+'</text>';
+  }
+
+  function hoverPoints(casesArr,valueArr,year,fill){
+    var s='';
+    for (var m=0;m<12;m++){
+      var q=casesArr[m];
+      if (q===null || q===undefined || isNaN(q)) continue;
+      var val=valueArr[m] == null ? 0 : valueArr[m];
+      var cx=xAt(m).toFixed(1),cy=yAt(q).toFixed(1);
+      s+='<g class="impoint">'+
+           '<circle class="imdot" cx="'+cx+'" cy="'+cy+'" r="4" fill="'+fill+'"></circle>'+
+           '<circle class="imhit" cx="'+cx+'" cy="'+cy+'" r="14" data-year="'+year+
+             '" data-month="'+m+'" data-cases="'+q+'" data-value="'+val+'"></circle>'+
+         '</g>';
+    }
+    return s;
+  }
+
+  var svg='<svg class="chsvg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Monthly cases trend for '+esc(ITEMS[itemId][1])+'">'+
+    '<rect width="'+W+'" height="'+H+'" fill="#fff"></rect>'+grid+
+    '<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="#8FA0A6" stroke-width="1.2"></line>'+
+    '<line x1="'+L+'" y1="'+(H-B)+'" x2="'+(W-R)+'" y2="'+(H-B)+'" stroke="#8FA0A6" stroke-width="1.2"></line>'+
+    yl+xl+
+    '<path d="'+svgLinePath(a,xAt,yAt)+'" fill="none" stroke="#C6B2B0" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>'+
+    '<path d="'+svgLinePath(b,xAt,yAt)+'" fill="none" stroke="#A10716" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>'+
+    hoverPoints(a,av,prev,'#C6B2B0')+hoverPoints(b,bv,latest,'#A10716')+
+    '</svg>';
+
+  return '<div class="imchart">'+
+    '<div class="cht">Monthly cases trend, Jan–Dec</div>'+
+    '<div class="chs">Last two years · '+prev+' vs '+latest+'</div>'+svg+
+    '<div class="chlegend"><span class="lg"><span class="sw prev"></span>'+prev+'</span>'+
+      '<span class="lg"><span class="sw curr"></span>'+latest+'</span></div>'+
+    '<div class="chnote">Hover around any monthly dot to see the month, cases and exact OMR sales value. '+latest+
+      ' continues through '+MONTHS[LASTM]+'; later months stay blank until data is available.</div>'+
+    '<div class="imtip" id="imTip"></div></div>';
+}
+
+function promoReturnItemTable(d,metric,title,isValue,mobile){
+  var latest=YEARS[NY-1], prev=YEARS[Math.max(0,NY-2)];
+  function f(x){
+    if (x===null || x===undefined) return '';
+    if (Math.abs(x)<0.0000001) return '–';
+    return isValue ? nf0.format(Math.round(x)) : nf2.format(x);
+  }
+  function pct(base,cur){
+    if (cur===null || cur===undefined) return '';
+    if (Math.abs(base)<0.0000001) return Math.abs(cur)<0.0000001 ? '–' : '<span class="up">NEW</span>';
+    var p=(cur-base)/Math.abs(base)*100;
+    var cls=p>0.05?'up':(p<-0.05?'down':'flat');
+    return '<span class="'+cls+'">'+(p>0?'+':'')+nf1.format(p)+'%</span>';
+  }
+
+  if (!mobile){
+    var h='<table class="imtbl"><thead><tr class="cap"><th colspan="14">'+title+'</th></tr><tr><th></th>';
+    for (var m=0;m<12;m++) h+='<th>'+MONTHS[m]+'</th>';
+    h+='<th class="tot">Total</th></tr></thead><tbody>';
+
+    YEARS.forEach(function(y,yi){
+      var total=0;
+      h+='<tr><th>'+y+(yi===NY-1?' <i>YTD</i>':'')+'</th>';
+      for (var m=0;m<12;m++){
+        var x=d[y][m];
+        if (x===null){ h+='<td class="off"></td>'; continue; }
+        total+=x||0;
+        h+='<td>'+f(x)+'</td>';
+      }
+      h+='<td class="tot">'+f(total)+'</td></tr>';
+    });
+
+    if (d[prev] && d[latest]){
+      var curTot=0,prevTot=0;
+      h+='<tr class="imvs"><th>% Vs '+String(prev).slice(-2)+'</th>';
+      for (var m=0;m<12;m++){
+        if (d[latest][m]===null){ h+='<td class="off"></td>'; continue; }
+        curTot+=d[latest][m]||0; prevTot+=d[prev][m]||0;
+        h+='<td>'+pct(d[prev][m]||0,d[latest][m]||0)+'</td>';
+      }
+      h+='<td class="tot">'+pct(prevTot,curTot)+'</td></tr>';
+    }
+    return h+'</tbody></table>';
+  }
+
+  var mh='<table class="imtbl imtblv"><thead><tr class="cap"><th colspan="'+(YEARS.length+2)+'">'+title+'</th></tr><tr><th>Month</th>';
+  YEARS.forEach(function(y,yi){ mh+='<th class="n">'+y+(yi===NY-1?' <i>YTD</i>':'')+'</th>'; });
+  mh+='<th>% Vs '+String(prev).slice(-2)+'</th></tr></thead><tbody>';
+  for (var m=0;m<12;m++){
+    mh+='<tr><th>'+MONTHS[m]+'</th>';
+    YEARS.forEach(function(y){
+      var x=d[y][m];
+      mh+=x===null?'<td class="off"></td>':'<td class="n">'+f(x)+'</td>';
+    });
+    mh+=d[latest][m]===null?'<td class="off"></td>':'<td class="n">'+pct(d[prev][m]||0,d[latest][m]||0)+'</td>';
+    mh+='</tr>';
+  }
+  return mh+'</tbody></table>';
+}
+
+function openPromotionReturnItemDetail(siteId,itemId){
+  var it=ITEMS[itemId],site=SITES[siteId];
+  if (!it || !site) return;
+
+  CUSTWISE_NAV=null;
+  CUSTWISE_BACK_STACK=[];
+  CUSTWISE_CAT_EXPORT=null;
+
+  var d=promoReturnItemSeries(siteId,itemId);
+  document.getElementById('imTitle').innerHTML=esc(it[1])+' <span class="code">'+it[0]+'</span>';
+  document.getElementById('imSub').textContent=
+    it[2]+' · '+(it[3]==='Promotion'?'Promo pack':'Regular')+' · '+site[0]+' — '+site[1];
+
+  document.getElementById('imBody').innerHTML=
+    promoReturnItemChart(itemId,d)+
+    '<div class="d-only">'+
+      promoReturnItemTable(d.q,'cases','Sales in Volume (cases)',false,false)+
+      promoReturnItemTable(d.v,'value','Sales in Value',true,false)+
+    '</div>'+
+    '<div class="m-only">'+
+      promoReturnItemTable(d.q,'cases','Sales in Volume (cases)',false,true)+
+      promoReturnItemTable(d.v,'value','Sales in Value',true,true)+
+    '</div>'+
+    '<div class="imnote">'+YEARS[NY-1]+' runs through '+MONTHS[LASTM]+'. Historical years are shown Jan–Dec. '+
+      'Figures are restricted to this customer site and promotion item and follow the active department selection.</div>';
+
+  document.body.classList.add('imopen');
+  document.getElementById('imWrap').scrollTop=0;
+}
+
 function renderPromo(){
   if (!F) return;
   var groups = buildPromoGroups();
@@ -7667,14 +7896,10 @@ function renderPromo(){
       '<td class="num p-rate">' + promoRate(g.rate) + '</td>' +
       '<td class="p-last">' + promoLast(g.last) + '</td></tr>';
 
-    for (var si=0; si<g.sites.length && printed<PROMO_CAP; si++){
-      if (si >= PROMO_PER_CUST){
-        html += '<tr class="more"><td colspan="9">' + (g.sites.length-PROMO_PER_CUST) +
-                ' more outlets for ' + esc(CUSTOMERS[g.cid]) +
-                ' — use the Customer filter to focus on this customer.</td></tr>';
-        break;
-      }
+    var showAllOutlets=!!promoCustOpen[g.cid];
+    var siteLimit=showAllOutlets ? g.sites.length : Math.min(PROMO_PER_CUST,g.sites.length);
 
+    for (var si=0; si<siteLimit && printed<PROMO_CAP; si++){
       var st = g.sites[si], key = g.cid + ':' + st.s, open = !!promoOpen[key];
       printed++;
       html += '<tr class="psite' + (open?' open':'') + '" data-key="' + esc(key) + '">' +
@@ -7693,8 +7918,8 @@ function renderPromo(){
         st.items.forEach(function(it){
           html += '<tr class="pitem">' +
             '<td class="p-site"></td>' +
-            '<td class="p-item">' + esc(ITEMS[it.i][1]) +
-              ' <span class="mono" style="display:block;font-size:9px;color:var(--muted)">' + ITEMS[it.i][0] + '</span></td>' +
+            '<td class="p-item"><button class="pitemlink" type="button" data-pitem="'+it.i+'" data-psite="'+st.s+'" '+
+              'title="Open monthly item detail">' + esc(ITEMS[it.i][1]) + '</button></td>' +
             '<td class="p-cat">' + esc(ITEMS[it.i][2]) + '</td>' +
             '<td class="num p-sales">' + fmtS(it.sales) + '</td>' +
             '<td class="num p-events">' + nf0.format(it.events) + '</td>' +
@@ -7704,6 +7929,14 @@ function renderPromo(){
             '<td class="p-last">' + promoLast(it.last) + '</td></tr>';
         });
       }
+    }
+
+    if (g.sites.length>PROMO_PER_CUST){
+      var hidden=Math.max(0,g.sites.length-PROMO_PER_CUST);
+      html += '<tr class="more"><td colspan="9"><button class="pmorebtn" type="button" data-pcust="'+g.cid+'">' +
+              (showAllOutlets ? '▴ Show fewer outlets for '+esc(CUSTOMERS[g.cid]) :
+               '▾ Show '+hidden+' more outlet'+(hidden===1?'':'s')+' for '+esc(CUSTOMERS[g.cid])) +
+              '</button></td></tr>';
     }
     html += '</tbody>';
   }
@@ -7717,6 +7950,20 @@ function renderPromo(){
 }
 
 document.getElementById('ptbl').addEventListener('click', function(e){
+  var itemBtn=e.target.closest('.pitemlink');
+  if (itemBtn){
+    openPromotionReturnItemDetail(+itemBtn.dataset.psite,+itemBtn.dataset.pitem);
+    return;
+  }
+
+  var moreBtn=e.target.closest('.pmorebtn');
+  if (moreBtn){
+    var cid=+moreBtn.dataset.pcust;
+    promoCustOpen[cid]=!promoCustOpen[cid];
+    renderPromo();
+    return;
+  }
+
   var row = e.target.closest('tr.psite');
   if (!row) return;
   var key = row.dataset.key;
@@ -7732,6 +7979,7 @@ document.getElementById('pReset').addEventListener('click', function(){
   state.pArea.clear(); state.pCust.clear(); state.pCat.clear(); state.pItems.clear(); state.pRet = 10;
   document.getElementById('pRet').value = '10';
   promoOpen = {};
+  promoCustOpen = {};
   if (msPArea) msPArea.refresh();
   if (msPCust) msPCust.refresh();
   if (msPCat) msPCat.refresh();
@@ -9068,6 +9316,7 @@ document.getElementById('visitHist').addEventListener('click', openHistory);
 
 var msOArea = null, msOCust = null, msOCat = null, msOItem = null;
 var outletRowsCache = [], outletOpen = {};
+var outletCustOpen = {}; /* customer-level: show all suppressed customer sites */
 
 /* which items count towards an outlet's figures, given this tab's filters */
 function outletItemOk(i){
@@ -9215,13 +9464,10 @@ function renderOutlet(){
             '<td class="num">' + pctCell(gp.b, gp.a) + '</td>' +
             '<td></td></tr>';
 
-    for (var si=0; si<g.sites.length && printed < OUT_CAP; si++){
-      if (si >= OUT_PER_CUST){
-        html += '<tr class="more"><td colspan="7">' + (g.sites.length - OUT_PER_CUST) +
-                ' more outlets for ' + esc(CUSTOMERS[g.cid]) +
-                ' — filter to this customer, or export the CSV, to see them all</td></tr>';
-        break;
-      }
+    var showAllOutlets=!!outletCustOpen[g.cid];
+    var siteLimit=showAllOutlets ? g.sites.length : Math.min(OUT_PER_CUST,g.sites.length);
+
+    for (var si=0; si<siteLimit && printed < OUT_CAP; si++){
       var st = g.sites[si];
       var sp = pick(st), sd = sp.b - sp.a;
       var key = g.cid + ':' + st.s;
@@ -9252,6 +9498,14 @@ function renderOutlet(){
         });
       }
     }
+
+    if (g.sites.length>OUT_PER_CUST){
+      var hidden=Math.max(0,g.sites.length-OUT_PER_CUST);
+      html += '<tr class="more"><td colspan="7"><button class="omorebtn" type="button" data-ocust="'+g.cid+'">' +
+              (showAllOutlets ? '▴ Show fewer customer sites for '+esc(CUSTOMERS[g.cid]) :
+               '▾ Show '+hidden+' more customer site'+(hidden===1?'':'s')+' for '+esc(CUSTOMERS[g.cid])) +
+              '</button></td></tr>';
+    }
     html += '</tbody>';
   }
 
@@ -9265,7 +9519,7 @@ function renderOutlet(){
   document.getElementById('oYrB').textContent = state.yrB + (oIsVolume() ? ' QTY' : ' Value');
   document.getElementById('oCount').textContent =
     nf0.format(siteCount) + ' outlets · ' + built.groups.length + ' customers' +
-    (printed < siteCount ? ' · showing the largest ' + OUT_PER_CUST + ' per customer' : '');
+    (printed < siteCount ? ' · some customer sites are collapsed' : '');
   document.getElementById('oScope').textContent =
     periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · ' + depLabel() +
     (state.oArea.size ? ' · ' + (state.oArea.size === 1
@@ -9280,6 +9534,14 @@ function renderOutlet(){
 
 /* expand a site to its categories */
 document.getElementById('otbl').addEventListener('click', function(e){
+  var moreBtn=e.target.closest('.omorebtn');
+  if (moreBtn){
+    var cid=+moreBtn.dataset.ocust;
+    outletCustOpen[cid]=!outletCustOpen[cid];
+    renderOutlet();
+    return;
+  }
+
   var row = e.target.closest('tr.osite');
   if (!row) return;
   var key = row.dataset.key;
@@ -9312,7 +9574,7 @@ function outletItemOptions(){
     if (state.oSales === 'promo' && ITEMS[i][3] !== 'Promotion') continue;
     if (state.oSales === 'reg' && ITEMS[i][3] === 'Promotion') continue;
     if (state.oCat.size && !state.oCat.has(catOf[i])) continue;
-    out.push({id:i, label:ITEMS[i][1], tag:String(ITEMS[i][0])});
+    out.push({id:i, label:ITEMS[i][1]});
   }
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
@@ -9393,6 +9655,7 @@ document.getElementById('oReset').addEventListener('click', function(){
   state.oArea.clear(); state.oCust.clear(); state.oItems.clear();
   state.oCat.clear(); state.oStatus = 'all'; state.oSales = 'all';
   outletOpen = {};
+  outletCustOpen = {};
   document.getElementById('oStatus').value = 'all';
   document.getElementById('oSales').value = 'all';
   if (msOArea) msOArea.refresh();
