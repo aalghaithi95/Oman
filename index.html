@@ -4695,7 +4695,7 @@ function exportOneProductSummaryXls(){
 
   function totalRow(label,metas,arr,isValue,isSummary){
     var sty=isValue?'Total0':'Total2';
-    var r='<Row ss:Height="21">'+sCell(label,'TotalLabel',1,9);
+    var r='<Row ss:Height="21">'+sCell(label,'TotalLabel',1,8);
     var stock=0,hasStock=false;
     metas.forEach(function(meta){
       var sv=isSummary?summaryStock(meta):normalStock(meta);
