@@ -595,6 +595,20 @@ body.imopen{overflow:hidden}
 .imx{margin-left:auto;background:none;border:1px solid rgba(255,255,255,.25);color:#fff;
   width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:13px;flex:none}
 .imx:hover{background:rgba(255,255,255,.12)}
+/* Monthly/Total item breakdown: exact segmented-control structure used by
+   Category Wise Volume / Value, adapted for the dark popup header. */
+.mdviewtoggle{
+  margin-left:auto;position:static!important;top:auto!important;left:auto!important;right:auto!important;
+  z-index:auto!important;margin-top:0!important;margin-bottom:0!important;flex:none;
+  gap:1px;padding:2px;border:1px solid rgba(255,255,255,.28);border-radius:4px;background:transparent
+}
+.mdviewtoggle + .imx{margin-left:0}
+.mdviewtoggle .ovmetricbtn{
+  min-width:72px;height:28px;line-height:28px;padding:0 8px;border:0;border-radius:3px;
+  background:transparent;color:#AFC3C3
+}
+.mdviewtoggle .ovmetricbtn.on{background:#fff;color:var(--ink)}
+.mdviewtoggle .ovmetricbtn:hover:not(.on){background:rgba(255,255,255,.12);color:#fff}
 .imbody{padding:14px 16px 18px;overflow-x:auto}
 .imtbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:16px;
   min-width:880px;table-layout:fixed}
@@ -684,10 +698,53 @@ body.imopen{overflow:hidden}
 .ovrd-mobile{display:none}
 .ovcat-desktop{display:block}
 .ovcat-mobile{display:none}
+
+/* ---------- Tab 1 Department Split (ALL only) ---------- */
+.deptsplit{padding-top:6px}
+.deptsplit-grid{display:grid;grid-template-columns:minmax(300px,.85fr) minmax(520px,1.35fr);gap:14px;align-items:stretch;margin-top:10px}
+.deptpiebox{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:330px}
+.deptpie-title{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:3px;text-align:center}
+.deptpie-sub{font-size:10.5px;color:var(--muted);margin-bottom:10px;text-align:center}
+.deptpie{width:min(280px,100%);height:auto;display:block}
+.deptpie text{font-family:'Archivo',sans-serif}
+.deptpielegend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.deptpielegend span{display:inline-flex;align-items:center;gap:6px}
+.deptpielegend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.deptpielegend i.cpd{background:var(--accent)}
+.deptpielegend i.fsd{background:var(--ink-3)}
+.deptcards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.deptcard{border:1px solid var(--line);border-radius:var(--r);background:#fff;overflow:hidden}
+.deptcard-head{padding:10px 12px;background:#F4F7F5;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.deptcard-head b{font-size:12px;color:var(--ink)}
+.deptshare{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.deptmetric{padding:11px 12px;border-bottom:1px solid var(--line-2)}
+.deptmetric:last-child{border-bottom:0}
+.deptmetric .lab{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.deptmetric .val{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:var(--ink)}
+.deptmetric .sub{font-size:10px;color:var(--muted);margin-top:2px}
+.deptmetric .sub.up{color:var(--pos)}
+.deptmetric .sub.down{color:var(--neg)}
+.deptcompare-note{font-size:10px;color:var(--muted);text-align:center;margin-top:9px}
+@media (max-width:900px){
+  .deptsplit-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .deptsplit-grid{grid-template-columns:1fr;gap:8px;margin-top:8px}
+  .deptpiebox{min-height:0;padding:10px}
+  .deptpie{width:220px}
+  .deptcards{grid-template-columns:1fr 1fr;gap:7px}
+  .deptcard-head{padding:8px}
+  .deptmetric{padding:8px}
+  .deptmetric .val{font-size:14px}
+}
+@media (max-width:430px){
+  .deptcards{grid-template-columns:1fr}
+}
 @media (max-width:760px){
   #imWrap{padding:10px 8px}
   .imhead{padding:11px 12px}
   .imhead .imt{font-size:13.5px}
+  .mdviewtoggle .ovmetricbtn{min-width:62px;height:26px;line-height:26px;padding:0 6px;font-size:8.5px}
   .imbody{padding:10px 10px 14px}
   .imtbl{font-size:10.5px;min-width:820px}
   .imbody{-webkit-overflow-scrolling:touch}
@@ -785,6 +842,9 @@ body.mdopen #mdWrap{display:block}
 .imtbl.mdlist col.w-site{width:34%}
 .imtbl.mdlist col.w-area{width:17%}
 .imtbl.mdlist col.w-val{width:18%}
+.imtbl.mdlist col.w-group-name{width:58%}
+.imtbl.mdlist col.w-group-sites{width:18%}
+.imtbl.mdlist col.w-group-val{width:24%}
 .imtbl.mdlist td.c-name,.imtbl.mdlist td.c-site{
   white-space:normal;word-break:break-word;line-height:1.25;text-align:left}
 .imtbl.mdlist th{text-align:left}
@@ -1805,6 +1865,10 @@ body.immonthly #imWrap .imcard{max-width:1500px}
       <div>
         <div class="imt" id="mdTitle"></div>
         <div class="ims" id="mdSub"></div>
+      </div>
+      <div class="ovmetricbar mdviewtoggle" id="mdBreakdownToggle" aria-label="Item customer breakdown">
+        <button class="ovmetricbtn on" type="button" data-item-breakdown="site">Cust Site</button>
+        <button class="ovmetricbtn" type="button" data-item-breakdown="group">Cust Group</button>
       </div>
       <button class="imx" id="mdClose" type="button" aria-label="Close customer site list">✕</button>
     </div>
@@ -2905,8 +2969,8 @@ function reportPdf(info, rows){
     {t:'CATEGORY',        w:68},
     {t:'ITEM CODE',       w:50},
     {t:'ITEM DESCRIPTION',w:176},
-    {t:sa + "' QTY",      w:42, a:'r'},
     {t:sb + "' QTY",      w:42, a:'r'},
+    {t:sa + "' QTY",      w:42, a:'r'},
     {t:'STOCK',           w:43, a:'r'},
     {t:'LAST SUPPLIED',   w:94}
   ];
@@ -3079,7 +3143,7 @@ function pctCell(a,b){
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
 function periodLabel(){ return MONTHS[state.m1] + (state.m1===state.m2 ? '' : '–' + MONTHS[state.m2]); }
-function yearsLabel(){ return periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB; }
+function yearsLabel(){ return periodLabel() + ' ' + state.yrB + ' vs ' + state.yrA; }
 function categorySetLabel(s){
   if (!s || !s.size) return '';
   if (s.size === 1){
@@ -3141,11 +3205,11 @@ function COLS(){
     {k:'code',  t:'Item Code'},
     {k:'chk',   t:'✓', chk:1},
     {k:'desc',  t:'Item Description'},
-    {k:'qA',    t:yy(state.yrA) + ' QTY', r:1},
     {k:'qB',    t:yy(state.yrB) + ' QTY', r:1},
+    {k:'qA',    t:yy(state.yrA) + ' QTY', r:1},
     {k:'avgq',  t:'Avg QTY/Mo', r:1},
-    {k:'vA',    t:yy(state.yrA) + ' Value', r:1},
     {k:'vB',    t:yy(state.yrB) + ' Value', r:1},
+    {k:'vA',    t:yy(state.yrA) + ' Value', r:1},
     {k:'dv',    t:'Change', r:1},
     {k:'delta', t:'Vs ' + yy(state.yrA), r:1},
     {k:'stock', t:'Stock', r:1},
@@ -3342,9 +3406,9 @@ function render(){
   }
   function subRow(s){
     return '<tr class="cat"><td class="catname" colspan="5">'+esc(s.name)+' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">'+s.n+' SKU</span></td>'+
-      '<td class="num">'+fmtS(s.qA)+'</td><td class="num">'+fmtS(s.qB)+'</td>'+
+      '<td class="num">'+fmtS(s.qB)+'</td><td class="num">'+fmtS(s.qA)+'</td>'+
       '<td class="num">'+fmtAvgS(s.qB/monthsB())+'</td>'+
-      '<td class="num">'+fmtS(s.vA)+'</td><td class="num">'+fmtS(s.vB)+'</td><td class="num">'+pctCell(s.vB,s.vA)+'</td>'+
+      '<td class="num">'+fmtS(s.vB)+'</td><td class="num">'+fmtS(s.vA)+'</td><td class="num">'+pctCell(s.vB,s.vA)+'</td>'+
       '<td class="num">'+(s.vB-s.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(s.vB-s.vA)))+'</td>'+
       '<td class="num d-stock">'+fmtS(s.stock)+'</td>'+
       '<td class="num d-astock">'+fmtS(s.astock)+'</td><td></td></tr>';
@@ -3374,11 +3438,11 @@ function render(){
       '<td class="desc" data-i="'+r.i+'" role="button" tabindex="0" title="Tap for the monthly breakdown">'+esc(r.desc)+
         '<button class="nebtn m-only" type="button" data-ne="'+r.i+'" title="Near expiry quantity">NE'+
         (neQty(r.i) ? ' <b>'+nf0.format(neQty(r.i))+'</b>' : '')+'</button></td>'+
-      '<td class="num d-q25" data-l="'+state.yrA+' QTY">'+fmt(r.qA)+'</td>'+
-      '<td class="num d-q26" data-l="'+String(state.yrB).slice(2)+' QTY">'+fmt(r.qB)+'</td>'+
+      '<td class="num d-q25" data-l="'+state.yrB+' QTY">'+fmt(r.qB)+'</td>'+
+      '<td class="num d-q26" data-l="'+String(state.yrA).slice(2)+' QTY">'+fmt(r.qA)+'</td>'+
       '<td class="num d-avgq" data-l="Avg QTY">'+fmtAvg(r.avgq)+'</td>'+
-      '<td class="num d-v25" data-l="'+state.yrA+' value">'+fmt(r.vA)+'</td>'+
-      '<td class="num d-v26" data-l="'+String(state.yrB).slice(2)+' Value">'+fmt(r.vB)+arrowLY(r.vA, r.vB)+'</td>'+
+      '<td class="num d-v25" data-l="'+state.yrB+' value">'+fmt(r.vB)+arrowLY(r.vA, r.vB)+'</td>'+
+      '<td class="num d-v26" data-l="'+String(state.yrA).slice(2)+' Value">'+fmt(r.vA)+'</td>'+
       '<td class="num d-dv" data-l="Value change">'+pctCell(r.vB,r.vA)+'</td>'+
       '<td class="num d-delta" data-l="Vs '+state.yrA+'"><span class="'+(r.delta>0?'up':(r.delta<0?'down':'flat'))+'">'+(r.delta>=0?'+':'−')+nf0.format(Math.abs(Math.round(r.delta)))+'</span></td>'+
       '<td class="num d-stock" data-l="Stock">'+stockCell(r.stock)+'</td>'+
@@ -3402,9 +3466,9 @@ function render(){
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items'+
       (hiddenN ? ' listed, ' + hiddenN + ' low-volume retail packs counted but not shown' : '')+'</td>'+
-    '<td class="num">'+fmtS(T.qA)+'</td><td class="num">'+fmtS(T.qB)+'</td>'+
+    '<td class="num">'+fmtS(T.qB)+'</td><td class="num">'+fmtS(T.qA)+'</td>'+
     '<td class="num">'+fmtAvgS(T.qB/monthsB())+'</td>'+
-    '<td class="num">'+fmtS(T.vA)+'</td><td class="num">'+fmtS(T.vB)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
+    '<td class="num">'+fmtS(T.vB)+'</td><td class="num">'+fmtS(T.vA)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
     '<td class="num">'+(T.vB-T.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(T.vB-T.vA)))+'</td>'+
     '<td class="num d-stock">'+fmtS(totStock)+'</td>'+
     '<td class="num d-astock">'+fmtS(totAStock)+'</td><td></td></tr>';
@@ -3445,8 +3509,8 @@ function render(){
   var lv = lost.reduce(function(s,r){ return s+r.v; }, 0);
   document.getElementById('lostNote').textContent = lost.length ? nf0.format(Math.round(lv))+' of '+state.yrA+' value at risk' : '';
 
-  document.getElementById('anYrA').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
-  document.getElementById('anYrB').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrA').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
   if (TAB === 'analysis') renderAnalysis();
 }
 
@@ -3620,8 +3684,8 @@ document.getElementById('pdf').addEventListener('click', function(){
   var neHtml = neList.map(function(i){
     var it = ITEMS[i], lt = lastTxt(A.last[i]), st = stockOf(i);
     return '<tr><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
-      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
       '<td class="n">'+(A.qB[i]?nf0.format(Math.round(A.qB[i])):'—')+'</td>'+
+      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
       '<td class="n">'+(STOCK ? (st>0 ? nf0.format(Math.round(st)) : '<b>0</b>') : '—')+'</td>'+
       '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td>'+
       '<td class="n"><b>'+nf0.format(neQty(i))+'</b></td></tr>';
@@ -3630,8 +3694,8 @@ document.getElementById('pdf').addEventListener('click', function(){
   var rowsHtml = missing.map(function(i){
     var it = ITEMS[i], lt = lastTxt(A.last[i]), st = stockOf(i);
     return '<tr'+(lt?'':' class="nev"')+'><td>'+esc(it[2])+'</td><td>'+it[0]+'</td><td>'+esc(it[1])+'</td>'+
-      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
       '<td class="n">'+(A.qB[i]?nf0.format(Math.round(A.qB[i])):'—')+'</td>'+
+      '<td class="n">'+(A.qA[i]?nf0.format(Math.round(A.qA[i])):'—')+'</td>'+
       '<td class="n">'+(STOCK ? (st>0 ? nf0.format(Math.round(st)) : '<b>0</b>') : '—')+'</td>'+
       '<td>'+(lt ? lt : '<b>NEVER SUPPLIED</b>')+'</td></tr>';
   }).join('');
@@ -3658,15 +3722,15 @@ document.getElementById('pdf').addEventListener('click', function(){
     '<h2>Missing items and last supply</h2>'+
     (missing.length
       ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th>'+
-        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
         '<th style="text-align:right">'+String(state.yrB).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
         '<th style="text-align:right">Stock</th><th>Last Supplied</th></tr></thead><tbody>'+rowsHtml+'</tbody></table>'
       : '<p>Every regular item in this assortment was found on shelf.</p>')+
     '<h2>Near expiry</h2>'+
     (neList.length
       ? '<table><thead><tr><th>Category</th><th>Item Code</th><th>Item Description</th>'+
-        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
         '<th style="text-align:right">'+String(state.yrB).slice(2)+"' QTY</th>"+
+        '<th style="text-align:right">'+String(state.yrA).slice(2)+"' QTY</th>"+
         '<th style="text-align:right">Stock</th><th>Last Supplied</th>'+
         '<th style="text-align:right">NE</th></tr></thead><tbody>'+neHtml+'</tbody></table>'
       : '<p>No near expiry stock recorded on this visit.</p>')+
@@ -3688,8 +3752,8 @@ document.getElementById('pdf').addEventListener('click', function(){
       var it = ITEMS[i], lt = lastTxt(A.last[i]);
       var st = stockOf(i);
       var row = [it[2], String(it[0]), pdfDesc(i),
-                 A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                  A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
+                 A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                  STOCK ? nf0.format(Math.round(st)) : '-',
                  lt ? lt : 'NEVER SUPPLIED'];
       row.never = !lt;
@@ -3711,8 +3775,8 @@ document.getElementById('pdf').addEventListener('click', function(){
           {t:'CATEGORY',        w:68},
           {t:'CODE',            w:50},
           {t:'ITEM DESCRIPTION',w:176},
-          {t:sa + "' QTY",      w:42, a:'r'},
           {t:sb + "' QTY",      w:42, a:'r'},
+          {t:sa + "' QTY",      w:42, a:'r'},
           {t:'STOCK',           w:43, a:'r'},
           {t:'LAST SUPPLIED',   w:68},
           {t:'NE',              w:26, a:'r'}
@@ -3720,8 +3784,8 @@ document.getElementById('pdf').addEventListener('click', function(){
         rows: neList.map(function(i){
           var it = ITEMS[i], lt2 = lastTxt(A.last[i]), st2 = stockOf(i);
           var row = [it[2], String(it[0]), pdfDesc(i),
-                     A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                      A.qB[i] ? nf0.format(Math.round(A.qB[i])) : '-',
+                     A.qA[i] ? nf0.format(Math.round(A.qA[i])) : '-',
                      STOCK ? nf0.format(Math.round(st2)) : '-',
                      lt2 ? lt2 : 'NEVER SUPPLIED',
                      nf0.format(neQty(i))];
@@ -4075,7 +4139,7 @@ function exportSummaryCsv(){
   aggregate();
   var rows = sortRows(buildRows());
   var head = ['Sales Type','Category','Item Code','Store Check','Item Description',
-              state.yrA+' QTY',state.yrB+' QTY','Avg QTY/Mo',state.yrA+' Value',state.yrB+' Value',
+              state.yrB+' QTY',state.yrA+' QTY','Avg QTY/Mo',state.yrB+' Value',state.yrA+' Value',
               'Value Change %','Value vs '+state.yrA,'Warehouse Stock','Area Stock','Last Supplied'];
   var lines = [head.join(',')];
   rows.forEach(function(r){
@@ -4083,8 +4147,8 @@ function exportSummaryCsv(){
     var chk = r.promo ? '' : (state.checked.has(r.i) ? 'On shelf' : 'Missing');
     var lt = r.last < 0 ? 'NEVER SUPPLIED' : (function(){ var o = periodOf(r.last); return MONTHS[o.month]+' '+o.year; })();
     lines.push([r.type, r.cat, r.code, chk, '"'+r.desc.replace(/"/g,'""')+'"',
-      r.qA.toFixed(2), r.qB.toFixed(2), r.avgq.toFixed(2),
-      r.vA.toFixed(2), r.vB.toFixed(2), pv===''?'':pv.toFixed(1),
+      r.qB.toFixed(2), r.qA.toFixed(2), r.avgq.toFixed(2),
+      r.vB.toFixed(2), r.vA.toFixed(2), pv===''?'':pv.toFixed(1),
       r.delta.toFixed(2), STOCK ? r.stock.toFixed(0) : '',
       (r.astock === null || r.astock === undefined) ? '' : Math.round(r.astock),
       lt].join(','));
@@ -5087,7 +5151,9 @@ function yearTable(i, arr, title, isValue){
     var upto = (y === latest) ? upToLatest : 11;
     var r = monthCells(i, arr, y, upto, isValue);
     h += '<tr><th>' + YEARS[y] + (y === latest ? ' <i>YTD</i>' : '') + '</th>' + r.cells +
-         '<td class="tot">' + perfNum(r.total, isValue) + '</td></tr>';
+         '<td class="tot mdcell" role="button" tabindex="0" title="View total customer sites" ' +
+           'data-i="' + i + '" data-y="' + y + '" data-m="-1" data-met="' + (isValue ? 'value' : 'cases') + '">' +
+           perfNum(r.total, isValue) + '</td></tr>';
   }
   h += pctRow(i, arr, latest, NY - 2, upToLatest);
   h += '</tbody></table>';
@@ -5117,7 +5183,9 @@ function yearTableV(i, arr, title, isValue){
     h += '</tr>';
   }
   h += '<tr class="imvs"><th>Total</th>';
-  for (var y3=0;y3<NY;y3++) h += '<td class="n tot">' + perfNum(tot[y3], isValue) + '</td>';
+  for (var y3=0;y3<NY;y3++) h += '<td class="n tot mdcell" role="button" tabindex="0" title="View total customer sites" ' +
+    'data-i="' + i + '" data-y="' + y3 + '" data-m="-1" data-met="' + (isValue ? 'value' : 'cases') + '">' +
+    perfNum(tot[y3], isValue) + '</td>';
   h += '</tr></tbody></table>';
   return h;
 }
@@ -5261,11 +5329,153 @@ var VISIT_RUNDOWN_FULL_YEAR = false; /* OFF = historical years follow selected p
 function visitViewButtons(active){
   var a=[];
   if (active !== 'chart') a.push('<button class="ovviewbtn" type="button" data-view="chart">Graph view</button>');
+  if (state.dep === 'ALL' && active !== 'department') a.push('<button class="ovviewbtn" type="button" data-view="department">Department Split</button>');
   if (active !== 'customer') a.push('<button class="ovviewbtn" type="button" data-view="customer">Customer Wise</button>');
   if (active !== 'rundown') a.push('<button class="ovviewbtn" type="button" data-view="rundown">Monthly run down</button>');
   if (active !== 'category') a.push('<button class="ovviewbtn" type="button" data-view="category">Category Wise</button>');
   if (active !== 'promo') a.push('<button class="ovviewbtn" type="button" data-view="promo">Promo %</button>');
   return '<div class="ovtools">'+a.join('')+'</div>';
+}
+
+
+/* Department Split is available only while ALL is active. It compares the
+   two actual invoice departments inside the current Area / Customer / Site /
+   Category and period scope. */
+function departmentSplitRegularEligible(i,dep){
+  if (!ITEMS[i] || ITEMS[i][3]!=='Regular') return false;
+
+  /* CPD must use the approved CORE regular assortment only. Hidden fallback /
+     off-list items are allowed to contribute to sales totals and categories,
+     but they must never increase Active Regular Products. FSD is the exception:
+     its assortment is department-specific, so active regular FSD lines are
+     counted from actual FSD facts even when they sit outside the CPD core list. */
+  if (dep===0) return i<FALLBACK_START && !isFsdItem(i);
+  return dep===1;
+}
+function departmentSplitData(metric){
+  aggregate();
+  var ia=yIdx(state.yrA), ib=yIdx(state.yrB);
+  var startM=state.m1;
+  var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
+  var out=[
+    {key:'CPD',name:'CPD',cur:0,base:0,regular:{},cust:{},baseCust:{},sites:{}},
+    {key:'FSD',name:'Food Service',cur:0,base:0,regular:{},cust:{},baseCust:{},sites:{}}
+  ];
+
+  if (!F || ia<0 || ib<0) return out;
+  var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+  for (var k=0;k<N;k++){
+    var s=fs[k],i=fi[k],d=fd[k];
+    if (d!==0 && d!==1) continue;
+    if (!mask[s]) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
+
+    var p=fp[k],yi=(p/12)|0,m=p%12;
+    var r=out[d];
+    var val=(metric==='value') ? (fv[k]||0) : (fq[k]||0);
+    var billed=(fq[k]>0 || fv[k]>0);
+    var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
+
+    /* Active Regular Products is a YEAR-level measure, not a selected-period
+       measure. CPD is restricted to the approved core regular assortment.
+       FSD is intentionally allowed to use its own department-specific regular
+       lines because those products are unique to Food Service. */
+    if (yi===ib && billed && departmentSplitRegularEligible(i,d)){
+      if (!(state.yrB===YEARS[NY-1] && m>LASTM)) r.regular[i]=1;
+    }
+
+    /* Sales, customers and sites continue to follow the selected period. */
+    if (m<startM || m>endM) continue;
+
+    if (yi===ib){
+      r.cur+=val;
+      if (billed){
+        if (customer) r.cust[customer]=1;
+        r.sites[s]=1;
+      }
+    } else if (yi===ia){
+      r.base+=val;
+      if (billed && customer) r.baseCust[customer]=1;
+    }
+  }
+
+  out.forEach(function(r){
+    r.activeRegular=Object.keys(r.regular).length;
+    r.activeCustomers=Object.keys(r.cust).length;
+    r.activeSites=Object.keys(r.sites).length;
+    var newCust=0;
+    Object.keys(r.cust).forEach(function(c){ if (!r.baseCust[c]) newCust++; });
+    r.newCustomers=newCust;
+    r.growth=Math.abs(r.base)>0.0000001 ? ((r.cur-r.base)/Math.abs(r.base)*100) : null;
+  });
+  return out;
+}
+
+function departmentSplitPie(cpd,fsd,metric){
+  var a=Math.max(0,cpd.cur||0), b=Math.max(0,fsd.cur||0), total=a+b;
+  var pa=total ? a/total*100 : 0, pb=total ? b/total*100 : 0;
+  var fmtTotal=metric==='value' ? ('OMR '+nf0.format(Math.round((cpd.cur||0)+(fsd.cur||0))))
+                                : (nf2.format((cpd.cur||0)+(fsd.cur||0))+' cases');
+  return '<svg class="deptpie" viewBox="0 0 240 240" role="img" aria-label="Department share pie chart">'+
+      '<circle cx="120" cy="120" r="78" fill="none" stroke="#EEF1EF" stroke-width="40"></circle>'+
+      '<circle cx="120" cy="120" r="78" fill="none" stroke="#E3A02A" stroke-width="40" pathLength="100" '+
+        'stroke-dasharray="'+pa.toFixed(3)+' '+(100-pa).toFixed(3)+'" stroke-dashoffset="0" transform="rotate(-90 120 120)"></circle>'+
+      '<circle cx="120" cy="120" r="78" fill="none" stroke="#37606F" stroke-width="40" pathLength="100" '+
+        'stroke-dasharray="'+pb.toFixed(3)+' '+(100-pb).toFixed(3)+'" stroke-dashoffset="'+(-pa).toFixed(3)+'" transform="rotate(-90 120 120)"></circle>'+
+      '<circle cx="120" cy="120" r="54" fill="#fff"></circle>'+
+      '<text x="120" y="111" text-anchor="middle" fill="#6A7D84" font-size="10">TOTAL</text>'+
+      '<text x="120" y="132" text-anchor="middle" fill="#12242C" font-size="13" font-weight="700">'+esc(fmtTotal)+'</text>'+
+    '</svg>';
+}
+
+function visitDepartmentSplit(){
+  if (state.dep!=='ALL'){
+    VISIT_VALUE_VIEW='chart';
+    return visitValueChart();
+  }
+  var metric=VISIT_CAT_METRIC, isValue=metric==='value';
+  var d=departmentSplitData(metric), cpd=d[0], fsd=d[1];
+  var posTotal=Math.max(0,cpd.cur||0)+Math.max(0,fsd.cur||0);
+  cpd.share=posTotal ? Math.max(0,cpd.cur||0)/posTotal*100 : 0;
+  fsd.share=posTotal ? Math.max(0,fsd.cur||0)/posTotal*100 : 0;
+
+  function metricFmt(v){
+    return isValue ? ('OMR '+nf0.format(Math.round(v||0))) : (nf2.format(v||0)+' cases');
+  }
+  function growthText(r){
+    if (r.growth===null) return (Math.abs(r.cur)>0.0000001 ? 'New vs '+state.yrA : 'No base');
+    return (r.growth>0?'+':'')+nf1.format(r.growth)+'% vs '+state.yrA;
+  }
+  function growthClass(r){ return r.growth===null ? 'flat' : (r.growth>0?'up':(r.growth<0?'down':'flat')); }
+  function card(r){
+    return '<div class="deptcard">'+
+      '<div class="deptcard-head"><b>'+esc(r.name)+'</b><span class="deptshare">'+nf1.format(r.share)+'% share</span></div>'+
+      '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.cur)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Regular Products</div><div class="val">'+nf0.format(r.activeRegular)+'</div><div class="sub">Regular items billed in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new vs '+state.yrA+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">Current selected period</div></div>'+
+    '</div>';
+  }
+
+  return visitViewButtons('department')+
+    '<div class="ovmetricbar catmetric">'+
+      '<button class="ovmetricbtn '+(metric==='cases'?'on':'')+'" type="button" data-metric="cases">Volume</button>'+
+      '<button class="ovmetricbtn '+(metric==='value'?'on':'')+'" type="button" data-metric="value">Value</button>'+
+    '</div>'+
+    '<div class="cht">Department Split</div>'+
+    '<div class="chs">CPD vs Food Service · '+state.yrB+' '+periodLabel()+' · compared with '+state.yrA+'</div>'+
+    '<div class="deptsplit">'+
+      '<div class="deptsplit-grid">'+
+        '<div class="deptpiebox">'+
+          '<div class="deptpie-title">Department '+(isValue?'value':'volume')+' share</div>'+
+          '<div class="deptpie-sub">Share of Delicio sales within the current dashboard scope</div>'+
+          departmentSplitPie(cpd,fsd,metric)+
+          '<div class="deptpielegend"><span><i class="cpd"></i>CPD '+nf1.format(cpd.share)+'%</span><span><i class="fsd"></i>Food Service '+nf1.format(fsd.share)+'%</span></div>'+
+        '</div>'+
+        '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
+      '</div>'+
+      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD uses its own department-specific active Regular lines. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period.</div>'+
+    '</div>';
 }
 
 /* Category conversion follows the uploaded workbook:
@@ -7223,10 +7433,12 @@ function visitValueRundown(){
 function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
   if (!box) return;
+  if (VISIT_VALUE_VIEW === 'department' && state.dep !== 'ALL') VISIT_VALUE_VIEW = 'chart';
   box.innerHTML = VISIT_VALUE_VIEW === 'rundown' ? visitValueRundown() :
                   (VISIT_VALUE_VIEW === 'category' ? visitCategoryWise() :
                   (VISIT_VALUE_VIEW === 'customer' ? visitCustomerWise() :
-                  (VISIT_VALUE_VIEW === 'promo' ? visitPromoPercentage() : visitValueChart())));
+                  (VISIT_VALUE_VIEW === 'department' ? visitDepartmentSplit() :
+                  (VISIT_VALUE_VIEW === 'promo' ? visitPromoPercentage() : visitValueChart()))));
 }
 
 (function wireVisitValueChart(){
@@ -7262,7 +7474,8 @@ function renderVisitValueChart(){
     var b = e.target.closest('.ovviewbtn');
     if (!b) return;
     VISIT_VALUE_VIEW = (b.dataset.view === 'rundown' || b.dataset.view === 'category' ||
-                        b.dataset.view === 'customer' || b.dataset.view === 'promo') ? b.dataset.view : 'chart';
+                        b.dataset.view === 'customer' || b.dataset.view === 'department' ||
+                        b.dataset.view === 'promo') ? b.dataset.view : 'chart';
     renderVisitValueChart();
   });
 
@@ -7311,6 +7524,21 @@ function renderVisitValueChart(){
     if (tip) tip.style.display = 'none';
   });
 })();
+
+/* Item monthly/total drilldown grouping.
+   The selector exists only inside the clicked Month / Total popup.
+   Customer Site is the default for every new click. */
+var ITEM_DETAIL_BREAKDOWN = 'site'; /* site | group */
+var ITEM_MONTH_DETAIL_CTX = null;
+function renderItemBreakdownToggle(){
+  var box=document.getElementById('mdBreakdownToggle');
+  if (!box) return;
+  var btns=box.querySelectorAll('[data-item-breakdown]');
+  for (var i=0;i<btns.length;i++){
+    btns[i].classList.toggle('on',btns[i].dataset.itemBreakdown===ITEM_DETAIL_BREAKDOWN);
+  }
+}
+
 function openItem(i){
   document.body.classList.remove('immonthly');
   aggregate();                                   /* make sure the grid matches the filters */
@@ -7340,11 +7568,18 @@ function openItem(i){
    area, customer, site and department rules as the monthly item figure. */
 function monthSiteRows(i, yi, m, metric){
   aggregate();                                  /* also rebuilds the current site mask */
-  var by = Object.create(null), pWant = yi*12 + m;
+  var by = Object.create(null), isTotal = m < 0, pWant = yi*12 + m;
+  var upto = (yi === NY-1) ? LASTM : 11;
   if (!F) return [];
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
   for (var k=0;k<n;k++){
-    if (fi[k] !== i || fp[k] !== pWant) continue;
+    if (fi[k] !== i) continue;
+    var p=fp[k], rowYi=(p/12)|0, rowM=p%12;
+    if (isTotal){
+      if (rowYi !== yi || rowM > upto) continue;
+    } else if (p !== pWant){
+      continue;
+    }
     if (!mask[fs[k]]) continue;
     if (!factCounted(fd[k], fi[k])) continue;
     var s = fs[k], x = metric === 'value' ? fv[k] : fq[k];
@@ -7354,46 +7589,94 @@ function monthSiteRows(i, yi, m, metric){
     .filter(function(r){ return Math.abs(r.x) > 1e-9; })
     .sort(function(a,b){ return b.x - a.x; });
 }
+function monthCustomerGroupRows(siteRows){
+  var by=Object.create(null);
+  siteRows.forEach(function(r){
+    var name=(SITES[r.s] && SITES[r.s][0]) ? SITES[r.s][0] : 'Unknown Customer';
+    var key=String(name);
+    var g=by[key];
+    if (!g) g=by[key]={name:name,x:0,sites:Object.create(null)};
+    g.x+=r.x;
+    g.sites[r.s]=1;
+  });
+  return Object.keys(by).map(function(k){
+    var g=by[k];
+    return {name:g.name,x:g.x,siteCount:Object.keys(g.sites).length};
+  }).filter(function(r){ return Math.abs(r.x)>1e-9; })
+    .sort(function(a,b){ return b.x-a.x || String(a.name).localeCompare(String(b.name)); });
+}
 function openMonthSites(i, yi, m, metric){
-  var rows = monthSiteRows(i, yi, m, metric);
-  var it = ITEMS[i], isValue = metric === 'value';
+  ITEM_MONTH_DETAIL_CTX={i:i,yi:yi,m:m,metric:metric};
+  renderItemBreakdownToggle();
+  var siteRows = monthSiteRows(i, yi, m, metric);
+  var it = ITEMS[i], isValue = metric === 'value', isTotal = m < 0;
   var metricTitle = isValue ? 'Sales in Value' : 'Sales in Volume (cases)';
   var metricHead = isValue ? 'Value' : 'Cases';
+  var periodText = isTotal ? (YEARS[yi] + (yi===NY-1 ? ' YTD' : ' Full Year')) : (MONTHS[m] + ' ' + YEARS[yi]);
+  var isGroup = ITEM_DETAIL_BREAKDOWN === 'group';
+  var rows = isGroup ? monthCustomerGroupRows(siteRows) : siteRows;
   var total = rows.reduce(function(a,r){ return a + r.x; }, 0);
 
   document.getElementById('mdTitle').innerHTML =
     esc(it[1]) + ' <span class="code">' + it[0] + '</span>';
   document.getElementById('mdSub').textContent =
-    MONTHS[m] + ' ' + YEARS[yi] + ' · ' + metricTitle + ' · ' + depLabel() + ' · ' + scopeNames();
+    periodText + ' · ' + metricTitle + ' · ' + (isGroup ? 'Cust Group' : 'Cust Site') + ' · ' + depLabel() + ' · ' + scopeNames();
 
-  document.getElementById('mdBody').innerHTML =
-    '<table class="imtbl vhist mdlist">' +
-      '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>' +
-      '<thead>' +
-        '<tr class="cap"><th colspan="4">Customer site sales · ' + MONTHS[m] + ' ' + YEARS[yi] + '</th></tr>' +
-        '<tr><th>Customer</th><th>Customer Site</th><th>Area</th><th class="n">' + metricHead + '</th></tr>' +
-      '</thead><tbody>' +
-      (rows.length ? rows.map(function(r){
-        var x = isValue ? nf0.format(Math.round(r.x)) : nf2.format(r.x);
-        return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
-               '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
-               '<td>' + esc(areaLabel(areaOf[r.s])) + '</td>' +
-               '<td class="n">' + x + '</td></tr>';
-      }).join('') : '<tr><td colspan="4" class="empty">No sales for this item in this month under the current selection.</td></tr>') +
-      '</tbody>' +
-      '<tfoot><tr><th colspan="3">Total</th><th class="n">' +
-        (isValue ? nf0.format(Math.round(total)) : nf2.format(total)) +
-      '</th></tr></tfoot>' +
-    '</table>' +
-    '<div class="imnote">Customer sites are sorted from highest to lowest for the clicked month. ' +
-    'This list follows the same area, customer, customer site and department selection as the item monthly figure.</div>';
+  if (isGroup){
+    document.getElementById('mdBody').innerHTML =
+      '<table class="imtbl vhist mdlist">' +
+        '<colgroup><col class="w-group-name"><col class="w-group-sites"><col class="w-group-val"></colgroup>' +
+        '<thead>' +
+          '<tr class="cap"><th colspan="3">Customer group sales · ' + periodText + '</th></tr>' +
+          '<tr><th>Customer</th><th class="n">Cust Sites</th><th class="n">' + metricHead + '</th></tr>' +
+        '</thead><tbody>' +
+        (rows.length ? rows.map(function(r){
+          var x = isValue ? nf0.format(Math.round(r.x)) : nf2.format(r.x);
+          return '<tr><td class="c-name">' + esc(r.name) + '</td>' +
+                 '<td class="n">' + nf0.format(r.siteCount) + '</td>' +
+                 '<td class="n">' + x + '</td></tr>';
+        }).join('') : '<tr><td colspan="3" class="empty">No sales for this item in this period under the current selection.</td></tr>') +
+        '</tbody>' +
+        '<tfoot><tr><th colspan="2">Total</th><th class="n">' +
+          (isValue ? nf0.format(Math.round(total)) : nf2.format(total)) +
+        '</th></tr></tfoot>' +
+      '</table>' +
+      '<div class="imnote">Customer names are calculated by combining all customer sites with the same customer name. Groups are sorted from highest to lowest for the clicked ' + (isTotal ? 'year total' : 'month') + '. ' +
+      (isTotal ? 'Each customer is summed across all included months in the selected year. ' : '') +
+      'The total follows the same item, department and active dashboard scope as the clicked figure.</div>';
+  } else {
+    document.getElementById('mdBody').innerHTML =
+      '<table class="imtbl vhist mdlist">' +
+        '<colgroup><col class="w-name"><col class="w-site"><col class="w-area"><col class="w-val"></colgroup>' +
+        '<thead>' +
+          '<tr class="cap"><th colspan="4">Customer site sales · ' + periodText + '</th></tr>' +
+          '<tr><th>Customer</th><th>Customer Site</th><th>Area</th><th class="n">' + metricHead + '</th></tr>' +
+        '</thead><tbody>' +
+        (rows.length ? rows.map(function(r){
+          var x = isValue ? nf0.format(Math.round(r.x)) : nf2.format(r.x);
+          return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
+                 '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+                 '<td>' + esc(areaLabel(areaOf[r.s])) + '</td>' +
+                 '<td class="n">' + x + '</td></tr>';
+        }).join('') : '<tr><td colspan="4" class="empty">No sales for this item in this period under the current selection.</td></tr>') +
+        '</tbody>' +
+        '<tfoot><tr><th colspan="3">Total</th><th class="n">' +
+          (isValue ? nf0.format(Math.round(total)) : nf2.format(total)) +
+        '</th></tr></tfoot>' +
+      '</table>' +
+      '<div class="imnote">Customer sites are sorted from highest to lowest for the clicked ' + (isTotal ? 'year total' : 'month') + '. ' +
+      (isTotal ? 'Each customer site is summed across all included months in the selected year. ' : '') +
+      'The total follows the same item, department and active dashboard scope as the clicked figure.</div>';
+  }
 
   document.body.classList.add('mdopen');
   document.getElementById('mdWrap').scrollTop = 0;
 }
-function closeMonthSites(){ document.body.classList.remove('mdopen'); }
+
+function closeMonthSites(){ document.body.classList.remove('mdopen'); ITEM_MONTH_DETAIL_CTX=null; }
 function openMonthCell(cell){
   if (!cell || cell.dataset.i === undefined) return;
+  ITEM_DETAIL_BREAKDOWN='site';
   openMonthSites(+cell.dataset.i, +cell.dataset.y, +cell.dataset.m, cell.dataset.met);
 }
 
@@ -7413,8 +7696,18 @@ function closeItem(){
 
   document.body.classList.remove('imopen');
   document.body.classList.remove('immonthly');
+  ITEM_MONTH_DETAIL_CTX=null;
 }
 document.getElementById('imClose').addEventListener('click', closeItem);
+document.getElementById('mdBreakdownToggle').addEventListener('click', function(e){
+  var b=e.target.closest('[data-item-breakdown]');
+  if (!b) return;
+  ITEM_DETAIL_BREAKDOWN=b.dataset.itemBreakdown==='group' ? 'group' : 'site';
+  renderItemBreakdownToggle();
+  if (ITEM_MONTH_DETAIL_CTX){
+    openMonthSites(ITEM_MONTH_DETAIL_CTX.i,ITEM_MONTH_DETAIL_CTX.yi,ITEM_MONTH_DETAIL_CTX.m,ITEM_MONTH_DETAIL_CTX.metric);
+  }
+});
 document.getElementById('imWrap').addEventListener('click', function(e){
   if (e.target === this) closeItem();
 });
@@ -7610,8 +7903,8 @@ function renderAnalysis(){
   var A2 = analysisScan();
   anRows = buildAnalysisRows();
   /* the two value columns follow the Value / Volume switch */
-  document.getElementById('anYrA').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
-  document.getElementById('anYrB').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrA').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
 
   var lostVal = 0, custSet = {}, siteSet = {}, neverN = 0;
   for (var r=0;r<anRows.length;r++){
@@ -7667,8 +7960,8 @@ function renderAnalysis(){
       html += '<tr class="cat"><td class="catname" colspan="5">' + esc(CUSTOMERS[d.cid]) +
               ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' + cnt + ' gaps' +
               (cl ? ' · ' + nf0.format(Math.round(cl)) + ' at risk' : '') + '</span></td>' +
-              '<td class="num">' + fmtS(gA) + '</td>' +
               '<td class="num">' + fmtS(gB) + '</td>' +
+              '<td class="num">' + fmtS(gA) + '</td>' +
               '<td class="num"><span class="' + (cDiff>0?'up':(cDiff<0?'down':'flat')) + '">' +
                 (cDiff>=0?'+':'−') + nf0.format(Math.abs(Math.round(cDiff))) + '</span></td>' +
               '<td></td><td></td><td></td></tr>';
@@ -7692,8 +7985,8 @@ function renderAnalysis(){
       '<td class="a-cat">' + esc(ITEMS[d.i][2]) + '</td>' +
       '<td class="a-code mono" style="font-size:11px">' + ITEMS[d.i][0] + '</td>' +
       '<td class="desc" title="' + esc(ITEMS[d.i][1]) + '">' + esc(ITEMS[d.i][1]) + '</td>' +
-      '<td class="num a-va">' + fmt(rA) + '</td>' +
-      '<td class="num a-vb">' + fmt(rB) + '</td>' +
+      '<td class="num a-va">' + fmt(rB) + '</td>' +
+      '<td class="num a-vb">' + fmt(rA) + '</td>' +
       '<td class="num a-diff"><span class="' + (diff>0?'up':(diff<0?'down':'flat')) + '">' +
         (rA || rB ? (diff>=0?'+':'−') + nf0.format(Math.abs(Math.round(diff))) : '–') + '</span></td>' +
       '<td class="num a-stock">' + (STOCK ? (stockOf(d.i) > 0 ? nf0.format(Math.round(stockOf(d.i))) : '<span class="nostock">0</span>') : '<span class="dash">–</span>') + '</td>' +
@@ -7719,7 +8012,7 @@ function renderAnalysis(){
   anStuck = null;
   measureGroups();
   document.getElementById('anScope').textContent =
-    periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · gap of ' + state.aGap + '+ months' +
+    periodLabel() + ' ' + state.yrB + ' vs ' + state.yrA + ' · gap of ' + state.aGap + '+ months' +
     (state.aArea.size ? ' · ' + (state.aArea.size === 1
         ? (function(){ var n=''; state.aArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
         : state.aArea.size + ' areas') : '') +
@@ -7917,8 +8210,8 @@ document.getElementById('anReset').addEventListener('click', function(){
 document.getElementById('anCsv').addEventListener('click', function(){
   var A2 = analysisScan();
   var head = ['Customer','Area','Customer Site','Category','Item Code','Item Description',
-              state.yrA+' QTY', state.yrB+' QTY','QTY Difference',
-              state.yrA+' Value', state.yrB+' Value','Difference',
+              state.yrB+' QTY', state.yrA+' QTY','QTY Difference',
+              state.yrB+' Value', state.yrA+' Value','Difference',
               'Warehouse Stock','Area Stock','Last Supplied','Months Since','Last Active Salesman'];
   var lines = [head.join(',')];
   anRows.forEach(function(d){
@@ -7932,8 +8225,8 @@ document.getElementById('anCsv').addEventListener('click', function(){
       '"'+ITEMS[d.i][2].replace(/"/g,'""')+'"',
       ITEMS[d.i][0],
       '"'+ITEMS[d.i][1].replace(/"/g,'""')+'"',
-      d.qA.toFixed(2), d.qB.toFixed(2), (d.qB-d.qA).toFixed(2),
-      d.vA.toFixed(2), d.vB.toFixed(2), (d.vB-d.vA).toFixed(2),
+      d.qB.toFixed(2), d.qA.toFixed(2), (d.qB-d.qA).toFixed(2),
+      d.vB.toFixed(2), d.vA.toFixed(2), (d.vB-d.vA).toFixed(2),
       STOCK ? Math.round(stockOf(d.i)) : '',
       (function(){ var v = areaStockSite(d.i, d.s); return v === null ? '' : Math.round(v); })(),
       lt, d.never ? '' : (A2.ref - e),
@@ -10018,8 +10311,8 @@ function renderOutlet(){
     html += '<tr class="cat"><td class="catname" colspan="2">' + esc(CUSTOMERS[g.cid]) +
             ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
             g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
-            '<td class="num">' + fmtS(gp.a) + '</td>' +
             '<td class="num">' + fmtS(gp.b) + '</td>' +
+            '<td class="num">' + fmtS(gp.a) + '</td>' +
             '<td class="num"><span class="' + (gd>0?'up':(gd<0?'down':'flat')) + '">' +
               (gd>=0?'+':'−') + nf0.format(Math.abs(Math.round(gd))) + '</span></td>' +
             '<td class="num">' + pctCell(gp.b, gp.a) + '</td>' +
@@ -10038,8 +10331,8 @@ function renderOutlet(){
         '<td class="o-site"><span class="tw">' + (open ? '▾' : '▸') + '</span>' + esc(SITES[st.s][1]) + '</td>' +
         '<td class="o-cat"><span class="ostat ' + st.status + '">' +
           (st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change')) + '</span></td>' +
-        '<td class="num">' + fmt(sp.a) + '</td>' +
         '<td class="num">' + fmt(sp.b) + '</td>' +
+        '<td class="num">' + fmt(sp.a) + '</td>' +
         '<td class="num"><span class="' + (sd>0?'up':(sd<0?'down':'flat')) + '">' +
           (sd>=0?'+':'−') + nf0.format(Math.abs(Math.round(sd))) + '</span></td>' +
         '<td class="num">' + pctCell(sp.b, sp.a) + '</td>' +
@@ -10050,8 +10343,8 @@ function renderOutlet(){
           var cp = pick(c), d = cp.b - cp.a;
           html += '<tr class="ocat"><td class="o-site"></td>' +
             '<td class="o-cat">' + esc(c.item ? ITEMS[c.c][1] : CATS[c.c]) + '</td>' +
-            '<td class="num">' + fmt(cp.a) + '</td>' +
             '<td class="num">' + fmt(cp.b) + '</td>' +
+            '<td class="num">' + fmt(cp.a) + '</td>' +
             '<td class="num"><span class="' + (d>0?'up':(d<0?'down':'flat')) + '">' +
               (d>=0?'+':'−') + nf0.format(Math.abs(Math.round(d))) + '</span></td>' +
             '<td class="num">' + pctCell(cp.b, cp.a) + '</td>' +
@@ -10076,13 +10369,13 @@ function renderOutlet(){
   tbl.insertAdjacentHTML('beforeend', html ||
     '<tbody><tr><td colspan="7" class="empty">No outlets match these filters.</td></tr></tbody>');
 
-  document.getElementById('oYrA').textContent = state.yrA + (oIsVolume() ? ' QTY' : ' Value');
-  document.getElementById('oYrB').textContent = state.yrB + (oIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('oYrA').textContent = state.yrB + (oIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('oYrB').textContent = state.yrA + (oIsVolume() ? ' QTY' : ' Value');
   document.getElementById('oCount').textContent =
     nf0.format(siteCount) + ' outlets · ' + built.groups.length + ' customers' +
     (printed < siteCount ? ' · some customer sites are collapsed' : '');
   document.getElementById('oScope').textContent =
-    periodLabel() + ' ' + state.yrA + ' vs ' + state.yrB + ' · ' + depLabel() +
+    periodLabel() + ' ' + state.yrB + ' vs ' + state.yrA + ' · ' + depLabel() +
     (state.oArea.size ? ' · ' + (state.oArea.size === 1
         ? (function(){ var n=''; state.oArea.forEach(function(a){ n = areaLabel(a); }); return n; })()
         : state.oArea.size + ' areas') : '') +
@@ -10231,8 +10524,8 @@ document.getElementById('oCsv').addEventListener('click', function(){
   var A2 = analysisScan(), ref = A2.ref;
   var head = ['Customer','Area','Customer Site','Site Code','Channel','Last Active Salesman',
               'Category','Item Code','Item Description',
-              state.yrA+' QTY', state.yrB+' QTY','QTY Difference',
-              state.yrA+' Value', state.yrB+' Value','Difference','% Change',
+              state.yrB+' QTY', state.yrA+' QTY','QTY Difference',
+              state.yrB+' Value', state.yrA+' Value','Difference','% Change',
               'Outlet Status','Warehouse Stock','Last Supplied'];
   var lines = [head.join(',')];
   var q = function(t){ return '"' + String(t == null ? '' : t).replace(/"/g,'""') + '"'; };
@@ -10252,8 +10545,8 @@ document.getElementById('oCsv').addEventListener('click', function(){
           q(CUSTOMERS[g.cid]), q(areaLabel(areaOf[st.s])), q(SITES[st.s][1]), SITES[st.s][2],
           SITES[st.s][3], q(SITES[st.s][5] || ''),
           q(ITEMS[i][2]), ITEMS[i][0], q(ITEMS[i][1]),
-          qA.toFixed(2), qB.toFixed(2), (qB-qA).toFixed(2),
-          vA.toFixed(2), vB.toFixed(2), (vB-vA).toFixed(2), pc,
+          qB.toFixed(2), qA.toFixed(2), (qB-qA).toFixed(2),
+          vB.toFixed(2), vA.toFixed(2), (vB-vA).toFixed(2), pc,
           st.status === 'up' ? 'Growth' : (st.status === 'down' ? 'Decline' : 'No change'),
           STOCK ? Math.round(stockOf(i)) : '',
           lt
