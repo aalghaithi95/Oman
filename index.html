@@ -1826,17 +1826,36 @@ var MI = {}; MONTHS.forEach(function(m,i){ MI[m.toLowerCase()] = i; });
 
 var ITEMS = JSON.parse(document.getElementById('items').textContent);   /* [code, desc, category, type, fsd] */
 
-/* The core visit/audit assortment above stays fixed. Dashboard totals and category
-   analysis use the same raw-item universe as the approved One Product Summary,
-   plus the seven explicitly confirmed historical items. These extra items are
-   hidden from core item/audit lists but remain fully counted in totals. Raw item
-   codes outside this approved universe are ignored rather than being classified
-   heuristically into an "Other" or guessed category. */
-var CORE_ITEM_COUNT = ITEMS.length;
-var DASHBOARD_HIDDEN_ITEMS = [[35510086,"DELICIO BURGER SAUCE 4x1 USG","Sauces","Regular",1],[35510087,"DELICIO TOMATO KETCHUP [4X4.5KG]","Ketchup","Regular",1],[35510088,"DELICIO PREMIUM DYNAMITE SAUCE 4x1 USG","Sauces","Regular",1],[35510089,"DELICIO BLACK TRUFFLE MAYONNAISE [4x3.78 Lit]","Mayonnaise","Regular",1],[35510090,"DELICIO TOMATO KETCHUP PREMIUM [4X5KG]","Ketchup","Regular",1],[35510100,"DELICIO CLASSIC MAYONNAISE [4X1 GL]","Mayonnaise","Regular",1],[35510103,"DELICIO TIKKA MAYONNAISE[4x3.78Ltr]","Mayonnaise","Regular",1],[35510133,"DELICIO MAYONNAISE PET-(5B) [6x946ml]","Mayonnaise","Regular",0],[35510184,"DELICIO REAL MAYONNAISE PET [12x288ml]","Mayonnaise","Regular",0],[35510250,"DELICIO SWEET JALAPENO SAUCE [24x150ml]","Hot Sauce","Regular",0],[35510255,"DELICIO JALAPENO HOT SAUCE [24x150ml]","Hot Sauce","Regular",0],[35510260,"DELICIO JALAPENO HOT SAUCE [36x120ml]","Hot Sauce","Regular",0],[35510270,"DELICIO CHIPOTLE SAUCE [24x150ml]","Hot Sauce","Regular",0],[35510280,"DELICIO LEMON PICKLE  SAUCE [24x150ml]","Hot Sauce","Regular",0],[35510290,"DELICIO CHILLI GARLIC  SAUCE [24x150ml]","Hot Sauce","Regular",0],[35590146,"DELICIO GARLIC MAYONNAISE 300ml SPL OFFER[12x300ml]","Mayonnaise","Promotion",0],[35591032,"DELICIO MAYOCHUP 300ml SPL OFFER[12x300ml]","Mayonnaise","Promotion",0],[35593128,"DELICIO STRAWBERRY JAM [6x(2x360Gm)]-TWIN PACK","Jam","Promotion",0],[35593129,"DELICIO FIG JAM [6x(2x360Gm)]-TWIN PACK","Jam","Promotion",0],[35593130,"DELICIO ORANGE JAM [6x(2x360Gm)]-TWIN PACK","Jam","Promotion",0],[35593131,"DELICIO MIX FRUIT JAM [6x(2x360Gm)]-TWIN PACK","Jam","Promotion",0],[35593132,"DELICIO APRICOAT JAM [6x(2x360Gm)]-TWIN PACK","Jam","Promotion",0],[35510110,"DELICIO MAYONNAISE [12x8oz]","Mayonnaise","Regular",0],[35590054,"DELICIO FRENCH DRESSING+SMOKY BBQ 532 ML FREE [2X532MLX6]","Salad Dressing","Promotion",0],[35511360,"DELICIO PASTA SAUCE FORMAGG500 [12x500gm]","Pasta","Regular",0],[35511310,"DELICIO NAPOLETANA PASTA SOUCE [12x500gm]","Pasta","Regular",0],[35511070,"DELICIO SALAD CREAM DRESSING [12x267ml]","Salad Dressing","Regular",0],[35511060,"DELICIO COLESLAW DRESSING [12x267ml]","Salad Dressing","Regular",0],[35510195,"DELICIO MAYONNAISE PEPPER [12x300ml]","Mayonnaise","Regular",0]];
-var HIDDEN_START = ITEMS.length;
-DASHBOARD_HIDDEN_ITEMS.forEach(function(r){ ITEMS.push(r); });
-function isOther(i){ return i >= HIDDEN_START; } /* legacy helper name: approved non-core item */
+/* Keep the dashboard's core assortment fixed. Any raw-sheet item code that is
+   not in that approved core list is routed into a hidden real-category bucket.
+   Those hidden buckets count in totals/category analysis but never become core
+   regular items, never appear in the visit audit, and never create an "Other"
+   category. The One Product Summary export maintains its own independent list. */
+var FALLBACK_CATEGORIES = ['Salad Dressing','Mayonnaise','C&E','Hot Sauce','Sauces','Ketchup','Pasta','Jam'];
+var FALLBACK_START = ITEMS.length, FALLBACK_BY_KEY = {};
+FALLBACK_CATEGORIES.forEach(function(cat){
+  ['Regular','Promotion'].forEach(function(type){
+    var idx=ITEMS.length;
+    ITEMS.push([-(idx+1), 'Unlisted '+cat+' item', cat, type, 0]);
+    FALLBACK_BY_KEY[cat+'|'+type]=idx;
+  });
+});
+function isOther(i){ return i >= FALLBACK_START; }  /* legacy name: hidden fallback item */
+function inferFallbackCategory(fields){
+  var t=String((fields||[]).join(' ')).toUpperCase();
+  if (/JAM|STRAWBERRY|APRICOT|APRIC[OA]T|MULBERRY|FIG/.test(t)) return 'Jam';
+  if (/PASTA|PIZZA|ARRAB|BOLOG|MARINARA/.test(t)) return 'Pasta';
+  if (/KETCHUP/.test(t)) return 'Ketchup';
+  if (/FOOD\s*COL|COLOUR|COLOR|ESSENCE|VANILLA|PINEAPPL/.test(t)) return 'C&E';
+  if (/MAYONNAISE|MAYO|MAYOCHUP/.test(t)) return 'Mayonnaise';
+  if (/JALAPENO|LEMON\s*PICKLE|CHILLI\s*GARLIC|CHILI\s*GARLIC|CHIPOTLE\s*SAUCE/.test(t)) return 'Hot Sauce';
+  if (/DRESSING|RANCH|FRENCH|ITALIAN|CAESAR|THOUSAND\s*ISLAND|1000\s*ISLAND/.test(t)) return 'Salad Dressing';
+  return 'Sauces';
+}
+function inferFallbackType(code,fields){
+  var t=String((fields||[]).join(' ')).toUpperCase();
+  return (code>=35590000 || /SPL\s*(OFFER|PRICE)|SPECIAL|TWIN\s*PACK|VALUE\s*PACK|FREE|OFF|2\+1|PROMO/.test(t)) ? 'Promotion' : 'Regular';
+}
 var NI = ITEMS.length, imap = {}, CATS = [], catOf = new Int32Array(NI);
 (function(){
   var seen = {};
@@ -1847,8 +1866,6 @@ var NI = ITEMS.length, imap = {}, CATS = [], catOf = new Int32Array(NI);
     catOf[i] = seen[c];
   }
 })();
-var CAT_INDEX_BY_NAME = {};
-CATS.forEach(function(n,i){ CAT_INDEX_BY_NAME[n]=i; });
 
 var SITES = [], CUSTOMERS = [], sitesByCust = {}, AREAS = [], areaOf = null;
 
@@ -1957,9 +1974,9 @@ var FSD_MIN_QTY = 10;
    van are not retail business and are left out of it. FSD is everything that
    went through Food Service. ALL is the two added together, so the three
    figures always reconcile. */
-/* A channel's total is everything invoiced through that channel for the approved
-   One Product Summary item universe. Non-core approved codes stay hidden from the
-   visit/audit item list; unknown codes outside that universe are ignored. */
+/* A channel's total is everything invoiced through that channel. Every known raw
+   item code is now assigned to its real product category; genuinely new codes are
+   routed to a hidden category fallback until the item master is refreshed. */
 function factCounted(d, i){
   if (state.dep === 'CPD') return d === 0;
   if (state.dep === 'FSD') return d === 1;
@@ -1986,7 +2003,7 @@ var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* facts; q points to raw or converted cases */
 var loadedAt = null;
 var CASE_CONVERT = true;  /* Cases (R), Stock (S) and Area Stock (T) ÷ Column U conversion; active by default */
-var DATA_VERSION = 16;
+var DATA_VERSION = 15;
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -2340,7 +2357,8 @@ function loadAll(progress, ok, fail){
     var ii = imap[rawItemCode];
     if (ii === undefined){
       badItems++;
-      return;  /* outside One Product Summary item consideration */
+      var fbCat=inferFallbackCategory(f), fbType=inferFallbackType(rawItemCode,f);
+      ii=FALLBACK_BY_KEY[fbCat+'|'+fbType];
     }
     if (abs < 0) return;
     var m = mm, y = yy;
@@ -5256,35 +5274,12 @@ function visitViewButtons(active){
    Dressing + Mayo    = 50% Salad Dressing + 50% Mayonnaise
    Normal categories remain unchanged. */
 var CATWISE_BASE = ['Salad Dressing','Mayonnaise','C&E','Hot Sauce','Sauces','Ketchup','Pasta','Jam'];
-/* Exact cross-category allocation from the approved One Product Summary.
-   All other approved source items remain 100% in their assigned base category. */
-var DASHBOARD_CATEGORY_ALLOC = {
-  35591055:[['Salad Dressing',0.5],['Mayonnaise',0.5]],
-  35591095:[['Salad Dressing',0.5],['Sauces',0.5]],
-  35591096:[['Salad Dressing',0.5],['Sauces',0.5]],
-  35591097:[['Salad Dressing',0.5],['Mayonnaise',0.5]],
-  35591098:[['Salad Dressing',0.6666866674666987],['Ketchup',0.3333133325333013]],
-  35590054:[['Salad Dressing',0.5],['Sauces',0.5]]
-};
 function categoryWiseAlloc(cat){
   if (CATWISE_BASE.indexOf(cat) >= 0) return [[cat,1]];
   if (cat === 'Dressing + Sauce') return [['Salad Dressing',0.5],['Sauces',0.5]];
   if (cat === 'Dressing + Ketchup') return [['Salad Dressing',2/3],['Ketchup',1/3]];
   if (cat === 'Dressing + Mayo') return [['Salad Dressing',0.5],['Mayonnaise',0.5]];
   return [];
-}
-function categoryWiseAllocItem(i){
-  var a=DASHBOARD_CATEGORY_ALLOC[ITEMS[i][0]];
-  return a || categoryWiseAllocItem(i);
-}
-function categorySetWeight(i,set){
-  if (!set || !set.size) return 1;
-  var a=categoryWiseAllocItem(i), w=0;
-  for (var k=0;k<a.length;k++){
-    var ci=CAT_INDEX_BY_NAME[a[k][0]];
-    if (ci!==undefined && set.has(ci)) w+=a[k][1];
-  }
-  return w;
 }
 function categoryWiseItemAllowed(i){
   var promo = ITEMS[i][3] === 'Promotion';
@@ -5304,7 +5299,7 @@ function categoryWiseSeries(metric, yearOverride){
 
   for (var i=0;i<NI;i++){
     if (!categoryWiseItemAllowed(i)) continue;
-    var alloc = categoryWiseAllocItem(i);
+    var alloc = categoryWiseAlloc(ITEMS[i][2]);
     if (!alloc.length) continue;
     for (var m=0;m<12;m++){
       if (year === YEARS[NY-1] && m > LASTM) continue;
@@ -6176,7 +6171,7 @@ function customerWiseCategoryValue(key,g,siteKey){
       if (CUSTWISE_CATEGORY_SALES_TYPE==='promo' && !isPromoItem) continue;
       if (CUSTWISE_CATEGORY_SALES_TYPE==='regular' && isPromoItem) continue;
 
-      var alloc=categoryWiseAllocItem(i);
+      var alloc=categoryWiseAlloc(ITEMS[i][2]);
       if (!alloc.length) continue;
 
       var p=fp[k], yi=(p/12)|0, m=p%12, val=fv[k]||0;
@@ -6283,7 +6278,7 @@ function customerWiseCategoryItemRows(key,siteKey,category){
       if (CUSTWISE_CATEGORY_SALES_TYPE==='promo' && !isPromoItem) continue;
       if (CUSTWISE_CATEGORY_SALES_TYPE==='regular' && isPromoItem) continue;
 
-      var alloc=categoryWiseAllocItem(i);
+      var alloc=categoryWiseAlloc(ITEMS[i][2]);
       var weight=0;
       for (var a=0;a<alloc.length;a++){
         if (alloc[a][0]===category){ weight=alloc[a][1]; break; }
@@ -7965,7 +7960,7 @@ var promoCustOpen = {}; /* customer-level: show all suppressed outlets */
 var PROMO_CAP = 5000, PROMO_PER_CUST = 18;
 
 function promoItemOk(i){
-  return ITEMS[i][3] === 'Promotion';
+  return !isOther(i) && ITEMS[i][3] === 'Promotion';
 }
 function promoPairKey(s,i){ return s * NI + i; }
 
@@ -9890,15 +9885,14 @@ function outletItemOk(i){
   return true;
 }
 function outletItemInScope(i){
-  /* analysisScan() already applies the selected channel to facts. Keep the
-     core item picker unchanged, but when no item is explicitly selected allow
-     every approved OPS source item to contribute to outlet totals. */
-  if (state.oItems.size && !state.oItems.has(i)) return false;
-  if (state.oSales !== 'all'){
+  if (!analysisItemInDep(i)) return false;            /* the ALL / CPD / FSD switch */
+  if (state.oSales !== 'all'){                       /* Regular / Promo, from the item master */
     var isPromo = ITEMS[i][3] === 'Promotion';
     if (state.oSales === 'promo' && !isPromo) return false;
     if (state.oSales === 'reg' && isPromo) return false;
   }
+  if (state.oCat.size && !state.oCat.has(catOf[i])) return false;
+  if (state.oItems.size && !state.oItems.has(i)) return false;
   return true;
 }
 
@@ -9931,38 +9925,20 @@ function buildOutlet(){
     var base = s*NI, vA = 0, vB = 0, qtyA = 0, qtyB = 0, lp = -1, la = -1, cats = {};
     for (var k=0;k<items.length;k++){
       var it = items[k], idx = base + it;
-      var rawA = A2.vA[idx], rawB = A2.vB[idx], rawQA=A2.qA[idx], rawQB=A2.qB[idx];
+      var a = A2.vA[idx], b = A2.vB[idx];
       var lpi = A2.lastP[idx], lai = A2.lastAny[idx];
-      if (!rawA && !rawB && lpi < 0 && lai < 0) continue;
-
-      var scopeWeight=categorySetWeight(it,state.oCat);
-      if (scopeWeight<=0) continue;
-      var a=rawA*scopeWeight, b=rawB*scopeWeight, qa=rawQA*scopeWeight, qb=rawQB*scopeWeight;
-      vA += a; vB += b; qtyA += qa; qtyB += qb;
+      if (!a && !b && lpi < 0 && lai < 0) continue;
+      vA += a; vB += b;
+      qtyA += A2.qA[idx]; qtyB += A2.qB[idx];
       if (lpi > lp) lp = lpi;
       if (lai > la) la = lai;
-      if (!a && !b) continue;
-
-      if (byItem){
-        var c = it;
-        var cc = cats[c] || (cats[c] = {c:c, item:true, vA:0, vB:0, qA:0, qB:0, lp:-1, la:-1});
-        cc.vA += a; cc.vB += b; cc.qA += qa; cc.qB += qb;
-        if (lpi > cc.lp) cc.lp = lpi;
-        if (lai > cc.la) cc.la = lai;
-      } else {
-        var alloc=categoryWiseAllocItem(it);
-        for (var ai=0;ai<alloc.length;ai++){
-          var ci=CAT_INDEX_BY_NAME[alloc[ai][0]];
-          if (ci===undefined) continue;
-          if (state.oCat.size && !state.oCat.has(ci)) continue;
-          var w=alloc[ai][1];
-          var cc2=cats[ci] || (cats[ci]={c:ci,item:false,vA:0,vB:0,qA:0,qB:0,lp:-1,la:-1});
-          cc2.vA += rawA*w; cc2.vB += rawB*w;
-          cc2.qA += rawQA*w; cc2.qB += rawQB*w;
-          if (lpi > cc2.lp) cc2.lp = lpi;
-          if (lai > cc2.la) cc2.la = lai;
-        }
-      }
+      if (!a && !b) continue;                          /* nothing in either year */
+      var c = byItem ? it : catOf[it];
+      var cc = cats[c] || (cats[c] = {c:c, item:byItem, vA:0, vB:0, qA:0, qB:0, lp:-1, la:-1});
+      cc.vA += a; cc.vB += b;
+      cc.qA += A2.qA[idx]; cc.qB += A2.qB[idx];
+      if (lpi > cc.lp) cc.lp = lpi;
+      if (lai > cc.la) cc.la = lai;
     }
     if (!vA && !vB) continue;                         /* nothing in scope at this outlet */
 
