@@ -4736,12 +4736,24 @@ function buildOneProductSummaryWorkbook(data,exportYears,weightTotals,dataKey){
     });
     return has?total:null;
   }
+  /* 3 Month AVG uses the last three CLOSED months, never the current
+     calendar month. Example: during September it uses Jun-Aug; during
+     October it uses Jul-Sep. If the source data is behind the calendar,
+     use the latest three fully available months instead. */
+  function lastFull3Periods(){
+    var now=new Date();
+    var lastData=latestYear*12+latestMonth;
+    var lastClosed=now.getFullYear()*12+now.getMonth()-1;
+    var end=Math.min(lastData,lastClosed);
+    return [end-2,end-1,end];
+  }
   function latest3Avg(meta,metric,isSummary){
-    var end=latestMonth,start=Math.max(0,end-2),sum=0,n=0;
-    for(var m=start;m<=end;m++){
-      var v=isSummary?summaryMetric(meta,metric,latestYear,m):sourceMetric(meta,metric,latestYear,m);
+    var periods=lastFull3Periods(),sum=0,n=0;
+    periods.forEach(function(p){
+      var y=Math.floor(p/12),m=((p%12)+12)%12;
+      var v=isSummary?summaryMetric(meta,metric,y,m):sourceMetric(meta,metric,y,m);
       if(v!==null){ sum+=v||0; n++; }
-    }
+    });
     return n?sum/n:null;
   }
 
@@ -4760,8 +4772,12 @@ function buildOneProductSummaryWorkbook(data,exportYears,weightTotals,dataKey){
     return has?t:null;
   }
   function directGrandAvg(metric){
-    var start=Math.max(0,latestMonth-2),sum=0,n=0;
-    for(var m=start;m<=latestMonth;m++){ sum+=directGrand(metric,latestYear,m); n++; }
+    var periods=lastFull3Periods(),sum=0,n=0;
+    periods.forEach(function(p){
+      var y=Math.floor(p/12),m=((p%12)+12)%12;
+      sum+=directGrand(metric,y,m);
+      n++;
+    });
     return n?sum/n:null;
   }
 
@@ -4858,8 +4874,12 @@ function buildOneProductSummaryWorkbook(data,exportYears,weightTotals,dataKey){
     return has?t:null;
   }
   function categoryAvg(cat,metric){
-    var start=Math.max(0,latestMonth-2),sum=0,n=0;
-    for(var m=start;m<=latestMonth;m++){ sum+=categoryMetric(cat,metric,latestYear,m)||0; n++; }
+    var periods=lastFull3Periods(),sum=0,n=0;
+    periods.forEach(function(p){
+      var y=Math.floor(p/12),m=((p%12)+12)%12;
+      sum+=categoryMetric(cat,metric,y,m)||0;
+      n++;
+    });
     return n?sum/n:null;
   }
 
