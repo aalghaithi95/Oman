@@ -5344,13 +5344,14 @@ function visitViewButtons(active){
 function departmentSplitRegularEligible(i,dep){
   if (!ITEMS[i] || ITEMS[i][3]!=='Regular') return false;
 
-  /* CPD must use the approved CORE regular assortment only. Hidden fallback /
-     off-list items are allowed to contribute to sales totals and categories,
-     but they must never increase Active Regular Products. FSD is the exception:
-     its assortment is department-specific, so active regular FSD lines are
-     counted from actual FSD facts even when they sit outside the CPD core list. */
+  /* Active Regular Products must use the approved assortment for each department.
+     CPD counts only core retail Regular items. FSD counts only items explicitly
+     flagged as Food Service items, and the fact itself must have been invoiced
+     through the FSD department (dep===1). Retail packs sold through FSD remain
+     in FSD sales totals but do not increase Active Regular Products. */
   if (dep===0) return i<FALLBACK_START && !isFsdItem(i);
-  return dep===1;
+  if (dep===1) return isFsdItem(i);
+  return false;
 }
 function departmentSplitData(metric){
   aggregate();
@@ -5378,8 +5379,8 @@ function departmentSplitData(metric){
 
     /* Active Regular Products is a YEAR-level measure, not a selected-period
        measure. CPD is restricted to the approved core regular assortment.
-       FSD is intentionally allowed to use its own department-specific regular
-       lines because those products are unique to Food Service. */
+       FSD counts only explicitly flagged Food Service regular items that were
+       sold through the FSD department; retail items are excluded from this KPI. */
     if (yi===ib && billed && departmentSplitRegularEligible(i,d)){
       if (!(state.yrB===YEARS[NY-1] && m>LASTM)) r.regular[i]=1;
     }
@@ -5474,7 +5475,7 @@ function visitDepartmentSplit(){
         '</div>'+
         '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
       '</div>'+
-      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD uses its own department-specific active Regular lines. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period.</div>'+
+      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period.</div>'+
     '</div>';
 }
 
