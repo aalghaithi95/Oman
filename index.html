@@ -729,6 +729,14 @@ body.imopen{overflow:hidden}
 .deptmetric .sub.up{color:var(--pos)}
 .deptmetric .sub.down{color:var(--neg)}
 .deptcompare-note{font-size:10px;color:var(--muted);text-align:center;margin-top:9px}
+/* ---------- Tab 1 Channel Wise (CPD only) ---------- */
+.chwise{padding-top:6px}
+.chwisecards{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;margin-top:10px}
+.chwisecard{border:1px solid var(--line);border-radius:var(--r);background:#fff;overflow:hidden}
+.chwisecard-head{padding:10px 12px;background:#F4F7F5;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.chwisecard-head b{font-size:12px;color:var(--ink)}
+.chwisenote{font-size:10px;color:var(--muted);text-align:center;margin-top:9px}
+@media (max-width:760px){.chwisecards{grid-template-columns:1fr;gap:8px}.chwisecard-head{padding:8px}}
 @media (max-width:900px){
   .deptsplit-grid{grid-template-columns:1fr}
 }
@@ -5333,11 +5341,13 @@ var CATWISE_SALES_TYPE = 'all';      /* all | regular | promo */
 var GRAPH_SALES_TYPE = 'all';        /* all | regular | promo */
 var VISIT_PROMO_FULL_YEAR = false;   /* OFF = 2025 follows selected 2026 period */
 var VISIT_RUNDOWN_FULL_YEAR = false; /* OFF = historical years follow selected period */
+var CHANNELWISE_MODE = 'overall'; /* monthly | overall; CPD only */
 
 function visitViewButtons(active){
   var a=[];
   if (active !== 'chart') a.push('<button class="ovviewbtn" type="button" data-view="chart">Graph view</button>');
   if (state.dep === 'ALL' && active !== 'department') a.push('<button class="ovviewbtn" type="button" data-view="department">Department Split</button>');
+  if (state.dep === 'CPD' && active !== 'channel') a.push('<button class="ovviewbtn" type="button" data-view="channel">Channel Wise</button>');
   if (active !== 'customer') a.push('<button class="ovviewbtn" type="button" data-view="customer">Customer Wise</button>');
   if (active !== 'rundown') a.push('<button class="ovviewbtn" type="button" data-view="rundown">Monthly run down</button>');
   if (active !== 'category') a.push('<button class="ovviewbtn" type="button" data-view="category">Category Wise</button>');
@@ -5531,6 +5541,160 @@ function visitDepartmentSplit(){
         '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
       '</div>'+
       '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
+    '</div>';
+}
+
+
+/* Channel Wise is a separate CPD-only view. The Department Split view above is
+   intentionally left unchanged. */
+function channelWiseData(metric){
+  aggregate();
+  var ia=yIdx(state.yrA), ib=yIdx(state.yrB);
+  var startM=state.m1;
+  var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
+  var rowsMap={};
+  if (!F || ia<0 || ib<0) return {rows:[],startM:startM,endM:endM};
+  var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+
+  function channelOfSite(s){
+    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
+    return c || 'Unspecified';
+  }
+  function rowFor(ch){
+    if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{}};
+    return rowsMap[ch];
+  }
+
+  for (var k=0;k<N;k++){
+    var s=fs[k],i=fi[k],d=fd[k];
+    if (d!==0) continue; /* CPD only */
+    if (!mask[s]) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
+
+    var p=fp[k],yi=(p/12)|0,m=p%12;
+    if (yi!==ia && yi!==ib) continue;
+    if (yi===ib && state.yrB===YEARS[NY-1] && m>LASTM) continue;
+    if (m<startM || m>endM) continue;
+
+    var ch=channelOfSite(s),r=rowFor(ch);
+    var val=(metric==='value') ? (fv[k]||0) : (fq[k]||0);
+    var billed=(fq[k]>0 || fv[k]>0);
+    var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
+
+    if (yi===ib){
+      r.curr[m]=(r.curr[m]||0)+val;
+      r.total+=val;
+      if (billed){
+        if (customer) r.cust[customer]=1;
+        r.sites[s]=1;
+      }
+    } else {
+      r.prev[m]=(r.prev[m]||0)+val;
+      r.prevTotal+=val;
+      if (billed && customer) r.baseCust[customer]=1;
+    }
+  }
+
+  var rows=Object.keys(rowsMap).map(function(key){
+    var r=rowsMap[key];
+    r.activeCustomers=Object.keys(r.cust).length;
+    r.activeSites=Object.keys(r.sites).length;
+    var newCust=0;
+    Object.keys(r.cust).forEach(function(c){ if (!r.baseCust[c]) newCust++; });
+    r.newCustomers=newCust;
+    r.avgPerSite=r.activeSites ? r.total/r.activeSites : 0;
+    r.growth=Math.abs(r.prevTotal)>0.0000001 ? ((r.total-r.prevTotal)/Math.abs(r.prevTotal)*100) : null;
+    return r;
+  }).filter(function(r){
+    /* A channel with a negative or zero total in the displayed/current year is hidden
+       from Channel Wise for that year. Only channels with a positive total remain visible. */
+    return r.total > 0;
+  });
+  rows.sort(function(a,b){ return (b.total-a.total) || a.key.localeCompare(b.key); });
+  var grand=rows.reduce(function(sum,r){ return sum+(r.total||0); },0);
+  var prevGrand=rows.reduce(function(sum,r){ return sum+(r.prevTotal||0); },0);
+  rows.forEach(function(r){
+    r.cont=grand ? r.total/grand*100 : 0;
+    r.prevCont=prevGrand ? r.prevTotal/prevGrand*100 : 0;
+  });
+  return {rows:rows,startM:startM,endM:endM,grand:grand,prevGrand:prevGrand};
+}
+
+function visitChannelWise(){
+  if (state.dep!=='CPD'){
+    VISIT_VALUE_VIEW='chart';
+    return visitValueChart();
+  }
+  var metric=VISIT_CAT_METRIC,isValue=metric==='value';
+  var d=channelWiseData(metric),rows=d.rows||[];
+  var mode=CHANNELWISE_MODE==='overall' ? 'overall' : 'monthly';
+
+  function f(v){
+    if (Math.abs(v)<0.0000001) return '0';
+    return nf0.format(Math.round(v));
+  }
+  function metricFmt(v){
+    return isValue ? ('OMR '+nf0.format(Math.round(v||0))) : (nf0.format(Math.round(v||0))+' cases');
+  }
+  function growthText(r){
+    if (r.growth===null) return Math.abs(r.total)>0.0000001 ? 'New vs '+state.yrA : 'No base';
+    return (r.growth>0?'+':'')+nf1.format(r.growth)+'% vs '+state.yrA;
+  }
+  function growthClass(r){ return r.growth===null?'flat':(r.growth>0?'up':(r.growth<0?'down':'flat')); }
+
+  var body='';
+  if (mode==='monthly'){
+    var months=[];
+    for (var m=d.startM;m<=d.endM;m++) months.push(m);
+    var title=isValue?'Sales in Value':'Sales in Cases';
+    body='<div class="ovcustwrap"><table class="ovcusttbl"><thead>'+
+      '<tr class="cap"><th colspan="'+(months.length+4)+'">'+title+' ('+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+')</th></tr>'+
+      '<tr><th>Channel</th>';
+    months.forEach(function(m){ body+='<th>'+MONTHS[m]+'</th>'; });
+    body+='<th>Total</th><th>Cont</th><th>Vs LY</th></tr></thead><tbody>';
+    rows.forEach(function(r){
+      var pct=custWisePct(r.prevTotal,r.total);
+      body+='<tr><th>'+esc(r.key)+'</th>';
+      months.forEach(function(m){
+        var v=r.curr[m]||0,pv=r.prev[m]||0;
+        body+='<td>'+f(v)+arrowLYCW(pv,v)+'</td>';
+      });
+      body+='<td class="tot">'+f(r.total)+arrowLYCW(r.prevTotal,r.total)+'</td>'+
+        '<td class="cont" title="LY Cont: '+nf2.format(r.prevCont||0)+'%">'+nf2.format(r.cont||0)+'%'+arrowLYCW(r.prevCont||0,r.cont||0)+'</td>'+
+        '<td class="vsly '+pct.cls+'" title="'+esc(custWiseDeltaTitle(r.prevTotal,r.total,isValue))+'">'+pct.text+'</td></tr>';
+    });
+    if (!rows.length) body+='<tr><td colspan="'+(months.length+4)+'" class="empty">No active CPD channels for the selected filters.</td></tr>';
+    body+='</tbody></table></div>';
+  } else {
+    body='<div class="chwisecards">';
+    rows.forEach(function(r){
+      body+='<div class="chwisecard">'+
+        '<div class="chwisecard-head"><b>'+esc(r.key)+'</b><span class="deptshare">'+nf1.format(r.cont||0)+'% share</span></div>'+
+        '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.total)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new vs '+state.yrA+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">Current selected period</div></div>'+
+        '<div class="deptmetric"><div class="lab">Avg per Active Site</div><div class="val">'+metricFmt(r.avgPerSite)+'</div><div class="sub">Performance per billed site</div></div>'+
+      '</div>';
+    });
+    if (!rows.length) body+='<div class="chwisenote">No active CPD channels for the selected filters.</div>';
+    body+='</div>';
+  }
+
+  return visitViewButtons('channel')+
+    '<div class="ovmetricgroups">'+
+      '<div class="ovmetricbar catmetric">'+
+        '<button class="ovmetricbtn '+(metric==='cases'?'on':'')+'" type="button" data-metric="cases">Volume</button>'+
+        '<button class="ovmetricbtn '+(metric==='value'?'on':'')+'" type="button" data-metric="value">Value</button>'+
+      '</div>'+
+      '<div class="ovmetricbar catmetric">'+
+        '<button class="ovmetricbtn '+(mode==='monthly'?'on':'')+'" type="button" data-channel-mode="monthly">Monthly</button>'+
+        '<button class="ovmetricbtn '+(mode==='overall'?'on':'')+'" type="button" data-channel-mode="overall">Overall</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="cht">Channel Wise</div>'+
+    '<div class="chs">CPD · '+scopeNames()+' · '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' vs '+state.yrA+' same period</div>'+
+    '<div class="chwise">'+body+
+      '<div class="chwisenote">Monthly uses the Customer Wise table format. Overall uses the Department Split card format for each CPD channel, without a pie chart. Avg per Active Site replaces Active Regular Products as the additional performance metric.</div>'+
     '</div>';
 }
 
@@ -7490,11 +7654,13 @@ function renderVisitValueChart(){
   var box = document.getElementById('visitValueChart');
   if (!box) return;
   if (VISIT_VALUE_VIEW === 'department' && state.dep !== 'ALL') VISIT_VALUE_VIEW = 'chart';
+  if (VISIT_VALUE_VIEW === 'channel' && state.dep !== 'CPD') VISIT_VALUE_VIEW = 'chart';
   box.innerHTML = VISIT_VALUE_VIEW === 'rundown' ? visitValueRundown() :
                   (VISIT_VALUE_VIEW === 'category' ? visitCategoryWise() :
                   (VISIT_VALUE_VIEW === 'customer' ? visitCustomerWise() :
                   (VISIT_VALUE_VIEW === 'department' ? visitDepartmentSplit() :
-                  (VISIT_VALUE_VIEW === 'promo' ? visitPromoPercentage() : visitValueChart()))));
+                  (VISIT_VALUE_VIEW === 'channel' ? visitChannelWise() :
+                  (VISIT_VALUE_VIEW === 'promo' ? visitPromoPercentage() : visitValueChart())))));
 }
 
 (function wireVisitValueChart(){
@@ -7521,6 +7687,12 @@ function renderVisitValueChart(){
       openCustomerWiseGraph(decodeURIComponent(cw.dataset.cw || ''));
       return;
     }
+    var cm = e.target.closest('[data-channel-mode]');
+    if (cm){
+      CHANNELWISE_MODE = cm.dataset.channelMode === 'overall' ? 'overall' : 'monthly';
+      renderVisitValueChart();
+      return;
+    }
     var mb = e.target.closest('.ovmetricbtn');
     if (mb){
       VISIT_CAT_METRIC = mb.dataset.metric === 'value' ? 'value' : 'cases';
@@ -7531,7 +7703,7 @@ function renderVisitValueChart(){
     if (!b) return;
     VISIT_VALUE_VIEW = (b.dataset.view === 'rundown' || b.dataset.view === 'category' ||
                         b.dataset.view === 'customer' || b.dataset.view === 'department' ||
-                        b.dataset.view === 'promo') ? b.dataset.view : 'chart';
+                        b.dataset.view === 'channel' || b.dataset.view === 'promo') ? b.dataset.view : 'chart';
     renderVisitValueChart();
   });
 
