@@ -909,7 +909,9 @@ body.mdopen #mdWrap{display:block}
 #antbl tr.cat:hover td{background:#EEF1EF}
 #antbl tr.cat td.catname{color:var(--ink)}
 #antbl tr.nsup td.a-last{white-space:nowrap}
-#antbl td.a-cust,#antbl td.a-site{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#antbl td.a-cust{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#antbl th.a-site,#antbl td.a-site{max-width:220px;white-space:normal;overflow-wrap:anywhere;word-break:normal;line-height:1.3}
+#antbl td.a-site[title]{cursor:help}
 #antbl tbody tr:not(.cat) td.a-cust{color:var(--muted);font-size:11px}
 #antbl td.desc{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #antbl .gap{display:inline-block;margin-left:6px;font-size:10px;color:var(--muted);
@@ -920,7 +922,8 @@ body.mdopen #mdWrap{display:block}
   .tab{flex:1;text-align:center;padding:10px 6px;font-size:12px}
   #antbl th.a-cat,#antbl td.a-cat,#antbl th.a-code,#antbl td.a-code,
   #antbl th.a-va,#antbl td.a-va{display:none}
-  #antbl td.a-cust,#antbl td.a-site{max-width:120px}
+  #antbl td.a-cust{max-width:105px}
+  #antbl th.a-site,#antbl td.a-site{max-width:150px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}
   #antbl td.desc{max-width:150px}
   #antbl th,#antbl td{padding:6px 5px;font-size:11.5px}
 }
@@ -3584,8 +3587,9 @@ function render(){
   var lv = lost.reduce(function(s,r){ return s+r.v; }, 0);
   document.getElementById('lostNote').textContent = lost.length ? nf0.format(Math.round(lv))+' of '+state.yrA+' value at risk' : '';
 
-  document.getElementById('anYrA').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
-  document.getElementById('anYrB').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
+  function shortAnalysisYear(y){ return String(y).slice(-2) + "'"; }
+  document.getElementById('anYrA').textContent = shortAnalysisYear(state.yrB) + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = shortAnalysisYear(state.yrA) + (aIsVolume() ? ' QTY' : ' Value');
   if (TAB === 'analysis') renderAnalysis();
 }
 
@@ -8536,8 +8540,8 @@ function renderAnalysis(){
   var A2 = analysisScan();
   anRows = buildAnalysisRows();
   /* the two value columns follow the Value / Volume switch */
-  document.getElementById('anYrA').textContent = state.yrB + (aIsVolume() ? ' QTY' : ' Value');
-  document.getElementById('anYrB').textContent = state.yrA + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrA').textContent = String(state.yrB).slice(-2) + "'" + (aIsVolume() ? ' QTY' : ' Value');
+  document.getElementById('anYrB').textContent = String(state.yrA).slice(-2) + "'" + (aIsVolume() ? ' QTY' : ' Value');
 
   var lostVal = 0, custSet = {}, siteSet = {}, neverN = 0;
   for (var r=0;r<anRows.length;r++){
@@ -8616,7 +8620,7 @@ function renderAnalysis(){
     var diff = rB - rA;
     html += '<tr' + (d.never ? ' class="nsup"' : '') + '>' +
       '<td class="a-cust">' + esc(CUSTOMERS[d.cid]) + '</td>' +
-      '<td class="a-site">' + esc(SITES[d.s][1]) + '</td>' +
+      '<td class="a-site" title="' + esc(SITES[d.s][1]) + '">' + esc(SITES[d.s][1]) + '</td>' +
       '<td class="a-cat">' + esc(ITEMS[d.i][2]) + '</td>' +
       '<td class="a-code mono" style="font-size:11px">' + ITEMS[d.i][0] + '</td>' +
       '<td class="desc" title="' + esc(ITEMS[d.i][1]) + '">' + esc(ITEMS[d.i][1]) + '</td>' +
