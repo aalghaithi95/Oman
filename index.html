@@ -716,7 +716,11 @@ body.imopen{overflow:hidden}
 .deptcard{border:1px solid var(--line);border-radius:var(--r);background:#fff;overflow:hidden}
 .deptcard-head{padding:10px 12px;background:#F4F7F5;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
 .deptcard-head b{font-size:12px;color:var(--ink)}
-.deptshare{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.deptcard-title{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.deptchannel{height:27px;min-width:105px;max-width:160px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);padding:0 24px 0 7px;font-size:9.5px;font-weight:600;cursor:pointer;outline:none}
+.deptchannel:hover{border-color:var(--ink-3)}
+.deptchannel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.deptshare{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap}
 .deptmetric{padding:11px 12px;border-bottom:1px solid var(--line-2)}
 .deptmetric:last-child{border-bottom:0}
 .deptmetric .lab{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
@@ -733,7 +737,9 @@ body.imopen{overflow:hidden}
   .deptpiebox{min-height:0;padding:10px}
   .deptpie{width:220px}
   .deptcards{grid-template-columns:1fr 1fr;gap:7px}
-  .deptcard-head{padding:8px}
+  .deptcard-head{padding:8px;align-items:flex-start}
+  .deptcard-title{gap:5px}
+  .deptchannel{height:25px;min-width:92px;max-width:135px;font-size:8.8px;padding-left:6px}
   .deptmetric{padding:8px}
   .deptmetric .val{font-size:14px}
 }
@@ -1045,14 +1051,15 @@ body.mdopen #mdWrap{display:block}
 /* a fixed table takes its widths from the first row, and that row is the caption,
    so the columns are sized here instead */
 .imtbl.sitelist{table-layout:fixed;min-width:0}
-.imtbl.sitelist col.w-name{width:27%}
-.imtbl.sitelist col.w-site{width:30%}
-.imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:13%}
+.imtbl.sitelist col.w-name{width:24%}
+.imtbl.sitelist col.w-site{width:27%}
+.imtbl.sitelist col.w-channel{width:10%}
+.imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:11%}
 .imtbl.sitelist col.w-area{width:12%}
-.imtbl.sitelist col.w-val{width:18%}
+.imtbl.sitelist col.w-val{width:16%}
 .imtbl.sitelist td.c-name,.imtbl.sitelist td.c-site{white-space:normal;overflow-wrap:anywhere;word-break:break-word;
   line-height:1.25;text-align:left}
-.imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area,
+.imtbl.sitelist td.c-channel,.imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area,
 .imtbl.sitelist td.c-val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .imtbl.sitelist th{text-align:left;overflow:hidden;text-overflow:ellipsis}
 .imtbl.sitelist th.n,.imtbl.sitelist td.n{text-align:right}
@@ -1066,15 +1073,16 @@ body.mdopen #mdWrap{display:block}
 .sitetools .btn{padding:5px 12px;font-size:11.5px;white-space:nowrap}
 @media (max-width:760px){
   .imtbl.sitelist{width:100%;min-width:0!important;table-layout:fixed;font-size:8.8px}
-  .imtbl.sitelist col.w-name{width:25%}
-  .imtbl.sitelist col.w-site{width:28%}
-  .imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:13%}
-  .imtbl.sitelist col.w-area{width:14%}
-  .imtbl.sitelist col.w-val{width:20%}
+  .imtbl.sitelist col.w-name{width:23%}
+  .imtbl.sitelist col.w-site{width:26%}
+  .imtbl.sitelist col.w-channel{width:11%}
+  .imtbl.sitelist col.w-open,.imtbl.sitelist col.w-last{width:12%}
+  .imtbl.sitelist col.w-area{width:13%}
+  .imtbl.sitelist col.w-val{width:15%}
   .imtbl.sitelist thead tr:last-child th{padding:5px 2px;font-size:7.5px;white-space:normal;line-height:1.1}
   .imtbl.sitelist tbody td{padding:5px 3px;font-size:8.6px;line-height:1.15}
   .imtbl.sitelist td.c-val{font-size:8.3px;letter-spacing:-.35px}
-  .imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area{font-size:8.2px}
+  .imtbl.sitelist td.c-channel,.imtbl.sitelist td.c-open,.imtbl.sitelist td.c-last,.imtbl.sitelist td.c-area{font-size:8.2px}
   .imtbl.sitelist tfoot th{padding:5px 3px;font-size:8.5px}
   .sitetools{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
   .site-month-filter{margin-right:0;width:100%}
@@ -5341,6 +5349,8 @@ function visitViewButtons(active){
 /* Department Split is available only while ALL is active. It compares the
    two actual invoice departments inside the current Area / Customer / Site /
    Category and period scope. */
+var DEPT_SPLIT_CHANNEL = {CPD:'ALL',FSD:'ALL'};
+
 function departmentSplitRegularEligible(i,dep){
   if (!ITEMS[i] || ITEMS[i][3]!=='Regular') return false;
 
@@ -5359,42 +5369,76 @@ function departmentSplitData(metric){
   var startM=state.m1;
   var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
   var out=[
-    {key:'CPD',name:'CPD',cur:0,base:0,regular:{},cust:{},baseCust:{},sites:{}},
-    {key:'FSD',name:'Food Service',cur:0,base:0,regular:{},cust:{},baseCust:{},sites:{}}
+    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},cust:{},baseCust:{},sites:{},channels:{}},
+    {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},cust:{},baseCust:{},sites:{},channels:{}}
   ];
 
   if (!F || ia<0 || ib<0) return out;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+
+  function channelOfSite(s){
+    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
+    return c || 'Unspecified';
+  }
+
+  /* First pass: build the ACTIVE channel list for each department. A channel is
+     active when it has positive billing somewhere in the compare/current year.
+     This list intentionally ignores the channel dropdown itself so users can
+     always switch back to another active channel. */
   for (var k=0;k<N;k++){
     var s=fs[k],i=fi[k],d=fd[k];
     if (d!==0 && d!==1) continue;
     if (!mask[s]) continue;
     if (state.cat.size && !state.cat.has(catOf[i])) continue;
-
     var p=fp[k],yi=(p/12)|0,m=p%12;
-    var r=out[d];
-    var val=(metric==='value') ? (fv[k]||0) : (fq[k]||0);
-    var billed=(fq[k]>0 || fv[k]>0);
-    var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
+    if (yi!==ib) continue;
+    if (state.yrB===YEARS[NY-1] && m>LASTM) continue;
+    if (!(fq[k]>0 || fv[k]>0)) continue;
+    out[d].channels[channelOfSite(s)]=1;
+  }
 
-    /* Active Regular Products is a YEAR-level measure, not a selected-period
-       measure. CPD is restricted to the approved core regular assortment.
-       FSD counts only explicitly flagged Food Service regular items that were
-       sold through the FSD department; retail items are excluded from this KPI. */
-    if (yi===ib && billed && departmentSplitRegularEligible(i,d)){
-      if (!(state.yrB===YEARS[NY-1] && m>LASTM)) r.regular[i]=1;
+  /* If another dashboard filter makes a previously selected channel inactive,
+     return that department to All Channels rather than showing an empty card. */
+  out.forEach(function(r){
+    var selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
+    if (selected!=='ALL' && !r.channels[selected]) DEPT_SPLIT_CHANNEL[r.key]='ALL';
+  });
+
+  /* Second pass: calculate each department independently using its own selected
+     channel. Sales/customers/sites use the selected period; Active Regular
+     Products remains a year-level measure, but is restricted to that channel. */
+  for (var k2=0;k2<N;k2++){
+    var s2=fs[k2],i2=fi[k2],d2=fd[k2];
+    if (d2!==0 && d2!==1) continue;
+    if (!mask[s2]) continue;
+    if (state.cat.size && !state.cat.has(catOf[i2])) continue;
+
+    var r=out[d2], channel=channelOfSite(s2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
+
+    var p2=fp[k2],yi2=(p2/12)|0,m2=p2%12;
+    var val=(metric==='value') ? (fv[k2]||0) : (fq[k2]||0);
+    var billed=(fq[k2]>0 || fv[k2]>0);
+    var customer=SITES[s2] ? String(SITES[s2][0]||'').trim() : '';
+
+    /* Pie/share always represents the full department across ALL active channels.
+       The per-department Channel dropdown filters only the detail card metrics. */
+    if (yi2===ib && m2>=startM && m2<=endM) r.pieCur+=val;
+
+    if (selected!=='ALL' && channel!==selected) continue;
+
+    if (yi2===ib && billed && departmentSplitRegularEligible(i2,d2)){
+      if (!(state.yrB===YEARS[NY-1] && m2>LASTM)) r.regular[i2]=1;
     }
 
-    /* Sales, customers and sites continue to follow the selected period. */
-    if (m<startM || m>endM) continue;
+    if (m2<startM || m2>endM) continue;
 
-    if (yi===ib){
+    if (yi2===ib){
       r.cur+=val;
       if (billed){
         if (customer) r.cust[customer]=1;
-        r.sites[s]=1;
+        r.sites[s2]=1;
       }
-    } else if (yi===ia){
+    } else if (yi2===ia){
       r.base+=val;
       if (billed && customer) r.baseCust[customer]=1;
     }
@@ -5404,6 +5448,8 @@ function departmentSplitData(metric){
     r.activeRegular=Object.keys(r.regular).length;
     r.activeCustomers=Object.keys(r.cust).length;
     r.activeSites=Object.keys(r.sites).length;
+    r.channelList=Object.keys(r.channels).sort(function(a,b){ return a.localeCompare(b); });
+    r.selectedChannel=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
     var newCust=0;
     Object.keys(r.cust).forEach(function(c){ if (!r.baseCust[c]) newCust++; });
     r.newCustomers=newCust;
@@ -5413,10 +5459,10 @@ function departmentSplitData(metric){
 }
 
 function departmentSplitPie(cpd,fsd,metric){
-  var a=Math.max(0,cpd.cur||0), b=Math.max(0,fsd.cur||0), total=a+b;
+  var a=Math.max(0,cpd.pieCur||0), b=Math.max(0,fsd.pieCur||0), total=a+b;
   var pa=total ? a/total*100 : 0, pb=total ? b/total*100 : 0;
-  var fmtTotal=metric==='value' ? ('OMR '+nf0.format(Math.round((cpd.cur||0)+(fsd.cur||0))))
-                                : (nf2.format((cpd.cur||0)+(fsd.cur||0))+' cases');
+  var fmtTotal=metric==='value' ? ('OMR '+nf0.format(Math.round((cpd.pieCur||0)+(fsd.pieCur||0))))
+                                : (nf0.format(Math.round((cpd.pieCur||0)+(fsd.pieCur||0)))+' cases');
   return '<svg class="deptpie" viewBox="0 0 240 240" role="img" aria-label="Department share pie chart">'+
       '<circle cx="120" cy="120" r="78" fill="none" stroke="#EEF1EF" stroke-width="40"></circle>'+
       '<circle cx="120" cy="120" r="78" fill="none" stroke="#E3A02A" stroke-width="40" pathLength="100" '+
@@ -5436,12 +5482,12 @@ function visitDepartmentSplit(){
   }
   var metric=VISIT_CAT_METRIC, isValue=metric==='value';
   var d=departmentSplitData(metric), cpd=d[0], fsd=d[1];
-  var posTotal=Math.max(0,cpd.cur||0)+Math.max(0,fsd.cur||0);
-  cpd.share=posTotal ? Math.max(0,cpd.cur||0)/posTotal*100 : 0;
-  fsd.share=posTotal ? Math.max(0,fsd.cur||0)/posTotal*100 : 0;
+  var posTotal=Math.max(0,cpd.pieCur||0)+Math.max(0,fsd.pieCur||0);
+  cpd.share=posTotal ? Math.max(0,cpd.pieCur||0)/posTotal*100 : 0;
+  fsd.share=posTotal ? Math.max(0,fsd.pieCur||0)/posTotal*100 : 0;
 
   function metricFmt(v){
-    return isValue ? ('OMR '+nf0.format(Math.round(v||0))) : (nf2.format(v||0)+' cases');
+    return isValue ? ('OMR '+nf0.format(Math.round(v||0))) : (nf0.format(Math.round(v||0))+' cases');
   }
   function growthText(r){
     if (r.growth===null) return (Math.abs(r.cur)>0.0000001 ? 'New vs '+state.yrA : 'No base');
@@ -5449,8 +5495,17 @@ function visitDepartmentSplit(){
   }
   function growthClass(r){ return r.growth===null ? 'flat' : (r.growth>0?'up':(r.growth<0?'down':'flat')); }
   function card(r){
+    var options='<option value="ALL"'+(r.selectedChannel==='ALL'?' selected':'')+'>All Channels</option>';
+    (r.channelList||[]).forEach(function(ch){
+      options+='<option value="'+esc(ch)+'"'+(r.selectedChannel===ch?' selected':'')+'>'+esc(ch)+'</option>';
+    });
     return '<div class="deptcard">'+
-      '<div class="deptcard-head"><b>'+esc(r.name)+'</b><span class="deptshare">'+nf1.format(r.share)+'% share</span></div>'+
+      '<div class="deptcard-head">'+
+        '<div class="deptcard-title"><b>'+esc(r.name)+'</b>'+
+          '<select class="deptchannel" data-dept-channel="'+r.key+'" aria-label="'+esc(r.name)+' channel">'+options+'</select>'+
+        '</div>'+
+        '<span class="deptshare">'+nf1.format(r.share)+'% share</span>'+
+      '</div>'+
       '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.cur)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
       '<div class="deptmetric"><div class="lab">Active Regular Products</div><div class="val">'+nf0.format(r.activeRegular)+'</div><div class="sub">Regular items billed in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'</div></div>'+
       '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new vs '+state.yrA+'</div></div>'+
@@ -5475,7 +5530,7 @@ function visitDepartmentSplit(){
         '</div>'+
         '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
       '</div>'+
-      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period.</div>'+
+      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
     '</div>';
 }
 
@@ -7481,6 +7536,15 @@ function renderVisitValueChart(){
   });
 
   box.addEventListener('change', function(e){
+    var dc=e.target && e.target.closest ? e.target.closest('[data-dept-channel]') : null;
+    if (dc){
+      var depKey=dc.dataset.deptChannel;
+      if (depKey==='CPD' || depKey==='FSD'){
+        DEPT_SPLIT_CHANNEL[depKey]=dc.value || 'ALL';
+        renderVisitValueChart();
+      }
+      return;
+    }
     if (e.target && e.target.id === 'cwSalesType'){
       var v = e.target.value;
       CUSTWISE_SALES_TYPE = (v === 'regular' || v === 'promo') ? v : 'all';
@@ -9357,10 +9421,10 @@ function renderSiteListBody(){
 
   html +=
     '<table class="imtbl vhist sitelist">' +
-      '<colgroup><col class="w-name"><col class="w-site"><col class="'+colClass+'"><col class="w-area"><col class="w-val"></colgroup>' +
+      '<colgroup><col class="w-name"><col class="w-site"><col class="w-channel"><col class="'+colClass+'"><col class="w-area"><col class="w-val"></colgroup>' +
       '<thead>' +
-        '<tr class="cap"><th colspan="5">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
-        '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th>' +
+        '<tr class="cap"><th colspan="6">' + (isNew ? 'Gained' : 'Lost') + ' this year</th></tr>' +
+        '<tr><th class="c-name">Customer</th><th class="c-site">Customer Site</th><th class="c-channel">Channel</th>' +
         '<th class="'+cellClass+'">'+monthTitle+'</th>' +
         '<th class="c-area">Area</th><th class="n c-val">' + esc(siteListData.valHead) + '</th></tr>' +
       '</thead><tbody>' +
@@ -9368,11 +9432,12 @@ function renderSiteListBody(){
         var monthText=isNew ? openMonth(r.s) : lastBilledMonth(r.s);
         return '<tr><td class="c-name">' + esc(SITES[r.s][0]) + '</td>' +
                '<td class="c-site">' + esc(SITES[r.s][1]) + '</td>' +
+               '<td class="c-channel">' + esc(SITES[r.s][3] || '—') + '</td>' +
                '<td class="'+cellClass+'">' + esc(monthText) + '</td>' +
                '<td class="c-area">' + esc(areaLabel(areaOf[r.s])) + '</td>' +
                '<td class="n c-val">' + (r.v ? nf0.format(Math.round(r.v)) : '<span class="z">–</span>') + '</td></tr>';
       }).join('') +
-      '</tbody><tfoot><tr><th colspan="4">Total</th>' +
+      '</tbody><tfoot><tr><th colspan="5">Total</th>' +
       '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
       '<div class="imnote">' + (isNew
         ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA +
