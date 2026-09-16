@@ -1078,6 +1078,23 @@ body.mdopen #mdWrap{display:block}
 .imtbl.sitelist tfoot th{background:var(--paper-2);border:1px solid var(--line);
   padding:6px 8px;font-size:11.5px;text-align:left}
 .imtbl.sitelist tfoot th.n{text-align:right}
+/* Department Split / Channel Wise lifecycle popups: long customer and site names must wrap inside their own cells. */
+.imtbl.lifecycle{table-layout:fixed;min-width:760px}
+.imtbl.lifecycle td,.imtbl.lifecycle th{overflow:hidden}
+.imtbl.lifecycle td.c-name,.imtbl.lifecycle td.c-site,.imtbl.lifecycle td.c-channel,.imtbl.lifecycle td.c-area{
+  white-space:normal!important;overflow-wrap:anywhere;word-break:break-word;line-height:1.25;text-align:left
+}
+.imtbl.lifecycle td.c-month,.imtbl.lifecycle td.c-count,.imtbl.lifecycle td.c-val{white-space:nowrap}
+.imtbl.lifecycle.accountlife col.w-name{width:28%}
+.imtbl.lifecycle.accountlife col.w-count{width:12%}
+.imtbl.lifecycle.accountlife col.w-channel{width:15%}
+.imtbl.lifecycle.accountlife col.w-month{width:12%}
+.imtbl.lifecycle.accountlife col.w-area{width:15%}
+.imtbl.lifecycle.accountlife col.w-val{width:18%}
+@media (max-width:760px){
+  .imtbl.lifecycle{min-width:680px;font-size:10px}
+  .imtbl.lifecycle td,.imtbl.lifecycle th{padding:5px 5px}
+}
 .sitetools{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin:0 0 10px}
 .site-month-filter{display:inline-flex;align-items:center;gap:6px;margin-right:auto;min-width:0}
 .site-month-filter span{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -1243,6 +1260,10 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #otbl tr.osite td{border-top:1px solid var(--line)}
 #otbl tr.osite:hover td{background:#FAFAF8}
 #otbl tr.osite .tw{display:inline-block;width:13px;color:var(--muted);font-size:9px}
+.custgrouptoggle{cursor:pointer}
+.custgrouptoggle:hover{background:#F7F8F7}
+.custgrouptoggle .tw{margin-right:5px}
+
 #otbl tr.osite.up td.o-site{box-shadow:inset 3px 0 0 var(--pos)}
 #otbl tr.osite.down td.o-site{box-shadow:inset 3px 0 0 var(--neg)}
 #otbl tr.osite.flat td.o-site{box-shadow:inset 3px 0 0 var(--line)}
@@ -1302,6 +1323,17 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #ptbl .prate.high{color:var(--neg)}
 #ptbl .empty{padding:28px;text-align:center;color:var(--muted);font-size:12px}
 #ptbl tr.more td{background:#FBF3E1;color:var(--accent-2);font-size:11px;padding:6px 10px}
+.promo-summary-panel{margin-bottom:12px}
+.promo-summary-scroll{max-height:360px}
+#pItemSummaryTbl{width:100%;border-collapse:collapse}
+#pItemSummaryTbl th{position:sticky;top:0;z-index:4;background:var(--ink);color:#EAF2F0;text-align:left;padding:8px 9px;font-size:10px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+#pItemSummaryTbl th.r{text-align:right}
+#pItemSummaryTbl td{padding:7px 9px;border-bottom:1px solid var(--line);font-size:11.5px;vertical-align:middle}
+#pItemSummaryTbl td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap}
+#pItemSummaryTbl tr:hover td{background:#FAFAF8}
+#pItemSummaryTbl .empty{padding:24px;text-align:center;color:var(--muted)}
+#pItemSummaryTbl tfoot th{background:#F2F4F2;color:var(--ink);padding:8px 9px;font-size:11px;border-top:1px solid var(--line);position:static;text-transform:none;letter-spacing:0}
+#pItemSummaryTbl tfoot th.r{text-align:right;font-family:'IBM Plex Mono',monospace}
 #ptbl th.p-site,#ptbl td.p-site{width:22%}
 #ptbl th.p-item,#ptbl td.p-item{width:24%}
 #ptbl th.p-cat,#ptbl td.p-cat{width:11%}
@@ -1815,6 +1847,28 @@ body.immonthly #imWrap .imcard{max-width:1500px}
         <button class="btn ghost" id="pReset">Reset filters</button>
         <button class="btn" id="pExport" type="button">Export data</button>
       </div>
+    </div>
+  </div>
+
+  <div class="panel promo-summary-panel">
+    <div class="panel-head">
+      <h2>Promotion item summary</h2>
+      <span class="count" id="pItemSummaryCount"></span>
+      <div class="right"><span class="eyebrow" id="pItemSummaryScope"></span></div>
+    </div>
+    <div class="tscroll promo-summary-scroll">
+      <table id="pItemSummaryTbl">
+        <thead><tr>
+          <th>Item Desc</th>
+          <th>Category</th>
+          <th class="r">Supplied Cases</th>
+          <th class="r">Returned Cases</th>
+          <th class="r">Net Cases</th>
+          <th class="r">Return %</th>
+        </tr></thead>
+        <tbody id="pItemSummaryBody"></tbody>
+        <tfoot id="pItemSummaryFoot"></tfoot>
+      </table>
     </div>
   </div>
 
@@ -3108,7 +3162,7 @@ var state = {
   aArea: new Set(), aCust: new Set(), aCat: new Set(), aItems: new Set(), aGap: 3, aNever: 'exclude',
   aMetric: 'value', oMetric: 'value',
   oArea: new Set(), oCust: new Set(), oCat: new Set(), oItems: new Set(), oStatus: 'all', oSales: 'all',
-  pArea: new Set(), pCust: new Set(), pCat: new Set(), pItems: new Set(), pRet: 10,
+  pArea: new Set(), pCust: new Set(), pCat: new Set(), pItems: new Set(), pRet: 'ALL',
   sort: {key:'vB', dir:-1},
   showRegular: true, showPromo: true, showDecline: false,
   group: true, hideZero: true, onlyUnchecked: false,
@@ -5523,13 +5577,14 @@ function lifecycleScopeLabel(depKey,channel){
 
 /* Rebuild the New/Lost list on demand using the same whole-year lifecycle rule
    as the KPI cards. This supports both Customer Sites and Customer Accounts. */
-function scopedLifecycleRows(depKey,channel,entity,kind){
+function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   buildMask();
   var latestYi=NY-1, baseYi=NY-2;
   if (!F || latestYi<0 || baseYi<0) return {rows:[],latestYear:null,baseYear:null};
   var latestYear=YEARS[latestYi], baseYear=YEARS[baseYi];
   var depIdx=depKey==='FSD' ? 1 : 0;
   var fs=F.s,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+  var useValue=metric==='value';
   var siteMap={}, custMap={};
 
   function channelOfSite(s){
@@ -5559,8 +5614,9 @@ function scopedLifecycleRows(depKey,channel,entity,kind){
     var cr=customer ? custRec(customer) : null;
 
     if (yi===latestYi){
-      sr.valB+=fv[k]||0;
-      if (cr) cr.valB+=fv[k]||0;
+      var measureB=useValue ? (fv[k]||0) : (fq[k]||0);
+      sr.valB+=measureB;
+      if (cr) cr.valB+=measureB;
       if (billed){
         sr.b=1;
         if (sr.firstB<0 || m<sr.firstB) sr.firstB=m;
@@ -5571,8 +5627,9 @@ function scopedLifecycleRows(depKey,channel,entity,kind){
         }
       }
     } else {
-      sr.valA+=fv[k]||0;
-      if (cr) cr.valA+=fv[k]||0;
+      var measureA=useValue ? (fv[k]||0) : (fq[k]||0);
+      sr.valA+=measureA;
+      if (cr) cr.valA+=measureA;
       if (billed){
         sr.a=1;
         if (sr.lastA<0 || m>sr.lastA) sr.lastA=m;
@@ -5626,30 +5683,32 @@ function scopedLifecycleRows(depKey,channel,entity,kind){
 }
 
 function openScopedLifecyclePopup(kind,entity,depKey,channel){
-  var d=scopedLifecycleRows(depKey,channel,entity,kind);
-  var isNew=kind==='new', isSite=entity==='site';
+  var metric=VISIT_CAT_METRIC==='value'?'value':'cases';
+  var d=scopedLifecycleRows(depKey,channel,entity,kind,metric);
+  var isNew=kind==='new', isSite=entity==='site', isValue=metric==='value';
   var rows=d.rows||[], total=rows.reduce(function(a,r){return a+(r.value||0);},0);
+  function metricCell(v){ return isValue ? nf0.format(Math.round(v||0)) : nf0.format(Math.round(v||0)); }
   siteListData=null;
   document.getElementById('imTitle').textContent=(isNew?'New ':'Lost ')+(isSite?'customer sites':'customer accounts')+' — '+rows.length;
   document.getElementById('imSub').textContent=
     (isNew ? 'Billed in '+d.latestYear+', nothing in '+d.baseYear : 'Billed in '+d.baseYear+', nothing in '+d.latestYear)+
     ' · '+lifecycleScopeLabel(depKey,channel);
   var monthHead=isNew?'Open Month':'Last Billed';
-  var valueHead=(isNew?d.latestYear:d.baseYear)+' Sales Value';
+  var valueHead=(isNew?d.latestYear:d.baseYear)+(isValue?' Sales Value':' Sales Volume');
   var html='';
   if (!rows.length){
     html='<div class="imnote">Nothing to show for this selection.</div>';
   } else if (isSite){
-    html='<table class="imtbl vhist sitelist"><colgroup><col class="w-name"><col class="w-site"><col class="w-channel"><col class="w-open"><col class="w-area"><col class="w-val"></colgroup>'+
+    html='<table class="imtbl vhist sitelist lifecycle"><colgroup><col class="w-name"><col class="w-site"><col class="w-channel"><col class="w-open"><col class="w-area"><col class="w-val"></colgroup>'+
       '<thead><tr class="cap"><th colspan="6">'+(isNew?'Gained':'Lost')+' customer sites</th></tr><tr><th>Customer</th><th>Customer Site</th><th>Channel</th><th>'+monthHead+'</th><th>Area</th><th class="n">'+valueHead+'</th></tr></thead><tbody>'+
-      rows.map(function(r){return '<tr><td>'+esc(r.customer)+'</td><td>'+esc(r.site)+'</td><td>'+esc(r.channel)+'</td><td>'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td>'+esc(r.area)+'</td><td class="n">'+nf0.format(Math.round(r.value||0))+'</td></tr>';}).join('')+
-      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+nf0.format(Math.round(total))+'</th></tr></tfoot></table>';
+      rows.map(function(r){return '<tr><td class="c-name">'+esc(r.customer)+'</td><td class="c-site">'+esc(r.site)+'</td><td class="c-channel">'+esc(r.channel)+'</td><td class="c-month">'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td class="c-area">'+esc(r.area)+'</td><td class="n c-val">'+metricCell(r.value)+'</td></tr>';}).join('')+
+      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+metricCell(total)+'</th></tr></tfoot></table>';
   } else {
-    html='<table class="imtbl vhist"><thead><tr class="cap"><th colspan="6">'+(isNew?'Gained':'Lost')+' customer accounts</th></tr><tr><th>Customer</th><th class="n">Customer Sites</th><th>Channel</th><th>'+monthHead+'</th><th>Area</th><th class="n">'+valueHead+'</th></tr></thead><tbody>'+
-      rows.map(function(r){return '<tr><td>'+esc(r.customer)+'</td><td class="n">'+nf0.format(r.sites)+'</td><td>'+esc(r.channel)+'</td><td>'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td>'+esc(r.area)+'</td><td class="n">'+nf0.format(Math.round(r.value||0))+'</td></tr>';}).join('')+
-      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+nf0.format(Math.round(total))+'</th></tr></tfoot></table>';
+    html='<table class="imtbl vhist lifecycle accountlife"><colgroup><col class="w-name"><col class="w-count"><col class="w-channel"><col class="w-month"><col class="w-area"><col class="w-val"></colgroup><thead><tr class="cap"><th colspan="6">'+(isNew?'Gained':'Lost')+' customer accounts</th></tr><tr><th>Customer</th><th class="n">Customer Sites</th><th>Channel</th><th>'+monthHead+'</th><th>Area</th><th class="n">'+valueHead+'</th></tr></thead><tbody>'+
+      rows.map(function(r){return '<tr><td class="c-name">'+esc(r.customer)+'</td><td class="n c-count">'+nf0.format(r.sites)+'</td><td class="c-channel">'+esc(r.channel)+'</td><td class="c-month">'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td class="c-area">'+esc(r.area)+'</td><td class="n c-val">'+metricCell(r.value)+'</td></tr>';}).join('')+
+      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+metricCell(total)+'</th></tr></tfoot></table>';
   }
-  html+='<div class="imnote">Uses the same New/Lost definition as the KPI cards: newest dataset year versus the immediately previous year. Membership uses whole-year presence; the latest year uses all currently loaded months.</div>';
+  html+='<div class="imnote">Uses the same New/Lost definition as the KPI cards: newest dataset year versus the immediately previous year. Membership uses whole-year presence; the latest year uses all currently loaded months. The sales column follows the active '+(isValue?'Value':'Volume')+' selection.</div>';
   document.getElementById('imBody').innerHTML=html;
   document.body.classList.add('imopen');
   document.getElementById('imWrap').scrollTop=0;
@@ -5662,7 +5721,7 @@ function departmentNewProductRows(depKey,channel){
   var depIdx=depKey==='FSD'?1:0;
   var yearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
-  var current={}, base={}, sales={}, first={}, billedSites={}, siteMonths={};
+  var current={}, base={}, salesValue={}, salesCases={}, first={}, billedSites={}, siteMonths={};
   function channelOfSite(s){
     var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
     return c || 'Unspecified';
@@ -5678,7 +5737,8 @@ function departmentNewProductRows(depKey,channel){
     if (m>yearEnd) continue;
     var billed=(fq[k]>0 || fv[k]>0);
     if (yi===ib){
-      sales[i]=(sales[i]||0)+(fv[k]||0);
+      salesValue[i]=(salesValue[i]||0)+(fv[k]||0);
+      salesCases[i]=(salesCases[i]||0)+(fq[k]||0);
       if (billed){
         current[i]=1;
         if (first[i]==null || m<first[i]) first[i]=m;
@@ -5708,16 +5768,25 @@ function departmentNewProductRows(depKey,channel){
       custBilled:siteKeys.length,
       reorderPct:siteKeys.length ? (reordered/siteKeys.length*100) : 0,
       reorderedSites:reordered,
-      sales:sales[i]||0
+      salesValue:salesValue[i]||0,
+      salesCases:salesCases[i]||0
     });
   });
-  rows.sort(function(a,b){return (b.sales-a.sales)||a.name.localeCompare(b.name);});
+  var metric=VISIT_CAT_METRIC==='value'?'value':'cases';
+  rows.sort(function(a,b){
+    var av=metric==='value'?a.salesValue:a.salesCases, bv=metric==='value'?b.salesValue:b.salesCases;
+    return (bv-av)||a.name.localeCompare(b.name);
+  });
   return rows;
 }
 
 function openDepartmentNewProducts(depKey,channel){
+  var metric=VISIT_CAT_METRIC==='value'?'value':'cases';
+  var isValue=metric==='value';
   var rows=departmentNewProductRows(depKey,channel);
-  var total=rows.reduce(function(a,r){return a+(r.sales||0);},0);
+  function rowMetric(r){ return isValue ? (r.salesValue||0) : (r.salesCases||0); }
+  function metricCell(v){ return nf0.format(Math.round(v||0)); }
+  var total=rows.reduce(function(a,r){return a+rowMetric(r);},0);
   siteListData=null;
   document.getElementById('imTitle').textContent='New products — '+rows.length;
   document.getElementById('imSub').textContent=lifecycleScopeLabel(depKey,channel)+' · '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' vs '+state.yrA;
@@ -5725,10 +5794,10 @@ function openDepartmentNewProducts(depKey,channel){
   if (!rows.length){
     html='<div class="imnote">No new Regular products for this selection.</div>';
   } else {
-    html='<table class="imtbl vhist"><thead><tr class="cap"><th colspan="6">New Regular Products</th></tr><tr><th>Product Name</th><th>Category</th><th>Launch Month</th><th class="n"># Cust Billed</th><th class="n">Re-order %</th><th class="n">'+state.yrB+' YTD Sales</th></tr></thead><tbody>'+
-      rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.category)+'</td><td>'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td class="n">'+nf0.format(r.custBilled||0)+'</td><td class="n" title="'+nf0.format(r.reorderedSites||0)+' of '+nf0.format(r.custBilled||0)+' billed customer sites reordered">'+nf1.format(r.reorderPct||0)+'%</td><td class="n">'+nf0.format(Math.round(r.sales||0))+'</td></tr>';}).join('')+
-      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+nf0.format(Math.round(total))+'</th></tr></tfoot></table>'+
-      '<div class="imnote">New Products follows the same logic as the Department Split count: an eligible Regular product billed in '+state.yrB+' through the comparable elapsed months, with no billing in the same elapsed months of '+state.yrA+'. # Cust Billed counts unique customer sites billed for the product. Re-order % is the share of those billed sites that purchased the product in at least two different months. YTD Sales is shown in value.</div>';
+    html='<table class="imtbl vhist"><thead><tr class="cap"><th colspan="6">New Regular Products</th></tr><tr><th>Product Name</th><th>Category</th><th>Launch Month</th><th class="n"># Cust Billed</th><th class="n">Re-order %</th><th class="n">'+state.yrB+(isValue?' YTD Sales Value':' YTD Sales Volume')+'</th></tr></thead><tbody>'+
+      rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+esc(r.category)+'</td><td>'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td class="n">'+nf0.format(r.custBilled||0)+'</td><td class="n" title="'+nf0.format(r.reorderedSites||0)+' of '+nf0.format(r.custBilled||0)+' billed customer sites reordered">'+nf1.format(r.reorderPct||0)+'%</td><td class="n">'+metricCell(rowMetric(r))+'</td></tr>';}).join('')+
+      '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+metricCell(total)+'</th></tr></tfoot></table>'+
+      '<div class="imnote">New Products follows the same logic as the Department Split count: an eligible Regular product billed in '+state.yrB+' through the comparable elapsed months, with no billing in the same elapsed months of '+state.yrA+'. # Cust Billed counts unique customer sites billed for the product. Re-order % is the share of those billed sites that purchased the product in at least two different months. The YTD sales column follows the active '+(isValue?'Value':'Volume')+' selection.</div>';
   }
   document.getElementById('imBody').innerHTML=html;
   document.body.classList.add('imopen');
@@ -8461,6 +8530,7 @@ function buildAnalysisRows(){
 
 var AN_CAP = 600, AN_PER_CUST = 12;
 var anCustOpen = {}; /* customer-level: show all suppressed gaps */
+var anCustCollapsed = {}; /* click customer group row to collapse / expand */
 function renderAnalysis(){
   if (!F) return;
   var A2 = analysisScan();
@@ -8509,18 +8579,19 @@ function renderAnalysis(){
   }
   /* the biggest customer can have hundreds of gaps — show its worst dozen, then
      move on, so the page covers many customers instead of one */
-  var html = '', lastCust = -1, inCust = 0, printed = 0, showAllGaps = false;
+  var html = '', lastCust = -1, inCust = 0, printed = 0, showAllGaps = false, custCollapsed = false;
   for (var j=0;j<anRows.length && printed < AN_CAP;j++){
     var d = anRows[j];
     if (d.cid !== lastCust){
       if (lastCust !== -1) html += '</tbody>';
       lastCust = d.cid; inCust = 0;
       showAllGaps = !!anCustOpen[d.cid];
+      custCollapsed = !!anCustCollapsed[d.cid];
       var cnt = perCust[d.cid], cl = lossCust[d.cid];
       var gA = custTotA[d.cid] || 0, gB = custTotB[d.cid] || 0;
       var cDiff = gB - gA;
       html += '<tbody class="grp">';
-      html += '<tr class="cat"><td class="catname" colspan="5">' + esc(CUSTOMERS[d.cid]) +
+      html += '<tr class="cat custgrouptoggle" data-an-group="'+d.cid+'" title="Click to '+(custCollapsed?'expand':'collapse')+' customer"><td class="catname" colspan="5"><span class="tw">' + (custCollapsed?'▸':'▾') + '</span>' + esc(CUSTOMERS[d.cid]) +
               ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' + cnt + ' gaps' +
               (cl ? ' · ' + nf0.format(Math.round(cl)) + ' at risk' : '') + '</span></td>' +
               '<td class="num">' + fmtS(gB) + '</td>' +
@@ -8530,6 +8601,7 @@ function renderAnalysis(){
               '<td></td><td></td><td></td></tr>';
     }
     inCust++;
+    if (custCollapsed) continue;
     if (!showAllGaps && inCust > AN_PER_CUST){
       if (inCust === AN_PER_CUST + 1){
         var hidden = Math.max(0, perCust[d.cid] - AN_PER_CUST);
@@ -8607,6 +8679,13 @@ function keepExpandedView(scrollId, renderFn){
 
 /* Expand/collapse the suppressed gaps for one customer without changing filters. */
 document.getElementById('antbl').addEventListener('click', function(e){
+  var grp=e.target.closest('[data-an-group]');
+  if (grp){
+    var gcid=+grp.dataset.anGroup;
+    anCustCollapsed[gcid]=!anCustCollapsed[gcid];
+    keepExpandedView('anScroll', renderAnalysis);
+    return;
+  }
   var btn=e.target.closest('.anmorebtn');
   if (!btn) return;
   var cid=+btn.dataset.acust;
@@ -8812,7 +8891,8 @@ document.getElementById('anCsv').addEventListener('click', function(){
 var PRSCAN = null;
 var msPArea = null, msPCust = null, msPCat = null, msPItem = null;
 var promoOpen = {};
-var promoCustOpen = {}; /* customer-level: show all suppressed outlets */
+var promoCustOpen = {};
+var promoCustCollapsed = {}; /* click customer group row to collapse / expand */ /* customer-level: show all suppressed outlets */
 var PROMO_CAP = 5000, PROMO_PER_CUST = 18;
 
 function promoItemOk(i){
@@ -8978,6 +9058,8 @@ function buildPromoCats(){
 }
 
 function initPromo(){
+  var retSel=document.getElementById('pRet');
+  if (retSel) retSel.value=String(state.pRet);
   msPArea = MultiSelect('msPArea', {
     allLabel:'All areas',
     options:promoAreaOptions,
@@ -9302,8 +9384,66 @@ function openPromotionReturnItemDetail(siteId,itemId){
   document.getElementById('imWrap').scrollTop=0;
 }
 
+
+function promoItemSummaryRows(){
+  var S=promotionScan(), allMode=promoReturnAllMode(), minPct=state.pRet, byItem={};
+  Object.keys(S.pairs).forEach(function(pk){
+    var d=S.pairs[pk];
+    if (allMode){
+      if (!promoPairActiveInSelectedPeriod(d)) return;
+    } else {
+      if (!(d.ret>0 && d.supply>0 && d.rate+1e-9>=minPct)) return;
+    }
+    var cid=SITES[d.s][4], a=areaOf[d.s];
+    if (state.pArea.size && !state.pArea.has(a)) return;
+    if (state.pCust.size && !state.pCust.has(cid)) return;
+    if (state.pCat.size && !state.pCat.has(catOf[d.i])) return;
+    if (state.pItems.size && !state.pItems.has(d.i)) return;
+    var r=byItem[d.i] || (byItem[d.i]={i:d.i,supply:0,ret:0});
+    r.supply+=d.supply||0;
+    r.ret+=d.ret||0;
+  });
+  var rows=Object.keys(byItem).map(function(k){
+    var r=byItem[k];
+    r.net=r.supply-r.ret;
+    r.rate=r.supply>0 ? r.ret/r.supply*100 : 0;
+    return r;
+  }).filter(function(r){
+    /* Keep only promotion items with positive supplied cases in the selected year/period. */
+    return r.supply>0;
+  });
+  rows.sort(function(a,b){ return (b.supply-a.supply) || (b.net-a.net) || ITEMS[a.i][1].localeCompare(ITEMS[b.i][1]); });
+  return rows;
+}
+
+function renderPromoItemSummary(){
+  var body=document.getElementById('pItemSummaryBody');
+  if (!body) return;
+  var rows=promoItemSummaryRows();
+  var supply=0,ret=0;
+  rows.forEach(function(r){ supply+=r.supply||0; ret+=r.ret||0; });
+  var html='';
+  rows.forEach(function(r){
+    html+='<tr><td>'+esc(ITEMS[r.i][1])+'</td><td>'+esc(ITEMS[r.i][2])+'</td>'+
+      '<td class="num">'+nf2.format(r.supply)+'</td>'+
+      '<td class="num">'+nf2.format(r.ret)+'</td>'+
+      '<td class="num">'+nf2.format(r.net)+'</td>'+
+      '<td class="num">'+(r.supply?nf1.format(r.rate)+'%':'—')+'</td></tr>';
+  });
+  if (!html) html='<tr><td colspan="6" class="empty">No promotion items with positive supplied cases match the current filters.</td></tr>';
+  var totalRate=supply>0 ? ret/supply*100 : 0;
+  body.innerHTML=html;
+  var foot=document.getElementById('pItemSummaryFoot');
+  if (foot) foot.innerHTML='<tr><th colspan="2">Total</th><th class="r">'+nf2.format(supply)+'</th><th class="r">'+nf2.format(ret)+'</th><th class="r">'+nf2.format(supply-ret)+'</th><th class="r">'+(supply?nf1.format(totalRate)+'%':'—')+'</th></tr>';
+  var count=document.getElementById('pItemSummaryCount');
+  if (count) count.textContent=rows.length+' item'+(rows.length===1?'':'s');
+  var scope=document.getElementById('pItemSummaryScope');
+  if (scope) scope.textContent=promoAnalysisYear()+' '+periodLabel()+' · '+(promoReturnAllMode()?'All promotions':(state.pRet+'% or more'));
+}
+
 function renderPromo(){
   if (!F) return;
+  renderPromoItemSummary();
   var groups = buildPromoGroups();
   var customers = groups.length, sites = 0, items = 0, events = 0, ret = 0, supply = 0;
 
@@ -9333,8 +9473,9 @@ function renderPromo(){
   for (var gi=0; gi<groups.length && printed<PROMO_CAP; gi++){
     var g = groups[gi];
     html += '<tbody class="pgrp">';
-    html += '<tr class="pcust">' +
-      '<td class="p-custname" colspan="3">' + esc(CUSTOMERS[g.cid]) +
+    var custCollapsed=!!promoCustCollapsed[g.cid];
+    html += '<tr class="pcust custgrouptoggle" data-p-group="'+g.cid+'" title="Click to '+(custCollapsed?'expand':'collapse')+' customer">' +
+      '<td class="p-custname" colspan="3"><span class="tw">' + (custCollapsed?'▸':'▾') + '</span>' + esc(CUSTOMERS[g.cid]) +
       ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
       g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
       '<td class="num p-sales">' + fmtS(g.sales) + '</td>' +
@@ -9347,7 +9488,7 @@ function renderPromo(){
     var showAllOutlets=!!promoCustOpen[g.cid];
     var siteLimit=showAllOutlets ? g.sites.length : Math.min(PROMO_PER_CUST,g.sites.length);
 
-    for (var si=0; si<siteLimit && printed<PROMO_CAP; si++){
+    if (!custCollapsed) for (var si=0; si<siteLimit && printed<PROMO_CAP; si++){
       var st = g.sites[si], key = g.cid + ':' + st.s, open = !!promoOpen[key];
       printed++;
       html += '<tr class="psite' + (open?' open':'') + '" data-key="' + esc(key) + '">' +
@@ -9379,7 +9520,7 @@ function renderPromo(){
       }
     }
 
-    if (g.sites.length>PROMO_PER_CUST){
+    if (!custCollapsed && g.sites.length>PROMO_PER_CUST){
       var hidden=Math.max(0,g.sites.length-PROMO_PER_CUST);
       html += '<tr class="more"><td colspan="9"><button class="pmorebtn" type="button" data-pcust="'+g.cid+'">' +
               (showAllOutlets ? '▴ Show fewer outlets for '+esc(CUSTOMERS[g.cid]) :
@@ -9399,6 +9540,13 @@ function renderPromo(){
 }
 
 document.getElementById('ptbl').addEventListener('click', function(e){
+  var grp=e.target.closest('[data-p-group]');
+  if (grp){
+    var gcid=+grp.dataset.pGroup;
+    promoCustCollapsed[gcid]=!promoCustCollapsed[gcid];
+    keepExpandedView('pScroll', renderPromo);
+    return;
+  }
   var itemBtn=e.target.closest('.pitemlink');
   if (itemBtn){
     openPromotionReturnItemDetail(+itemBtn.dataset.psite,+itemBtn.dataset.pitem);
@@ -9435,8 +9583,8 @@ document.getElementById('pRet').addEventListener('change', function(){
   renderPromo();
 });
 document.getElementById('pReset').addEventListener('click', function(){
-  state.pArea.clear(); state.pCust.clear(); state.pCat.clear(); state.pItems.clear(); state.pRet = 10;
-  document.getElementById('pRet').value = '10';
+  state.pArea.clear(); state.pCust.clear(); state.pCat.clear(); state.pItems.clear(); state.pRet = 'ALL';
+  document.getElementById('pRet').value = 'ALL';
   promoOpen = {};
   promoCustOpen = {};
   if (msPArea) msPArea.refresh();
@@ -10883,6 +11031,7 @@ function outletLastPlain(lastPos, lastAny){
   var e = effLast(lastPos, lastAny), o = periodOf(e);
   return MONTHS[o.month] + ' ' + o.year;
 }
+var outletCustCollapsed = {}; /* click customer group row to collapse / expand */
 var OUT_PER_CUST = 12, OUT_CAP = 600;
 function renderOutlet(){
   if (!F) return;
@@ -10922,7 +11071,8 @@ function renderOutlet(){
     var g = built.groups[gi];
     html += '<tbody class="ogrp">';
     var gp = pick(g), gd = gp.b - gp.a;
-    html += '<tr class="cat"><td class="catname" colspan="2">' + esc(CUSTOMERS[g.cid]) +
+    var custCollapsed=!!outletCustCollapsed[g.cid];
+    html += '<tr class="cat custgrouptoggle" data-o-group="'+g.cid+'" title="Click to '+(custCollapsed?'expand':'collapse')+' customer"><td class="catname" colspan="2"><span class="tw">' + (custCollapsed?'▸':'▾') + '</span>' + esc(CUSTOMERS[g.cid]) +
             ' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">' +
             g.sites.length + ' site' + (g.sites.length>1?'s':'') + '</span></td>' +
             '<td class="num">' + fmtS(gp.b) + '</td>' +
@@ -10935,7 +11085,7 @@ function renderOutlet(){
     var showAllOutlets=!!outletCustOpen[g.cid];
     var siteLimit=showAllOutlets ? g.sites.length : Math.min(OUT_PER_CUST,g.sites.length);
 
-    for (var si=0; si<siteLimit && printed < OUT_CAP; si++){
+    if (!custCollapsed) for (var si=0; si<siteLimit && printed < OUT_CAP; si++){
       var st = g.sites[si];
       var sp = pick(st), sd = sp.b - sp.a;
       var key = g.cid + ':' + st.s;
@@ -10967,7 +11117,7 @@ function renderOutlet(){
       }
     }
 
-    if (g.sites.length>OUT_PER_CUST){
+    if (!custCollapsed && g.sites.length>OUT_PER_CUST){
       var hidden=Math.max(0,g.sites.length-OUT_PER_CUST);
       html += '<tr class="more"><td colspan="7"><button class="omorebtn" type="button" data-ocust="'+g.cid+'">' +
               (showAllOutlets ? '▴ Show fewer customer sites for '+esc(CUSTOMERS[g.cid]) :
@@ -11002,6 +11152,13 @@ function renderOutlet(){
 
 /* expand a site to its categories */
 document.getElementById('otbl').addEventListener('click', function(e){
+  var grp=e.target.closest('[data-o-group]');
+  if (grp){
+    var gcid=+grp.dataset.oGroup;
+    outletCustCollapsed[gcid]=!outletCustCollapsed[gcid];
+    keepExpandedView('oScroll', renderOutlet);
+    return;
+  }
   var moreBtn=e.target.closest('.omorebtn');
   if (moreBtn){
     var cid=+moreBtn.dataset.ocust;
