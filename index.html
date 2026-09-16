@@ -5379,8 +5379,8 @@ function departmentSplitData(metric){
   var startM=state.m1;
   var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
   var out=[
-    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},cust:{},baseCust:{},sites:{},channels:{}},
-    {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},cust:{},baseCust:{},sites:{},channels:{}}
+    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{}},
+    {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{}}
   ];
 
   if (!F || ia<0 || ib<0) return out;
@@ -5436,8 +5436,13 @@ function departmentSplitData(metric){
 
     if (selected!=='ALL' && channel!==selected) continue;
 
-    if (yi2===ib && billed && departmentSplitRegularEligible(i2,d2)){
-      if (!(state.yrB===YEARS[NY-1] && m2>LASTM)) r.regular[i2]=1;
+    /* Active Regular Products is a year-level measure. New Products compares
+       the current active Regular assortment with the same elapsed months of the
+       base year, so a 2026 YTD product is not compared against unseen future months. */
+    var regularYearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
+    if (billed && departmentSplitRegularEligible(i2,d2) && m2<=regularYearEnd){
+      if (yi2===ib) r.regular[i2]=1;
+      else if (yi2===ia) r.baseRegular[i2]=1;
     }
 
     if (m2<startM || m2>endM) continue;
@@ -5450,7 +5455,10 @@ function departmentSplitData(metric){
       }
     } else if (yi2===ia){
       r.base+=val;
-      if (billed && customer) r.baseCust[customer]=1;
+      if (billed){
+        if (customer) r.baseCust[customer]=1;
+        r.baseSites[s2]=1;
+      }
     }
   }
 
@@ -5460,9 +5468,23 @@ function departmentSplitData(metric){
     r.activeSites=Object.keys(r.sites).length;
     r.channelList=Object.keys(r.channels).sort(function(a,b){ return a.localeCompare(b); });
     r.selectedChannel=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
-    var newCust=0;
+
+    var newProducts=0;
+    Object.keys(r.regular).forEach(function(i){ if (!r.baseRegular[i]) newProducts++; });
+    r.newProducts=newProducts;
+
+    var newCust=0, lostCust=0;
     Object.keys(r.cust).forEach(function(c){ if (!r.baseCust[c]) newCust++; });
+    Object.keys(r.baseCust).forEach(function(c){ if (!r.cust[c]) lostCust++; });
     r.newCustomers=newCust;
+    r.lostCustomers=lostCust;
+
+    var newSites=0, lostSites=0;
+    Object.keys(r.sites).forEach(function(s){ if (!r.baseSites[s]) newSites++; });
+    Object.keys(r.baseSites).forEach(function(s){ if (!r.sites[s]) lostSites++; });
+    r.newSites=newSites;
+    r.lostSites=lostSites;
+
     r.growth=Math.abs(r.base)>0.0000001 ? ((r.cur-r.base)/Math.abs(r.base)*100) : null;
   });
   return out;
@@ -5517,9 +5539,9 @@ function visitDepartmentSplit(){
         '<span class="deptshare">'+nf1.format(r.share)+'% share</span>'+
       '</div>'+
       '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.cur)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
-      '<div class="deptmetric"><div class="lab">Active Regular Products</div><div class="val">'+nf0.format(r.activeRegular)+'</div><div class="sub">Regular items billed in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'</div></div>'+
-      '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new vs '+state.yrA+'</div></div>'+
-      '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">Current selected period</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Regular Products</div><div class="val">'+nf0.format(r.activeRegular)+'</div><div class="sub">Regular items billed in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' · '+nf0.format(r.newProducts)+' new products</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new · '+nf0.format(r.lostCustomers)+' lost vs '+state.yrA+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">'+nf0.format(r.newSites)+' new · '+nf0.format(r.lostSites)+' lost vs '+state.yrA+'</div></div>'+
     '</div>';
   }
 
@@ -5540,7 +5562,7 @@ function visitDepartmentSplit(){
         '</div>'+
         '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
       '</div>'+
-      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New customers are active in '+state.yrB+' but not in the same '+state.yrA+' period. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
+      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New/lost customers and sites compare '+state.yrB+' with the same '+state.yrA+' period. New products compare active Regular items through the same elapsed months of both years. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
     '</div>';
 }
 
@@ -5555,13 +5577,22 @@ function channelWiseData(metric){
   var rowsMap={};
   if (!F || ia<0 || ib<0) return {rows:[],startM:startM,endM:endM};
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+  /* Monthly Avg per Active Site uses only fully closed months. For the live/latest
+     year, September means Jan-Aug, October means Jan-Sep, etc. */
+  var now=new Date();
+  var latestYear=YEARS[NY-1];
+  var closedEndM;
+  if (state.yrB===now.getFullYear()) closedEndM=Math.min(LASTM, Math.max(-1,now.getMonth()-1));
+  else if (state.yrB===latestYear) closedEndM=LASTM;
+  else closedEndM=11;
+  var closedMonthCount=Math.max(0,closedEndM+1);
 
   function channelOfSite(s){
     var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
     return c || 'Unspecified';
   }
   function rowFor(ch){
-    if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{}};
+    if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{},baseSites:{},avgTotal:0,avgSites:{}};
     return rowsMap[ch];
   }
 
@@ -5574,12 +5605,20 @@ function channelWiseData(metric){
     var p=fp[k],yi=(p/12)|0,m=p%12;
     if (yi!==ia && yi!==ib) continue;
     if (yi===ib && state.yrB===YEARS[NY-1] && m>LASTM) continue;
-    if (m<startM || m>endM) continue;
 
     var ch=channelOfSite(s),r=rowFor(ch);
     var val=(metric==='value') ? (fv[k]||0) : (fq[k]||0);
     var billed=(fq[k]>0 || fv[k]>0);
     var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
+
+    /* Separate YTD full-month accumulator for Monthly Avg per Active Site.
+       This deliberately ignores the dashboard month From/To selection. */
+    if (yi===ib && closedMonthCount>0 && m>=0 && m<=closedEndM){
+      r.avgTotal+=val;
+      if (billed) r.avgSites[s]=1;
+    }
+
+    if (m<startM || m>endM) continue;
 
     if (yi===ib){
       r.curr[m]=(r.curr[m]||0)+val;
@@ -5591,7 +5630,10 @@ function channelWiseData(metric){
     } else {
       r.prev[m]=(r.prev[m]||0)+val;
       r.prevTotal+=val;
-      if (billed && customer) r.baseCust[customer]=1;
+      if (billed){
+        if (customer) r.baseCust[customer]=1;
+        r.baseSites[s]=1;
+      }
     }
   }
 
@@ -5599,10 +5641,22 @@ function channelWiseData(metric){
     var r=rowsMap[key];
     r.activeCustomers=Object.keys(r.cust).length;
     r.activeSites=Object.keys(r.sites).length;
-    var newCust=0;
+
+    var newCust=0, lostCust=0;
     Object.keys(r.cust).forEach(function(c){ if (!r.baseCust[c]) newCust++; });
+    Object.keys(r.baseCust).forEach(function(c){ if (!r.cust[c]) lostCust++; });
     r.newCustomers=newCust;
-    r.avgPerSite=r.activeSites ? r.total/r.activeSites : 0;
+    r.lostCustomers=lostCust;
+
+    var newSites=0, lostSites=0;
+    Object.keys(r.sites).forEach(function(s){ if (!r.baseSites[s]) newSites++; });
+    Object.keys(r.baseSites).forEach(function(s){ if (!r.sites[s]) lostSites++; });
+    r.newSites=newSites;
+    r.lostSites=lostSites;
+
+    r.avgActiveSites=Object.keys(r.avgSites).length;
+    r.monthlyAvgPerSite=(closedMonthCount && r.avgActiveSites) ? (r.avgTotal/r.avgActiveSites/closedMonthCount) : 0;
+    r.closedMonthCount=closedMonthCount;
     r.growth=Math.abs(r.prevTotal)>0.0000001 ? ((r.total-r.prevTotal)/Math.abs(r.prevTotal)*100) : null;
     return r;
   }).filter(function(r){
@@ -5671,9 +5725,9 @@ function visitChannelWise(){
       body+='<div class="chwisecard">'+
         '<div class="chwisecard-head"><b>'+esc(r.key)+'</b><span class="deptshare">'+nf1.format(r.cont||0)+'% share</span></div>'+
         '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.total)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
-        '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new vs '+state.yrA+'</div></div>'+
-        '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">Current selected period</div></div>'+
-        '<div class="deptmetric"><div class="lab">Avg per Active Site</div><div class="val">'+metricFmt(r.avgPerSite)+'</div><div class="sub">Performance per billed site</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub">'+nf0.format(r.newCustomers)+' new · '+nf0.format(r.lostCustomers)+' lost vs '+state.yrA+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub">'+nf0.format(r.newSites)+' new · '+nf0.format(r.lostSites)+' lost vs '+state.yrA+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Monthly Avg per Active Site</div><div class="val">'+metricFmt(r.monthlyAvgPerSite)+'</div><div class="sub">'+nf0.format(r.closedMonthCount)+' full months · '+nf0.format(r.avgActiveSites)+' active sites</div></div>'+
       '</div>';
     });
     if (!rows.length) body+='<div class="chwisenote">No active CPD channels for the selected filters.</div>';
@@ -5694,7 +5748,7 @@ function visitChannelWise(){
     '<div class="cht">Channel Wise</div>'+
     '<div class="chs">CPD · '+scopeNames()+' · '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' vs '+state.yrA+' same period</div>'+
     '<div class="chwise">'+body+
-      '<div class="chwisenote">Monthly uses the Customer Wise table format. Overall uses the Department Split card format for each CPD channel, without a pie chart. Avg per Active Site replaces Active Regular Products as the additional performance metric.</div>'+
+      '<div class="chwisenote">Monthly uses the Customer Wise table format. Overall uses the Department Split card format for each CPD channel, without a pie chart. Monthly Avg per Active Site uses YTD sales through the last fully closed month, divided by active sites and by the number of full months.</div>'+
     '</div>';
 }
 
