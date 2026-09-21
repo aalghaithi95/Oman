@@ -201,6 +201,9 @@ tr.cat td{background:#DFE6E2;font-weight:600;border-bottom:1px solid var(--line)
 tr.cat:hover td{background:#DFE6E2}
 tr.cat td.catname{letter-spacing:.02em}
 tfoot td{position:sticky;bottom:0;background:var(--ink);color:#fff;font-weight:600;padding:9px;border-top:1px solid var(--ink)}
+/* Item Performance: the sticky grand total must cover category subtotal rows when scrolling. */
+#tbl tfoot td{z-index:12;background:var(--ink);background-clip:padding-box}
+#tbl tbody tr.cat td{z-index:4}
 .desc{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.07em;text-transform:uppercase;padding:1px 5px;border-radius:2px;border:1px solid}
 .pill.promo{color:var(--accent-2);border-color:#E7C57F;background:#FBF3E1}
@@ -354,6 +357,7 @@ tr.ok td.desc{color:var(--pos)}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
 .cwlink:hover{color:var(--accent-2);text-decoration:underline;text-underline-offset:2px}
+.cwsitewrap .cwaccountlink{white-space:normal;overflow-wrap:anywhere;text-overflow:clip;line-height:1.28}
 .ovcustnote{font-size:10px;color:var(--muted);text-align:center;margin-top:8px}
 
 /* Customer Wise popup sections */
@@ -505,14 +509,16 @@ tr.ok td.desc{color:var(--pos)}
   #tbl .chk{width:30px;height:30px;font-size:15px;border-width:2px}
   #tbl tbody td.desc{grid-column:2/8;grid-row:1;white-space:normal;max-width:none;
     font-size:13px;font-weight:600;line-height:1.2}
-  #tbl tbody td.d-q26{grid-column:2;grid-row:2}
-  #tbl tbody td.d-v26{display:table-cell;grid-column:3;grid-row:2}
+  /* The mobile cards show the first/Compare year (yrB), not the baseline (yrA).
+     Legacy class names contain year suffixes, so keep display mapping explicit. */
+  #tbl tbody td.d-q25{grid-column:2;grid-row:2}
+  #tbl tbody td.d-v25{display:table-cell;grid-column:3;grid-row:2}
   #tbl tbody td.d-avgq{display:table-cell;grid-column:4;grid-row:2}
   #tbl tbody td.d-stock{display:table-cell;grid-column:5;grid-row:2}
   #tbl tbody td.d-astock{display:table-cell;grid-column:6;grid-row:2}
   #tbl tbody td.d-last{grid-column:7;grid-row:2}
   #tbl tbody td.c-type,#tbl tbody td.c-cat,#tbl tbody td.c-code,
-  #tbl tbody td.d-q25,#tbl tbody td.d-v25,#tbl tbody td.d-dv,
+  #tbl tbody td.d-q26,#tbl tbody td.d-v26,#tbl tbody td.d-dv,
   #tbl tbody td.d-delta,#tbl tbody td.d-avg{display:none!important}
   #tbl tbody td.num{text-align:left}
   #tbl tbody td[data-l]{margin-top:2px;font-size:10.5px;white-space:nowrap;overflow:hidden;
@@ -1127,7 +1133,7 @@ body.mdopen #mdWrap{display:block}
 .ly{font-size:8px;line-height:1;vertical-align:1px;margin-left:1px}
 @media (max-width:760px){
   /* the arrow has to earn its place without pushing the value out of its cell */
-  #tbl tbody td.d-v26{font-size:10.5px;letter-spacing:-.2px}
+  #tbl tbody td.d-v25{font-size:10.5px;letter-spacing:-.2px}
 }
 
 /* ---------- near expiry ---------- */
@@ -1535,7 +1541,7 @@ body.immonthly #imWrap .imcard{max-width:1500px}
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="noSupplyPanel" hidden style="display:none">
     <div class="panel-head">
       <h2 id="lostHead">No supply this year</h2>
       <span class="count" id="lostCount"></span>
@@ -2880,7 +2886,11 @@ function ensureA(){
 /* Membership of the new / lost lists is judged on the WHOLE of each compared
    year, so narrowing the period never adds or removes an outlet. The money
    column does follow the period. */
-var siteBilledA = null, siteBilledB = null, siteValA = null, siteValB = null;
+function lifecycleSiteId(s){
+  var code=SITES[s] ? custWiseSiteCodeKeyFromValue(SITES[s][2]) : '';
+  return code || ('__SITE_'+s);
+}
+var siteBilledA = null, siteBilledB = null, siteBilledBeforeB = null, siteValA = null, siteValB = null;
 var siteFirstB = null;      /* first month of the compare year the outlet was billed */
 var siteLastA = null;       /* last month of the base year the outlet was billed */
 function aggregate(){
@@ -2893,15 +2903,17 @@ function aggregate(){
   if (!siteBilledA || siteBilledA.length !== SITES.length){
     siteBilledA = new Uint8Array(SITES.length);
     siteBilledB = new Uint8Array(SITES.length);
+    siteBilledBeforeB = new Uint8Array(SITES.length);
     siteValA = new Float64Array(SITES.length);
     siteValB = new Float64Array(SITES.length);
   }
-  siteBilledA.fill(0); siteBilledB.fill(0);
+  siteBilledA.fill(0); siteBilledB.fill(0); siteBilledBeforeB.fill(0);
   siteValA.fill(0); siteValB.fill(0);
   A.qA.fill(0); A.vA.fill(0); A.qB.fill(0); A.vB.fill(0);
   A.mq.fill(0); A.mv.fill(0);
   var ia = yIdx(state.yrA), ib = yIdx(state.yrB), m1 = state.m1, m2 = state.m2;
   var fs = F.s, fi = F.i, fp = F.p, fv = F.v, fq = F.q, fd = F.d, n = fs.length;
+  var everBilledSiteKeys=Object.create(null);
   for (var k=0;k<n;k++){
     if (!mask[fs[k]]) continue;
     if (!factCounted(fd[k], fi[k])) continue;
@@ -2910,6 +2922,7 @@ function aggregate(){
     A.mv[g] += fv[k]; A.mq[g] += fq[k];
     /* whole-year presence decides who is new and who is lost */
     var billedHere = (fq[k] > 0 || fv[k] > 0);
+    if (yi < ib && billedHere) everBilledSiteKeys[lifecycleSiteId(fs[k])] = 1;
     if (yi === ia && billedHere){
       siteBilledA[fs[k]] = 1;
       var mm1 = fp[k] % 12;
@@ -2928,6 +2941,9 @@ function aggregate(){
         siteValB[fs[k]] += fv[k];
       }
     }
+  }
+  for (var si=0;si<SITES.length;si++){
+    if (mask[si] && everBilledSiteKeys[lifecycleSiteId(si)]) siteBilledBeforeB[si]=1;
   }
   /* Last supply = the most recent month anywhere in the data with a net POSITIVE
      shipment. The selected period never narrows it, and a month that nets out
@@ -3168,6 +3184,7 @@ var state = {
   pArea: new Set(), pCust: new Set(), pCat: new Set(), pItems: new Set(), pRet: 'ALL',
   sort: {key:'vB', dir:-1},
   showRegular: true, showPromo: true, showDecline: false,
+  itemShowRegular: true, itemShowPromo: true, /* Item Performance controls; upper views are independent. */
   group: true, hideZero: true, onlyUnchecked: false,
   checked: new Set()
 };
@@ -3319,12 +3336,12 @@ function buildRows(){
     var vA=A.vA[i], vB=A.vB[i], qA=A.qA[i], qB=A.qB[i];
     var promo = ITEMS[i][3] === 'Promotion';
     if (!itemVisible(i)) continue;
-    if (promo && !state.showPromo) continue;
-    if (!promo && !state.showRegular) continue;
+    if (promo && !state.itemShowPromo) continue;
+    if (!promo && !state.itemShowRegular) continue;
 
     /* Tab 1 display rule: an item with negative SALES VALUE in both comparison
        years is hidden from the audit/item list. It still remains in A and is
-       therefore fully counted in KPIs, category totals and grand totals. */
+       therefore counted in KPIs and in category / grand totals when its sales type is selected. */
     if (vA < 0 && vB < 0) continue;
 
     if (state.hideZero && promo){
@@ -3388,7 +3405,7 @@ function render(){
      Base year   = immediately previous year.
 
      A site is NEW when it has a positive bill in the latest year but none in
-     the prior year. A site is LOST when it had a positive bill in the prior
+     ANY earlier available year. A site is LOST when it had a positive bill in the prior
      year but has not yet had a positive bill in the latest year.
 
      Because this is rebuilt from all currently loaded months every render,
@@ -3401,6 +3418,7 @@ function render(){
   if (F && latestYi >= 0 && baseYi >= 0){
     var latestBilled = new Uint8Array(SITES.length);
     var baseBilled = new Uint8Array(SITES.length);
+    var everBeforeLatestKeys = Object.create(null);
     var latestSiteVal = new Float64Array(SITES.length);
     var baseSiteVal = new Float64Array(SITES.length);
 
@@ -3418,15 +3436,18 @@ function render(){
         if (latestYearForSites === YEARS[NY-1] && mNL > LASTM) continue;
         latestSiteVal[sNL] += fvNL[kNL];
         if (billedNL) latestBilled[sNL] = 1;
-      } else if (yiNL === baseYi){
-        baseSiteVal[sNL] += fvNL[kNL];
-        if (billedNL) baseBilled[sNL] = 1;
+      } else {
+        if (yiNL < latestYi && billedNL) everBeforeLatestKeys[lifecycleSiteId(sNL)] = 1;
+        if (yiNL === baseYi){
+          baseSiteVal[sNL] += fvNL[kNL];
+          if (billedNL) baseBilled[sNL] = 1;
+        }
       }
     }
 
     for (var sB=0; sB<SITES.length; sB++){
       if (!mask[sB]) continue;
-      if (latestBilled[sB] && !baseBilled[sB]){
+      if (latestBilled[sB] && !everBeforeLatestKeys[lifecycleSiteId(sB)]){
         newSites++;
         newVal += latestSiteVal[sB];
       } else if (baseBilled[sB] && !latestBilled[sB]){
@@ -3455,7 +3476,7 @@ function render(){
         dqTxt, T.qA ? (dq>0?'up':(dq<0?'down':'flat')) : 'flat') +
     kpi('New Customer Sites', nf0.format(newSites),
         newVal ? '+' + nf0.format(Math.round(newVal)) + ' Gained'
-               : (latestYearForSites && baseYearForSites ? 'billed in ' + latestYearForSites + ', not in ' + baseYearForSites : 'latest available data'),
+               : (latestYearForSites && baseYearForSites ? 'first billed in ' + latestYearForSites + '; never in previous years' : 'latest available data'),
         newSites?'up':'flat', newSites ? 'new' : '') +
     kpi('Lost Customer Sites', nf0.format(lostSites),
         lostVal ? '−' + nf0.format(Math.round(lostVal)) + ' at Risk'
@@ -3471,16 +3492,24 @@ function render(){
     totStock += rows[i].stock;
     totAStock += (rows[i].astock || 0);
   }
-  /* subtotals cover every item of this department in the category, including any
-     hidden from the list, so the numbers still reconcile */
-  var catT = {};
+  /* Item Performance subtotal and grand-total sales follow the local Regular / Promo
+     and Category selections. Still count filtered-in hidden/off-list items,
+     including items negative in both years, so the financial totals reconcile.
+     Top KPI cards retain their existing full-department definitions. */
+  var catT = {}, tableT = {qA:0,qB:0,vA:0,vB:0};
   for (i=0;i<NI;i++){
+    var isPromo = ITEMS[i][3] === 'Promotion';
+    if (isPromo && !state.itemShowPromo) continue;
+    if (!isPromo && !state.itemShowRegular) continue;
     var ci = catOf[i];
+    if (state.cat.size && !state.cat.has(ci)) continue;
     if (!catT[ci]) catT[ci] = {qA:0,qB:0,vA:0,vB:0,stock:0,astock:0};
     catT[ci].qA += A.qA[i]; catT[ci].qB += A.qB[i];
     catT[ci].vA += A.vA[i]; catT[ci].vB += A.vB[i];
     catT[ci].stock += stockOf(i);
     catT[ci].astock += (areaStockOf(i, AREA_SCOPE) || 0);
+    tableT.qA += A.qA[i]; tableT.qB += A.qB[i];
+    tableT.vA += A.vA[i]; tableT.vB += A.vB[i];
   }
   function subRow(s){
     return '<tr class="cat"><td class="catname" colspan="5">'+esc(s.name)+' <span class="mono" style="font-weight:400;color:var(--muted);font-size:10px">'+s.n+' SKU</span></td>'+
@@ -3530,6 +3559,10 @@ function render(){
   var hiddenN = 0;
   for (i=0;i<NI;i++){
     if (itemVisible(i)) continue;
+    var hiddenPromo = ITEMS[i][3] === 'Promotion';
+    if (hiddenPromo && !state.itemShowPromo) continue;
+    if (!hiddenPromo && !state.itemShowRegular) continue;
+    if (state.cat.size && !state.cat.has(catOf[i])) continue;
     if (A.vA[i] || A.vB[i] || A.qA[i] || A.qB[i]) hiddenN++;
   }
   var emptyMsg = 'No items match this selection.';
@@ -3544,10 +3577,10 @@ function render(){
   document.getElementById('tfoot').innerHTML =
     '<tr><td colspan="5">TOTAL — '+rows.length+' items'+
       (hiddenN ? ' listed, ' + hiddenN + ' low-volume retail packs counted but not shown' : '')+'</td>'+
-    '<td class="num">'+fmtS(T.qB)+'</td><td class="num">'+fmtS(T.qA)+'</td>'+
-    '<td class="num">'+fmtAvgS(T.qB/monthsB())+'</td>'+
-    '<td class="num">'+fmtS(T.vB)+'</td><td class="num">'+fmtS(T.vA)+'</td><td class="num">'+pctCell(T.vB,T.vA)+'</td>'+
-    '<td class="num">'+(T.vB-T.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(T.vB-T.vA)))+'</td>'+
+    '<td class="num">'+fmtS(tableT.qB)+'</td><td class="num">'+fmtS(tableT.qA)+'</td>'+
+    '<td class="num">'+fmtAvgS(tableT.qB/monthsB())+'</td>'+
+    '<td class="num">'+fmtS(tableT.vB)+'</td><td class="num">'+fmtS(tableT.vA)+'</td><td class="num">'+pctCell(tableT.vB,tableT.vA)+'</td>'+
+    '<td class="num">'+(tableT.vB-tableT.vA>=0?'+':'−')+nf0.format(Math.abs(Math.round(tableT.vB-tableT.vA)))+'</td>'+
     '<td class="num d-stock">'+fmtS(totStock)+'</td>'+
     '<td class="num d-astock">'+fmtS(totAStock)+'</td><td></td></tr>';
 
@@ -4169,8 +4202,8 @@ function buildCatFilter(){
   pruneCategorySet(state.aCat,analysisCategoryOptions());
   if (msACat) msACat.refresh();
 }
-document.getElementById('showRegular').addEventListener('change', function(){ state.showRegular = this.checked; render(); });
-document.getElementById('showPromo').addEventListener('change', function(){ state.showPromo = this.checked; render(); });
+document.getElementById('showRegular').addEventListener('change', function(){ state.itemShowRegular = this.checked; render(); });
+document.getElementById('showPromo').addEventListener('change', function(){ state.itemShowPromo = this.checked; render(); });
 document.getElementById('showDecline').addEventListener('change', function(){ state.showDecline = this.checked; render(); });
 document.getElementById('grp').addEventListener('change', function(){ state.group = this.checked; render(); });
 document.getElementById('hideZero').addEventListener('change', function(){ state.hideZero = this.checked; render(); });
@@ -4186,8 +4219,8 @@ document.getElementById('reset').addEventListener('click', function(){
   state.area.clear(); state.cust.clear(); state.site.clear(); state.cat.clear(); state.q = '';
   state.m1 = 0; state.m2 = LASTM;
   document.getElementById('m1').value = 0; document.getElementById('m2').value = LASTM;
-  state.showRegular = true; document.getElementById('showRegular').checked = true;
-  state.showPromo = true; document.getElementById('showPromo').checked = true;
+  state.itemShowRegular = true; document.getElementById('showRegular').checked = true;
+  state.itemShowPromo = true; document.getElementById('showPromo').checked = true;
   state.showDecline = false; document.getElementById('showDecline').checked = false;
   state.onlyUnchecked = false; document.getElementById('onlyUn').checked = false;
   msArea.refresh(); msCust.refresh(); msSite.refresh(); if (msCat) msCat.refresh(); syncPresets(); loadChecks(); render();
@@ -5442,14 +5475,14 @@ function departmentSplitData(metric){
   var startM=state.m1;
   var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
   var out=[
-    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeSitesB:{},lifeSitesA:{}},
-    {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeSitesB:{},lifeSitesA:{}}
+    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{}},
+    {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{}}
   ];
 
   if (!F || ia<0 || ib<0) return out;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
-  /* New/Lost follows the exact KPI-card definition: newest dataset year vs the
-     immediately previous year, with whole-year presence (latest year through the
+  /* New/Lost follows the KPI definition: new means no billing in ANY earlier year; lost
+     compares latest vs immediately previous year, with whole-year presence (latest year through the
      latest loaded month), independent of the dashboard From/To period. */
   var lifeLatestYi=NY-1, lifeBaseYi=NY-2;
   var lifeLatestYear=lifeLatestYi>=0 ? YEARS[lifeLatestYi] : null;
@@ -5511,9 +5544,13 @@ function departmentSplitData(metric){
       if (yi2===lifeLatestYi && !(lifeLatestYear===YEARS[NY-1] && m2>LASTM)){
         r.lifeSitesB[s2]=1;
         if (customer) r.lifeCustB[customer]=1;
-      } else if (yi2===lifeBaseYi){
-        r.lifeSitesA[s2]=1;
-        if (customer) r.lifeCustA[customer]=1;
+      } else if (yi2<lifeLatestYi){
+        r.lifeSitesBefore[lifecycleSiteId(s2)]=1;
+        if (customer) r.lifeCustBefore[customer]=1;
+        if (yi2===lifeBaseYi){
+          r.lifeSitesA[s2]=1;
+          if (customer) r.lifeCustA[customer]=1;
+        }
       }
     }
 
@@ -5555,13 +5592,13 @@ function departmentSplitData(metric){
     r.newProducts=newProducts;
 
     var newCust=0, lostCust=0;
-    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustA[c]) newCust++; });
+    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustBefore[c]) newCust++; });
     Object.keys(r.lifeCustA).forEach(function(c){ if (!r.lifeCustB[c]) lostCust++; });
     r.newCustomers=newCust;
     r.lostCustomers=lostCust;
 
     var newSites=0, lostSites=0;
-    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesA[s]) newSites++; });
+    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesBefore[lifecycleSiteId(+s)]) newSites++; });
     Object.keys(r.lifeSitesA).forEach(function(s){ if (!r.lifeSitesB[s]) lostSites++; });
     r.newSites=newSites;
     r.lostSites=lostSites;
@@ -5587,30 +5624,31 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   if (!F || latestYi<0 || baseYi<0) return {rows:[],latestYear:null,baseYear:null};
   var latestYear=YEARS[latestYi], baseYear=YEARS[baseYi];
   var depIdx=depKey==='FSD' ? 1 : 0;
-  var fs=F.s,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+  var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
   var useValue=metric==='value';
-  var siteMap={}, custMap={};
+  var siteMap={}, custMap={}, priorSiteCodes=Object.create(null);
 
   function channelOfSite(s){
     var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
     return c || 'Unspecified';
   }
   function siteRec(s){
-    if (!siteMap[s]) siteMap[s]={s:s,a:0,b:0,valA:0,valB:0,firstB:-1,lastA:-1};
+    if (!siteMap[s]) siteMap[s]={s:s,a:0,b:0,before:0,valA:0,valB:0,firstB:-1,lastA:-1};
     return siteMap[s];
   }
   function custRec(name){
-    if (!custMap[name]) custMap[name]={name:name,a:0,b:0,valA:0,valB:0,firstB:-1,lastA:-1,sitesA:{},sitesB:{},channelsA:{},channelsB:{},areasA:{},areasB:{}};
+    if (!custMap[name]) custMap[name]={name:name,a:0,b:0,before:0,valA:0,valB:0,firstB:-1,lastA:-1,sitesA:{},sitesB:{},channelsA:{},channelsB:{},areasA:{},areasB:{}};
     return custMap[name];
   }
 
   for (var k=0;k<N;k++){
     var s=fs[k];
     if (fd[k]!==depIdx || !mask[s]) continue;
+    if (state.cat.size && !state.cat.has(catOf[fi[k]])) continue;
     var ch=channelOfSite(s);
     if (channel && channel!=='ALL' && ch!==channel) continue;
     var p=fp[k], yi=(p/12)|0, m=p%12;
-    if (yi!==latestYi && yi!==baseYi) continue;
+    if (yi>latestYi) continue;
     if (yi===latestYi && latestYear===YEARS[NY-1] && m>LASTM) continue;
     var billed=(fq[k]>0 || fv[k]>0);
     var sr=siteRec(s);
@@ -5630,7 +5668,9 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
           if (cr.firstB<0 || m<cr.firstB) cr.firstB=m;
         }
       }
-    } else {
+    } else if (yi<latestYi){
+      if (billed){ sr.before=1; priorSiteCodes[lifecycleSiteId(s)]=1; if (cr) cr.before=1; }
+      if (yi!==baseYi) continue;
       var measureA=useValue ? (fv[k]||0) : (fq[k]||0);
       sr.valA+=measureA;
       if (cr) cr.valA+=measureA;
@@ -5650,7 +5690,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   if (entity==='site'){
     Object.keys(siteMap).forEach(function(key){
       var r=siteMap[key];
-      var match=isNew ? (r.b && !r.a) : (r.a && !r.b);
+      var match=isNew ? (r.b && !priorSiteCodes[lifecycleSiteId(r.s)]) : (r.a && !r.b);
       if (!match) return;
       var s=r.s;
       rows.push({
@@ -5666,7 +5706,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   } else {
     Object.keys(custMap).forEach(function(name){
       var r=custMap[name];
-      var match=isNew ? (r.b && !r.a) : (r.a && !r.b);
+      var match=isNew ? (r.b && !r.before) : (r.a && !r.b);
       if (!match) return;
       var sites=isNew?r.sitesB:r.sitesA;
       var channels=isNew?r.channelsB:r.channelsA;
@@ -5695,7 +5735,7 @@ function openScopedLifecyclePopup(kind,entity,depKey,channel){
   siteListData=null;
   document.getElementById('imTitle').textContent=(isNew?'New ':'Lost ')+(isSite?'customer sites':'customer accounts')+' — '+rows.length;
   document.getElementById('imSub').textContent=
-    (isNew ? 'Billed in '+d.latestYear+', nothing in '+d.baseYear : 'Billed in '+d.baseYear+', nothing in '+d.latestYear)+
+    (isNew ? 'First billed in '+d.latestYear+'; no sales in any earlier year' : 'Billed in '+d.baseYear+', nothing in '+d.latestYear)+
     ' · '+lifecycleScopeLabel(depKey,channel);
   var monthHead=isNew?'Open Month':'Last Billed';
   var valueHead=(isNew?d.latestYear:d.baseYear)+(isValue?' Sales Value':' Sales Volume');
@@ -5712,7 +5752,7 @@ function openScopedLifecyclePopup(kind,entity,depKey,channel){
       rows.map(function(r){return '<tr><td class="c-name">'+esc(r.customer)+'</td><td class="n c-count">'+nf0.format(r.sites)+'</td><td class="c-channel">'+esc(r.channel)+'</td><td class="c-month">'+(r.month>=0?MONTHS[r.month]:'—')+'</td><td class="c-area">'+esc(r.area)+'</td><td class="n c-val">'+metricCell(r.value)+'</td></tr>';}).join('')+
       '</tbody><tfoot><tr><th colspan="5">Total</th><th class="n">'+metricCell(total)+'</th></tr></tfoot></table>';
   }
-  html+='<div class="imnote">Uses the same New/Lost definition as the KPI cards: newest dataset year versus the immediately previous year. Membership uses whole-year presence; the latest year uses all currently loaded months. The sales column follows the active '+(isValue?'Value':'Volume')+' selection.</div>';
+  html+='<div class="imnote">New means first billed in the newest dataset year with no billing in any prior year. Lost continues to compare the newest dataset year against the immediately previous year. Membership uses whole-year presence; the latest year uses all currently loaded months. The sales column follows the active '+(isValue?'Value':'Volume')+' selection.</div>';
   document.getElementById('imBody').innerHTML=html;
   document.body.classList.add('imopen');
   document.getElementById('imWrap').scrollTop=0;
@@ -5858,8 +5898,8 @@ function visitDepartmentSplit(){
       '</div>'+
       '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.cur)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
       '<div class="deptmetric"><div class="lab">Active Regular Products</div><div class="val">'+nf0.format(r.activeRegular)+'</div><div class="sub">Regular items billed in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' · <button class="deptstatlink" type="button" data-new-products="1" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.newProducts)+'</button> new products</div></div>'+
-      '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="account" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.newCustomers)+'</button> new · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="account" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.lostCustomers)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
-      '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="site" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.newSites)+'</button> new · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="site" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.lostSites)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="account" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.newCustomers)+'</button> new (first-ever) · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="account" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.lostCustomers)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
+      '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="site" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.newSites)+'</button> new (first-ever) · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="site" data-nl-dept="'+r.key+'" data-nl-channel="'+esc(r.selectedChannel)+'">'+nf0.format(r.lostSites)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
     '</div>';
   }
 
@@ -5913,7 +5953,7 @@ function channelWiseData(metric){
     return c || 'Unspecified';
   }
   function rowFor(ch){
-    if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{},baseSites:{},lifeCustB:{},lifeCustA:{},lifeSitesB:{},lifeSitesA:{},avgTotal:0,avgSites:{}};
+    if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{},baseSites:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{},avgTotal:0,avgSites:{}};
     return rowsMap[ch];
   }
 
@@ -5929,15 +5969,19 @@ function channelWiseData(metric){
     var billed=(fq[k]>0 || fv[k]>0);
     var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
 
-    /* New/Lost uses the same newest-year vs previous-year whole-year rule as
-       the KPI cards, independent of the selected comparison period. */
+    /* New/Lost uses the KPI rule: new means never billed before latest year; lost uses
+       the immediately previous year, independent of the selected comparison period. */
     if (billed && lifeBaseYi>=0){
       if (yi===lifeLatestYi && !(lifeLatestYear===YEARS[NY-1] && m>LASTM)){
         r.lifeSitesB[s]=1;
         if (customer) r.lifeCustB[customer]=1;
-      } else if (yi===lifeBaseYi){
-        r.lifeSitesA[s]=1;
-        if (customer) r.lifeCustA[customer]=1;
+      } else if (yi<lifeLatestYi){
+        r.lifeSitesBefore[lifecycleSiteId(s)]=1;
+        if (customer) r.lifeCustBefore[customer]=1;
+        if (yi===lifeBaseYi){
+          r.lifeSitesA[s]=1;
+          if (customer) r.lifeCustA[customer]=1;
+        }
       }
     }
 
@@ -5976,13 +6020,13 @@ function channelWiseData(metric){
     r.activeSites=Object.keys(r.sites).length;
 
     var newCust=0, lostCust=0;
-    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustA[c]) newCust++; });
+    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustBefore[c]) newCust++; });
     Object.keys(r.lifeCustA).forEach(function(c){ if (!r.lifeCustB[c]) lostCust++; });
     r.newCustomers=newCust;
     r.lostCustomers=lostCust;
 
     var newSites=0, lostSites=0;
-    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesA[s]) newSites++; });
+    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesBefore[lifecycleSiteId(+s)]) newSites++; });
     Object.keys(r.lifeSitesA).forEach(function(s){ if (!r.lifeSitesB[s]) lostSites++; });
     r.newSites=newSites;
     r.lostSites=lostSites;
@@ -6060,8 +6104,8 @@ function visitChannelWise(){
       body+='<div class="chwisecard">'+
         '<div class="chwisecard-head"><b>'+esc(r.key)+'</b><span class="deptshare">'+nf1.format(r.cont||0)+'% share</span></div>'+
         '<div class="deptmetric"><div class="lab">'+state.yrB+' '+(isValue?'Value':'Volume')+'</div><div class="val">'+metricFmt(r.total)+'</div><div class="sub '+growthClass(r)+'">'+growthText(r)+'</div></div>'+
-        '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="account" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.newCustomers)+'</button> new · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="account" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.lostCustomers)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
-        '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="site" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.newSites)+'</button> new · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="site" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.lostSites)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customers</div><div class="val">'+nf0.format(r.activeCustomers)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="account" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.newCustomers)+'</button> new (first-ever) · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="account" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.lostCustomers)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
+        '<div class="deptmetric"><div class="lab">Active Customer Sites</div><div class="val">'+nf0.format(r.activeSites)+'</div><div class="sub"><button class="deptstatlink" type="button" data-lifecycle="new" data-nl-entity="site" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.newSites)+'</button> new (first-ever) · <button class="deptstatlink" type="button" data-lifecycle="lost" data-nl-entity="site" data-nl-dept="CPD" data-nl-channel="'+esc(r.key)+'">'+nf0.format(r.lostSites)+'</button> lost vs '+r.lifeBaseYear+'</div></div>'+
         '<div class="deptmetric"><div class="lab">Monthly Avg per Active Site</div><div class="val">'+metricFmt(r.monthlyAvgPerSite)+'</div><div class="sub">'+nf0.format(r.closedMonthCount)+' full months · '+nf0.format(r.avgActiveSites)+' active sites</div></div>'+
       '</div>';
     });
@@ -6232,6 +6276,7 @@ var CUSTWISE_MAP_FSD = Object.create(null);
 /* Customer Wise drill-down navigation.
    Keeps the user's place when moving Customer -> Customer Site -> Category Items. */
 var CUSTWISE_NAV = null;
+var CUSTWISE_ACCOUNT_FILTER = null; /* named customer inside Others / Discounters */
 var CUSTWISE_BACK_STACK = [];
 var CUSTWISE_CAT_EXPORT = null;
 var CUSTWISE_PROMO_FULL_YEAR = false;
@@ -6245,7 +6290,8 @@ function custWisePushCurrent(){
       type:CUSTWISE_NAV.type,
       key:CUSTWISE_NAV.key,
       siteKey:CUSTWISE_NAV.siteKey || null,
-      category:CUSTWISE_NAV.category || null
+      category:CUSTWISE_NAV.category || null,
+      accountFilter:CUSTWISE_ACCOUNT_FILTER || null
     },
     scroll:(document.getElementById('imWrap') || {scrollTop:0}).scrollTop || 0
   });
@@ -6253,6 +6299,7 @@ function custWisePushCurrent(){
 
 function custWiseRenderState(st,scrollTop){
   if (!st) return;
+  CUSTWISE_ACCOUNT_FILTER=st.accountFilter || null;
   if (st.type==='category'){
     openCustomerWiseCategoryItems(st.key,st.siteKey,st.category);
   } else {
@@ -6539,6 +6586,7 @@ function customerWiseSiteLatestInfo(key,siteKey){
   for (var s=0;s<SITES.length;s++){
     if (!mask[s]) continue;
     if (custWiseGroupForSite(s)!==key) continue;
+    if (CUSTWISE_ACCOUNT_FILTER && custWiseNorm(SITES[s][0])!==custWiseNorm(CUSTWISE_ACCOUNT_FILTER)) continue;
     if (custWiseSiteCodeKey(s)!==siteKey) continue;
     members.push(s);
     memberSet[s]=1;
@@ -6561,6 +6609,7 @@ function customerWiseSiteLatestInfo(key,siteKey){
   return {siteKey:siteKey,members:members,rep:latestS,latestP:latestP};
 }
 function customerWiseScopeMatch(s,key,siteKey){
+  if (CUSTWISE_ACCOUNT_FILTER && custWiseNorm(SITES[s] && SITES[s][0])!==custWiseNorm(CUSTWISE_ACCOUNT_FILTER)) return false;
   return (siteKey === null || siteKey === undefined)
     ? custWiseGroupForSite(s) === key
     : (custWiseGroupForSite(s) === key && custWiseSiteCodeKey(s) === siteKey);
@@ -7190,13 +7239,13 @@ function openCustomerWiseCategoryItems(key,siteKey,category){
   CUSTWISE_NAV={type:'category',key:key,siteKey:siteKey||null,category:category};
   CUSTWISE_CAT_EXPORT={
     rows:d.rows,year25:d.year25,year26:d.year26,
-    key:key,siteKey:siteKey||null,siteName:siteName,category:category
+    key:(CUSTWISE_ACCOUNT_FILTER||key),siteKey:siteKey||null,siteName:siteName,category:category
   };
 
   document.getElementById('imTitle').innerHTML=
     esc(category)+' <span class="code">Items</span>';
   document.getElementById('imSub').textContent=
-    (isSite ? siteName+' · '+key : key)+' · '+depLabel()+
+    (isSite ? siteName+' · '+(CUSTWISE_ACCOUNT_FILTER||key) : (CUSTWISE_ACCOUNT_FILTER||key))+' · '+depLabel()+
     ' · Jan–'+MONTHS[d.endM]+' '+d.year25+' vs '+d.year26;
 
   var t25=String(d.year25).slice(-2)+"'";
@@ -7269,6 +7318,7 @@ function customerWiseSiteData(key){
       var s=fs[k],i=fi[k];
       if (!mask[s]) continue;
       if (custWiseGroupForSite(s)!==key) continue;
+      if (CUSTWISE_ACCOUNT_FILTER && custWiseNorm(SITES[s] && SITES[s][0])!==custWiseNorm(CUSTWISE_ACCOUNT_FILTER)) continue;
       if (!factCounted(fd[k],i)) continue;
       if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
@@ -7287,6 +7337,7 @@ function customerWiseSiteData(key){
           prevTotal:0,
           currentYearActive:false,
           priorYearActive:false,
+          previouslyActive:false,
           cont:0,
           isNew:false,
           isLost:false
@@ -7302,6 +7353,7 @@ function customerWiseSiteData(key){
       var p=fp[k],yi=(p/12)|0,m=p%12;
       var billed=(fq[k]>0 || fv[k]>0);
 
+      if (yi<currYi && billed) r.previouslyActive=true;
       if (yi===currYi){
         if (billed) r.currentYearActive=true;
         if (state.yrB===YEARS[NY-1] && m>LASTM) continue;
@@ -7326,7 +7378,7 @@ function customerWiseSiteData(key){
     /* NEW = active in selected year but no activity in LY.
        LOST = still active somewhere in selected year, but has dropped to zero
        in the selected period while LY had sales in the same period. */
-    r.isNew=(r.currentYearActive && !r.priorYearActive);
+    r.isNew=(r.currentYearActive && !r.previouslyActive);
     r.isLost=(r.currentYearActive && r.prevTotal>0 && r.total<=0);
   });
 
@@ -7347,6 +7399,71 @@ function customerWiseSiteData(key){
     rows:rows,startM:startM,endM:endM,
     grandTotal:grandTotal,prevGrandTotal:prevGrandTotal
   };
+}
+
+/* Others and Discounters are shortcuts covering many distinct actual customer
+   accounts. List those accounts first, then allow one account to be opened with
+   the standard graph / rundown / category / customer-site drilldown package. */
+function customerWiseAccountList(key){
+  aggregate();
+  var currYi=yIdx(state.yrB), prevYi=yIdx(state.yrA);
+  var startM=state.m1, endM=state.yrB===YEARS[NY-1] ? Math.min(state.m2,LASTM) : state.m2;
+  var byAccount=Object.create(null);
+  if (F && currYi>=0){
+    var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
+    for (var k=0;k<N;k++){
+      var site=fs[k],i=fi[k];
+      if (!mask[site] || custWiseGroupForSite(site)!==key || !factCounted(fd[k],i)) continue;
+      if (state.cat.size && !state.cat.has(catOf[i])) continue;
+      var name=SITES[site] ? String(SITES[site][0]||'').trim() : '';
+      if (!name) continue;
+      var norm=custWiseNorm(name),r=byAccount[norm];
+      if (!r){
+        r=byAccount[norm]={name:name,curr:new Array(12).fill(0),prev:new Array(12).fill(0),total:0,prevTotal:0,active:false,everBefore:false,sites:{}};
+      }
+      var p=fp[k],yi=(p/12)|0,m=p%12,billed=fq[k]>0||fv[k]>0;
+      if (yi<currYi && billed) r.everBefore=true;
+      if (yi===currYi){
+        if (m>LASTM && state.yrB===YEARS[NY-1]) continue;
+        if (billed){ r.active=true; r.sites[custWiseSiteCodeKey(site)||('__SITE_'+site)]=1; }
+        r.curr[m]+=fv[k];
+      }else if (yi===prevYi){ r.prev[m]+=fv[k]; }
+    }
+  }
+  var months=[];
+  for (var m=startM;m<=endM;m++) months.push(m);
+  var rows=Object.keys(byAccount).map(function(x){return byAccount[x];}).filter(function(r){return r.active;});
+  rows.forEach(function(r){
+    for (var m=startM;m<=endM;m++){
+      r.total+=r.curr[m]||0;
+      r.prevTotal+=r.prev[m]||0;
+    }
+  });
+  rows.sort(function(a,b){return b.total-a.total || b.prevTotal-a.prevTotal || a.name.localeCompare(b.name);});
+  var grand=rows.reduce(function(a,r){return a+r.total;},0);
+  var prevGrand=rows.reduce(function(a,r){return a+r.prevTotal;},0);
+  var h='<div class="cwsitewrap"><table class="ovcusttbl"><thead>'+
+    '<tr class="cap"><th colspan="'+(months.length+4)+'">CUSTOMERS — SALES IN VALUE ('+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+')</th></tr>'+
+    '<tr><th>Customer</th>';
+  months.forEach(function(m){h+='<th>'+MONTHS[m]+'</th>';});
+  h+='<th>Total</th><th>Cont</th><th>Vs LY</th></tr></thead><tbody>';
+  if (!rows.length){
+    h+='<tr><th colspan="'+(months.length+4)+'">No active customers in '+state.yrB+' for the current selection.</th></tr>';
+  } else {
+    rows.forEach(function(r){
+      var pct=custWisePct(r.prevTotal,r.total),flags=r.everBefore?'':'<span class="cwsiteflag new">NEW</span>';
+      h+='<tr><th><button class="cwlink cwaccountlink" type="button" data-cwkey="'+encodeURIComponent(key)+'" data-cwaccount="'+encodeURIComponent(r.name)+'" title="Open this customer and their sites">'+esc(r.name)+'</button>'+flags+'</th>';
+      months.forEach(function(m){
+        var cv=r.curr[m]||0,pv=r.prev[m]||0;
+        h+='<td>'+nf0.format(Math.round(cv))+arrowLYCW(pv,cv)+'</td>';
+      });
+      h+='<td class="tot">'+nf0.format(Math.round(r.total))+arrowLYCW(r.prevTotal,r.total)+'</td>'+
+        '<td class="cont" title="LY Cont: '+nf2.format(prevGrand?r.prevTotal/prevGrand*100:0)+'%">'+nf2.format(grand?r.total/grand*100:0)+'%'+arrowLYCW(prevGrand?r.prevTotal/prevGrand*100:0,grand?r.total/grand*100:0)+'</td>'+
+        '<td class="vsly '+pct.cls+'" title="'+esc(custWiseDeltaTitle(r.prevTotal,r.total,true))+'">'+pct.text+'</td></tr>';
+    });
+  }
+  return h+'</tbody></table></div>'+
+    '<div class="ovcustnote">Each row is an actual customer account within '+esc(key)+'. Click a customer name to open its performance view and Customer Sites list; click a site there for individual site details. NEW means no positive billing in any earlier year.</div>';
 }
 
 function customerWiseSiteList(key){
@@ -7398,7 +7515,7 @@ function customerWiseSiteList(key){
 
   h+='</tbody></table></div>'+
      '<div class="ovcustnote">Only customer sites with active positive selling in '+state.yrB+
-     ' for the selected channel are shown. NEW indicates a site active this year with no LY activity; LOST flags an active-year site that has dropped to zero in the selected period versus LY. One row is kept per customer-site code using its latest-used name.</div>';
+     ' for the selected channel are shown. NEW indicates a site first billed this year with no billing in any earlier year; LOST flags an active-year site that has dropped to zero in the selected period versus LY. One row is kept per customer-site code using its latest-used name.</div>';
   return h;
 }
 
@@ -7408,7 +7525,7 @@ function openCustomerWiseDetail(key,siteKey){
      Customer Site selection is keyed by customer-site CODE so renamed/duplicate
      historical rows are merged into one site view. */
   var isSite=(siteKey !== null && siteKey !== undefined);
-  CUSTWISE_NAV={type:isSite?'site':'customer',key:key,siteKey:isSite?siteKey:null,category:null};
+  CUSTWISE_NAV={type:isSite?'site':(CUSTWISE_ACCOUNT_FILTER?'account':'customer'),key:key,siteKey:isSite?siteKey:null,category:null};
   CUSTWISE_CAT_EXPORT=null;
   var g=customerWiseGraphSeries(key,isSite?siteKey:null);
 
@@ -7423,17 +7540,17 @@ function openCustomerWiseDetail(key,siteKey){
     var site=(info.rep>=0 ? SITES[info.rep] : null);
     titleText=site ? site[1] : 'Customer Site';
     refText=site ? site[0] : key;
-    subScope=key+(site ? ' · '+areaLabel(areaOf[info.rep]) : '');
+    subScope=(CUSTWISE_ACCOUNT_FILTER||key)+(site ? ' · '+areaLabel(areaOf[info.rep]) : '');
 
     document.getElementById('imTitle').textContent=titleText;
     document.getElementById('imSub').textContent=
       refText+' · '+subScope+' · '+depLabel();
   } else {
-    refText = key==='Others' ? 'All customers not mapped in Cust LIST.xlsx'
+    refText = CUSTWISE_ACCOUNT_FILTER ? key+' · individual customer account' : key==='Others' ? 'All customers not mapped in Cust LIST.xlsx'
              : (group && group.names.length===1 ? group.names[0]
              : ((group && group.names.length) ? group.names.length+' mapped customer accounts' : key));
     document.getElementById('imTitle').innerHTML=
-      esc(key)+' <span class="code">Customer Wise</span>';
+      esc(CUSTWISE_ACCOUNT_FILTER||key)+' <span class="code">Customer Wise</span>';
     document.getElementById('imSub').textContent=
       refText+' · '+depLabel()+' · '+scopeNames();
   }
@@ -7450,7 +7567,7 @@ function openCustomerWiseDetail(key,siteKey){
         '</div>'+
       '</div>'+
       '<div class="cht">Sales Value (OMR) · '+g.prevYear+' full year vs '+g.currYear+' YTD</div>'+
-      '<div class="chs">'+(isSite?'Customer Site: ':'Customer shortcut: ')+esc(isSite?titleText:key)+' · '+detailGraphSalesTypeLabel+'</div>'+
+      '<div class="chs">'+(isSite?'Customer Site: ':(CUSTWISE_ACCOUNT_FILTER?'Customer: ':'Customer shortcut: '))+esc(isSite?titleText:(CUSTWISE_ACCOUNT_FILTER||key))+' · '+detailGraphSalesTypeLabel+'</div>'+
       customerWiseGraphSvg(g)+
       '<div class="chlegend">'+
         '<span class="lg"><span class="sw prev"></span>'+g.prevYear+'</span>'+
@@ -7493,9 +7610,9 @@ function openCustomerWiseDetail(key,siteKey){
     '</div>'+
     (!isSite
       ? '<div class="cwdetailsec">'+
-          '<div class="cwdetailtitle">Customer Sites</div>'+
-          '<div class="cwdetailsub">Sales value · selected period · click a site for site-level details</div>'+
-          customerWiseSiteList(key)+
+          '<div class="cwdetailtitle">'+((!CUSTWISE_ACCOUNT_FILTER && (key==='Others'||key==='Discounters'))?'Customers':'Customer Sites')+'</div>'+
+          '<div class="cwdetailsub">Sales value · selected period · click a '+((!CUSTWISE_ACCOUNT_FILTER && (key==='Others'||key==='Discounters'))?'customer to view their sites':'site for site-level details')+'</div>'+
+          ((!CUSTWISE_ACCOUNT_FILTER && (key==='Others'||key==='Discounters')) ? customerWiseAccountList(key) : customerWiseSiteList(key))+
         '</div>'
       : '');
 
@@ -7506,6 +7623,7 @@ function openCustomerWiseDetail(key,siteKey){
 function openCustomerWiseGraph(key){
   CUSTWISE_BACK_STACK=[];
   CUSTWISE_NAV=null;
+  CUSTWISE_ACCOUNT_FILTER=null;
   CUSTWISE_PROMO_FULL_YEAR=false;
   CUSTWISE_RUNDOWN_FULL_YEAR=false;
   openCustomerWiseDetail(key,null);
@@ -7521,7 +7639,7 @@ document.getElementById('imBody').addEventListener('click', function(e){
   var rfull=e.target.closest('[data-cw-rundown-full]');
   if (rfull){
     CUSTWISE_RUNDOWN_FULL_YEAR=!CUSTWISE_RUNDOWN_FULL_YEAR;
-    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='site')){
+    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='account' || CUSTWISE_NAV.type==='site')){
       var rst=(document.getElementById('imWrap')||{scrollTop:0}).scrollTop||0;
       openCustomerWiseDetail(CUSTWISE_NAV.key, CUSTWISE_NAV.type==='site' ? CUSTWISE_NAV.siteKey : null);
       setTimeout(function(){
@@ -7535,7 +7653,7 @@ document.getElementById('imBody').addEventListener('click', function(e){
   var pfull=e.target.closest('[data-cw-promo-full]');
   if (pfull){
     CUSTWISE_PROMO_FULL_YEAR=!CUSTWISE_PROMO_FULL_YEAR;
-    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='site')){
+    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='account' || CUSTWISE_NAV.type==='site')){
       var st=(document.getElementById('imWrap')||{scrollTop:0}).scrollTop||0;
       openCustomerWiseDetail(CUSTWISE_NAV.key, CUSTWISE_NAV.type==='site' ? CUSTWISE_NAV.siteKey : null);
       setTimeout(function(){
@@ -7564,6 +7682,17 @@ document.getElementById('imBody').addEventListener('click', function(e){
     return;
   }
 
+  var account=e.target.closest('.cwaccountlink');
+  if (account){
+    var accountName=decodeURIComponent(account.dataset.cwaccount || '');
+    var accountGroup=decodeURIComponent(account.dataset.cwkey || '');
+    if (accountName && (accountGroup==='Others'||accountGroup==='Discounters')){
+      custWisePushCurrent();
+      CUSTWISE_ACCOUNT_FILTER=accountName;
+      openCustomerWiseDetail(accountGroup,null);
+    }
+    return;
+  }
   var b=e.target.closest('.cwsitelink');
   if (!b) return;
   var siteKey=decodeURIComponent(b.dataset.cwsitekey || '');
@@ -8325,6 +8454,7 @@ function closeItem(){
   if (CUSTWISE_NAV){
     if (custWiseBack()) return;
     CUSTWISE_NAV=null;
+    CUSTWISE_ACCOUNT_FILTER=null;
     CUSTWISE_BACK_STACK=[];
     CUSTWISE_CAT_EXPORT=null;
     CUSTWISE_PROMO_FULL_YEAR=false;
@@ -10140,7 +10270,7 @@ function renderSiteListBody(){
       '</tbody><tfoot><tr><th colspan="5">Total</th>' +
       '<th class="n">' + nf0.format(Math.round(total)) + '</th></tr></tfoot></table>' +
       '<div class="imnote">' + (isNew
-        ? 'Outlets that bought in ' + state.yrB + ' and never in ' + state.yrA +
+        ? 'Outlets billed in ' + state.yrB + ' with no billing in any earlier year' +
           '. The popup Month filter uses the first billed month in ' + state.yrB + '.'
         : 'Outlets that bought in ' + state.yrA + ' and have not ordered at all in ' + state.yrB +
           ' — the business at stake. The popup Month filter uses the last billed month in ' + state.yrA + '.') +
@@ -10155,7 +10285,7 @@ function openSiteList(kind){
   var isNew=kind==='new', out=[];
   for (var s=0;s<SITES.length;s++){
     if (!mask[s]) continue;
-    if (isNew ? !(siteBilledB[s] && !siteBilledA[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
+    if (isNew ? !(siteBilledB[s] && !siteBilledBeforeB[s]) : !(siteBilledA[s] && !siteBilledB[s])) continue;
     out.push({
       s:s,
       v:isNew ? siteValB[s] : siteValA[s],
@@ -10166,7 +10296,7 @@ function openSiteList(kind){
 
   var valHead=(isNew ? state.yrB : state.yrA)+' '+periodLabel();
   document.getElementById('imSub').textContent =
-    (isNew ? 'Billed in '+state.yrB+', nothing in '+state.yrA
+    (isNew ? 'First billed in '+state.yrB+'; no billing in any earlier year'
            : 'Billed in '+state.yrA+', nothing in '+state.yrB) +
     ' · '+depLabel()+' · '+siteScopeLabel();
 
@@ -10289,7 +10419,7 @@ document.getElementById('imBody').addEventListener('change', function(e){
   if (e.target && e.target.id==='cwDetailGraphSalesType'){
     var v=e.target.value;
     CUSTWISE_DETAIL_GRAPH_SALES_TYPE=(v==='regular' || v==='promo') ? v : 'all';
-    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='site')){
+    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='account' || CUSTWISE_NAV.type==='site')){
       var st=(document.getElementById('imWrap')||{scrollTop:0}).scrollTop||0;
       openCustomerWiseDetail(CUSTWISE_NAV.key, CUSTWISE_NAV.type==='site' ? CUSTWISE_NAV.siteKey : null);
       setTimeout(function(){ var w=document.getElementById('imWrap'); if (w) w.scrollTop=st; },0);
@@ -10299,7 +10429,7 @@ document.getElementById('imBody').addEventListener('change', function(e){
   if (e.target && e.target.id==='cwCategorySalesType'){
     var cv=e.target.value;
     CUSTWISE_CATEGORY_SALES_TYPE=(cv==='regular' || cv==='promo') ? cv : 'all';
-    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='site')){
+    if (CUSTWISE_NAV && (CUSTWISE_NAV.type==='customer' || CUSTWISE_NAV.type==='account' || CUSTWISE_NAV.type==='site')){
       var st2=(document.getElementById('imWrap')||{scrollTop:0}).scrollTop||0;
       openCustomerWiseDetail(CUSTWISE_NAV.key, CUSTWISE_NAV.type==='site' ? CUSTWISE_NAV.siteKey : null);
       setTimeout(function(){ var w=document.getElementById('imWrap'); if (w) w.scrollTop=st2; },0);
