@@ -2149,9 +2149,10 @@ function depLabel(){
 }
 var YEARS = [], NY = 0, LASTM = 11;
 var F = null;            /* facts; q points to raw or converted cases */
+var INVOICE_CHANNELS = []; /* raw channel codes indexed by F.ch; not the outlet's latest channel */
 var loadedAt = null;
 var CASE_CONVERT = true;  /* Cases (R), Stock (S) and Area Stock (T) ÷ Column U conversion; active by default */
-var DATA_VERSION = 15;
+var DATA_VERSION = 16; /* Channel now retained on each invoice fact; refresh the previous snapshot. */
 
 /* ---------- gviz over JSONP (no CORS, works from a static page) ---------- */
 var gvSeq = 0;
@@ -2249,6 +2250,7 @@ function applyCaseConversion(){
 function applySnapshot(snap){
   if (snap && snap.f && !snap.f.d) snap.f.d = new Uint8Array(snap.f.s.length);
   SITES = snap.sites; YEARS = snap.years.slice(); NY = YEARS.length;
+  INVOICE_CHANNELS = snap.channels || [];
   F = snap.f; loadedAt = snap.at;
   if (F){
     if (!F.qRaw) F.qRaw=F.q;
@@ -2419,6 +2421,7 @@ function splitCsv(line){
 
 function loadAll(progress, ok, fail){
   var sites = [], codeIdx = {}, siteLastP = [], sitePosP = [], yearSeen = {}, B = new Buckets();
+  var invoiceChannels=[], invoiceChannelIdx=Object.create(null);
   var STOCK_FIRST = 18, STOCK_LAST = 25, stockRawMaps = [], stockConvMaps = [], stockHits = [];
   var aStockRawMap = {}, aStockConvMap = {}, aStockHits = 0;
   for (var sc=STOCK_FIRST; sc<=STOCK_LAST; sc++){ stockRawMaps[sc] = {}; stockConvMaps[sc] = {}; stockHits[sc] = 0; }
@@ -2522,10 +2525,23 @@ function loadAll(progress, ok, fail){
       if (coll) sites[si][5] = coll;
     }
     if (!v && !qRaw) return;
+    /* Store the channel on each sales record before coalescing facts. Outlet
+       metadata stores its most recent channel, which cannot classify 2025
+       invoices accurately after a 2026 channel rename or reassignment. */
+    var rawInvoiceChannel=String(f[C_CHAN]||'').trim().toUpperCase() || 'UNSPECIFIED';
+    var channelId=invoiceChannelIdx[rawInvoiceChannel];
+    if (channelId===undefined){
+      channelId=invoiceChannels.length;
+      if (channelId>=256) throw new Error('Too many distinct invoice channel codes');
+      invoiceChannelIdx[rawInvoiceChannel]=channelId;
+      invoiceChannels.push(rawInvoiceChannel);
+    }
     yearSeen[y] = 1;
     rows++;
     /* one bucket per site x item x year x month */
-    B.add(((((si * NI + ii) * 64 + (y - 2000)) * 12 + m) * 2) + dep, v, qRaw, qConv);
+    /* Include the original channel in the bucket identity so two
+       channels for the same outlet/item/month are never blended together. */
+    B.add((((((si * NI + ii) * 64 + (y - 2000)) * 12 + m) * 2) + dep) * 256 + channelId, v, qRaw, qConv);
   }
 
   function feed(text){
@@ -2560,15 +2576,16 @@ function loadAll(progress, ok, fail){
 
     var n = B.n;
     var fs = new Int32Array(n), fi = new Int32Array(n), fp = new Int32Array(n),
-        fv = new Float64Array(n), fqRaw = new Float64Array(n), fqConv = new Float64Array(n), fd = new Uint8Array(n);
+        fv = new Float64Array(n), fqRaw = new Float64Array(n), fqConv = new Float64Array(n), fd = new Uint8Array(n), fc = new Uint8Array(n);
     for (var k=0;k<n;k++){
       var key = B.key[k];
+      var ch = key % 256; key = (key - ch) / 256;
       var dp = key % 2; key = (key - dp) / 2;
       var m = key % 12; key = (key - m) / 12;
       var y = (key % 64) + 2000; key = (key - (y - 2000)) / 64;
       var ii = key % NI;
       var si = (key - ii) / NI;
-      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fqRaw[k] = B.qRaw[k]; fqConv[k] = B.qConv[k]; fd[k] = dp;
+      fs[k] = si; fi[k] = ii; fp[k] = yIndex[y]*12 + m; fv[k] = B.v[k]; fqRaw[k] = B.qRaw[k]; fqConv[k] = B.qConv[k]; fd[k] = dp; fc[k] = ch;
     }
     B = null;
 
@@ -2604,10 +2621,10 @@ function loadAll(progress, ok, fail){
       stockNote = 'No stock found in column S of the sheet. Widest row: ' + widest + ' columns.';
       stockPending = true;
     }
-    var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites,
+    var snap = {version:DATA_VERSION, at:new Date().toISOString(), years:years, sites:sites, channels:invoiceChannels,
                 aStockRaw: aStockHits ? aStockRawMap : null,
                 aStockConv: aStockHits ? aStockConvMap : null,
-                f:{s:fs, i:fi, p:fp, v:fv, qRaw:fqRaw, qConv:fqConv, q:(CASE_CONVERT?fqConv:fqRaw), d:fd}};
+                f:{s:fs, i:fi, p:fp, v:fv, qRaw:fqRaw, qConv:fqConv, q:(CASE_CONVERT?fqConv:fqRaw), d:fd, ch:fc}};
     function complete(){
       snap.stockRaw = STOCK_RAW; snap.stockConv = STOCK_CONV; snap.stock = STOCK; snap.stockAt = stockAt;
       applySnapshot(snap);
@@ -2676,8 +2693,9 @@ function Grow(){
   this.s = new Int32Array(this.cap); this.i = new Int32Array(this.cap);
   this.p = new Int32Array(this.cap); this.v = new Float64Array(this.cap);
   this.qRaw = new Float64Array(this.cap); this.qConv = new Float64Array(this.cap);
+  this.ch = new Uint8Array(this.cap);
 }
-Grow.prototype.push = function(s, i, p, v, qRaw, qConv){
+Grow.prototype.push = function(s, i, p, v, qRaw, qConv, ch){
   if (this.n === this.cap){
     this.cap *= 2;
     var S = new Int32Array(this.cap); S.set(this.s); this.s = S;
@@ -2686,20 +2704,22 @@ Grow.prototype.push = function(s, i, p, v, qRaw, qConv){
     var V = new Float64Array(this.cap); V.set(this.v); this.v = V;
     var QR = new Float64Array(this.cap); QR.set(this.qRaw); this.qRaw = QR;
     var QC = new Float64Array(this.cap); QC.set(this.qConv); this.qConv = QC;
+    var CH = new Uint8Array(this.cap); CH.set(this.ch); this.ch = CH;
   }
   var n = this.n++;
   this.s[n] = s; this.i[n] = i; this.p[n] = p; this.v[n] = v;
-  this.qRaw[n] = qRaw; this.qConv[n] = qConv;
+  this.qRaw[n] = qRaw; this.qConv[n] = qConv; this.ch[n] = ch || 0;
 };
 Grow.prototype.done = function(){
   var qRaw=this.qRaw.slice(0,this.n), qConv=this.qConv.slice(0,this.n);
   return {s:this.s.slice(0,this.n), i:this.i.slice(0,this.n), p:this.p.slice(0,this.n),
-          v:this.v.slice(0,this.n), qRaw:qRaw, qConv:qConv, q:(CASE_CONVERT?qConv:qRaw)};
+          v:this.v.slice(0,this.n), qRaw:qRaw, qConv:qConv, q:(CASE_CONVERT?qConv:qRaw), ch:this.ch.slice(0,this.n)};
 };
 
 function loadViaGviz(progress, ok, fail){
   var sites = null, codeIdx = {}, years = [], yIndex = {}, chunks = [], totalRows = 0, doneRows = 0;
   var buf = new Grow(), ci = 0;
+  var invoiceChannels=[], invoiceChannelIdx=Object.create(null);
 
   progress('Reading the sheet…', 0.02);
   gviz("select " + COL.yr + ", " + COL.mnth + ", count(" + COL.item + ") " +
@@ -2752,10 +2772,10 @@ function loadViaGviz(progress, ok, fail){
   }
   function runChunk(c, attempt){
     active++;
-    gviz("select " + COL.code + ", " + COL.item + ", " + COL.conv + ", sum(" + COL.sales + "), sum(" + COL.cases + ") " +
+    gviz("select " + COL.code + ", " + COL.item + ", " + COL.conv + ", " + COL.chan + ", sum(" + COL.sales + "), sum(" + COL.cases + ") " +
          "where " + COL.dep + " = 'CPD' and " + COL.yr + " = " + c.y +
          " and " + COL.mnth + " = '" + String(c.mLabel).replace(/'/g,"''") + "'" +
-         " group by " + COL.code + ", " + COL.item + ", " + COL.conv,
+         " group by " + COL.code + ", " + COL.item + ", " + COL.conv + ", " + COL.chan,
       function(t){
         if (failed) return;
         var p = yIndex[c.y]*12 + c.m, rows = t.rows;
@@ -2767,10 +2787,18 @@ function loadViaGviz(progress, ok, fail){
           var ii = imap[typeof item === 'number' ? item : parseInt(String(item).replace(/\D/g,''),10)];
           if (ii === undefined) continue;               /* not on the master item list */
           var conv = num(cell(rows[r],2));
-          var val = num(cell(rows[r],3)), qtyRaw = num(cell(rows[r],4));
+          var rawInvoiceChannel=String(cell(rows[r],3)||'').trim().toUpperCase() || 'UNSPECIFIED';
+          var channelId=invoiceChannelIdx[rawInvoiceChannel];
+          if (channelId===undefined){
+            channelId=invoiceChannels.length;
+            if (channelId>=256){ failed=true; fail('Too many distinct invoice channel codes'); return; }
+            invoiceChannelIdx[rawInvoiceChannel]=channelId;
+            invoiceChannels.push(rawInvoiceChannel);
+          }
+          var val = num(cell(rows[r],4)), qtyRaw = num(cell(rows[r],5));
           var qtyConv = Math.abs(conv) > 0.0000000001 ? (qtyRaw / conv) : qtyRaw;
           if (!val && !qtyRaw) continue;
-          buf.push(si, ii, p, val, qtyRaw, qtyConv);
+          buf.push(si, ii, p, val, qtyRaw, qtyConv, channelId);
         }
         t.rows = null; rows = null;
         active--; finished++; doneRows += c.n;
@@ -2793,7 +2821,7 @@ function loadViaGviz(progress, ok, fail){
       version: DATA_VERSION, stock: STOCK, stockRaw: STOCK_RAW, stockConv: STOCK_CONV, stockAt: stockAt,
       at: new Date().toISOString(),
       years: years,
-      sites: sites,
+      sites: sites, channels: invoiceChannels,
       f: buf.done()
     };
     buf = null;
@@ -5456,16 +5484,24 @@ function visitViewButtons(active){
    two actual invoice departments inside the current Area / Customer / Site /
    Category and period scope. */
 var DEPT_SPLIT_CHANNEL = {CPD:'ALL',FSD:'HOR'};
-/* Department/CPD Channel Wise reporting groups ECT under Others without
-   changing the underlying fact department, site master, or any other views. */
-function departmentViewIsEct(s){
-  return !!SITES[s] && String(SITES[s][3]||'').trim().toUpperCase()==='ECT';
+/* Department Split / Channel Wise use the channel invoiced ON THE FACT,
+   never the site's latest label (which can be from another year).
+   ECT was renamed OTH; both are reported in the existing Others channel. */
+function departmentInvoiceChannel(s,k){
+  var c=(F && F.ch && k!=null && INVOICE_CHANNELS[F.ch[k]]!=null)
+       ? INVOICE_CHANNELS[F.ch[k]]
+       : (SITES[s] ? SITES[s][3] : '');
+  return String(c||'').trim().toUpperCase() || 'UNSPECIFIED';
 }
-function departmentViewChannel(s,depIdx){
-  var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
-  if (depIdx===0 && c.toUpperCase()==='ECT') return 'Others';
-  if (c.toUpperCase()==='HOR') return 'HOR';
-  return c || 'Unspecified';
+function departmentViewIsEct(s,k){
+  var c=departmentInvoiceChannel(s,k);
+  return c==='ECT' || c==='OTH';
+}
+function departmentViewChannel(s,depIdx,k){
+  if (depIdx===1) return 'HOR';
+  var c=departmentInvoiceChannel(s,k);
+  if (c==='ECT' || c==='OTH' || c==='OTHERS') return 'Others';
+  return c==='UNSPECIFIED' ? 'Unspecified' : c;
 }
 
 function departmentSplitRegularEligible(i,dep){
@@ -5499,8 +5535,8 @@ function departmentSplitData(metric){
   var lifeLatestYear=lifeLatestYi>=0 ? YEARS[lifeLatestYi] : null;
   var lifeBaseYear=lifeBaseYi>=0 ? YEARS[lifeBaseYi] : null;
 
-  function channelOfSite(s,depIdx){
-    return departmentViewChannel(s,depIdx);
+  function channelOfSite(s,depIdx,k){
+    return departmentViewChannel(s,depIdx,k);
   }
 
   /* First pass: build the ACTIVE channel list for each department. A channel is
@@ -5516,7 +5552,7 @@ function departmentSplitData(metric){
     if (yi!==ib) continue;
     if (state.yrB===YEARS[NY-1] && m>LASTM) continue;
     if (!(fq[k]>0 || fv[k]>0)) continue;
-    var activeChannel=channelOfSite(s,d);
+    var activeChannel=channelOfSite(s,d,k);
     if (d===1 && activeChannel!=='HOR') continue;
     out[d].channels[activeChannel]=1;
   }
@@ -5544,7 +5580,7 @@ function departmentSplitData(metric){
     if (!mask[s2]) continue;
     if (state.cat.size && !state.cat.has(catOf[i2])) continue;
 
-    var r=out[d2], channel=channelOfSite(s2,d2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
+    var r=out[d2], channel=channelOfSite(s2,d2,k2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
 
     var p2=fp[k2],yi2=(p2/12)|0,m2=p2%12;
     var val=(metric==='value') ? (fv[k2]||0) : (fq[k2]||0);
@@ -5558,7 +5594,7 @@ function departmentSplitData(metric){
     /* ECT can contribute to CPD/Others customers, sites and sales, but it
        must not cause its product codes to appear as newly launched SKUs. */
     var regularYearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
-    if (d2===0 && departmentViewIsEct(s2) && yi2===ib && billed && m2<=regularYearEnd){
+    if (d2===0 && departmentViewIsEct(s2,k2) && yi2===ib && billed && m2<=regularYearEnd){
       r.ectProducts[i2]=1;
     }
 
@@ -5653,8 +5689,8 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   var useValue=metric==='value';
   var siteMap={}, custMap={}, priorSiteCodes=Object.create(null);
 
-  function channelOfSite(s){
-    return departmentViewChannel(s,depIdx);
+  function channelOfSite(s,k){
+    return departmentViewChannel(s,depIdx,k);
   }
   function siteRec(s){
     if (!siteMap[s]) siteMap[s]={s:s,a:0,b:0,before:0,valA:0,valB:0,firstB:-1,lastA:-1};
@@ -5669,7 +5705,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
     var s=fs[k];
     if (fd[k]!==depIdx || !mask[s]) continue;
     if (state.cat.size && !state.cat.has(catOf[fi[k]])) continue;
-    var ch=channelOfSite(s);
+    var ch=channelOfSite(s,k);
     if (channel && channel!=='ALL' && ch!==channel) continue;
     var p=fp[k], yi=(p/12)|0, m=p%12;
     if (yi>latestYi) continue;
@@ -5684,7 +5720,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
       sr.valB+=measureB;
       if (cr) cr.valB+=measureB;
       if (billed){
-        sr.b=1;
+        sr.b=1; sr.channelB=ch;
         if (sr.firstB<0 || m<sr.firstB) sr.firstB=m;
         if (cr){
           cr.b=1; cr.sitesB[s]=1; cr.channelsB[ch]=1;
@@ -5699,7 +5735,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
       sr.valA+=measureA;
       if (cr) cr.valA+=measureA;
       if (billed){
-        sr.a=1;
+        sr.a=1; sr.channelA=ch;
         if (sr.lastA<0 || m>sr.lastA) sr.lastA=m;
         if (cr){
           cr.a=1; cr.sitesA[s]=1; cr.channelsA[ch]=1;
@@ -5721,7 +5757,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
         s:s,
         customer:SITES[s] ? String(SITES[s][0]||'') : '',
         site:SITES[s] ? String(SITES[s][1]||'') : '',
-        channel:channelOfSite(s),
+        channel:(isNew?r.channelB:r.channelA) || departmentViewChannel(s,depIdx),
         area:areaLabel(areaOf[s]),
         month:isNew?r.firstB:r.lastA,
         value:isNew?r.valB:r.valA
@@ -5790,18 +5826,18 @@ function departmentNewProductRows(depKey,channel){
   var yearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
   var current={}, base={}, ectProducts={}, salesValue={}, salesCases={}, first={}, billedSites={}, siteMonths={};
-  function channelOfSite(s){
-    return departmentViewChannel(s,depIdx);
+  function channelOfSite(s,k){
+    return departmentViewChannel(s,depIdx,k);
   }
   for (var k=0;k<N;k++){
     var s=fs[k],i=fi[k];
     if (fd[k]!==depIdx || !mask[s]) continue;
     if (state.cat.size && !state.cat.has(catOf[i])) continue;
-    var ch=channelOfSite(s);
+    var ch=channelOfSite(s,k);
     var p=fp[k], yi=(p/12)|0, m=p%12;
     if (m>yearEnd) continue;
     var billed=(fq[k]>0 || fv[k]>0);
-    if (depIdx===0 && departmentViewIsEct(s) && yi===ib && billed) ectProducts[i]=1;
+    if (depIdx===0 && departmentViewIsEct(s,k) && yi===ib && billed) ectProducts[i]=1;
     if (channel && channel!=='ALL' && ch!==channel) continue;
     if (!departmentSplitRegularEligible(i,depIdx)) continue;
     if (yi===ib){
@@ -5977,8 +6013,8 @@ function channelWiseData(metric){
   var lifeLatestYear=lifeLatestYi>=0 ? YEARS[lifeLatestYi] : null;
   var lifeBaseYear=lifeBaseYi>=0 ? YEARS[lifeBaseYi] : null;
 
-  function channelOfSite(s){
-    return departmentViewChannel(s,0);
+  function channelOfSite(s,k){
+    return departmentViewChannel(s,0,k);
   }
   function rowFor(ch){
     if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{},baseSites:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{},avgTotal:0,avgSites:{}};
@@ -5992,7 +6028,7 @@ function channelWiseData(metric){
     if (state.cat.size && !state.cat.has(catOf[i])) continue;
 
     var p=fp[k],yi=(p/12)|0,m=p%12;
-    var ch=channelOfSite(s),r=rowFor(ch);
+    var ch=channelOfSite(s,k),r=rowFor(ch);
     var val=(metric==='value') ? (fv[k]||0) : (fq[k]||0);
     var billed=(fq[k]>0 || fv[k]>0);
     var customer=SITES[s] ? String(SITES[s][0]||'').trim() : '';
