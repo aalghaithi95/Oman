@@ -5455,7 +5455,18 @@ function visitViewButtons(active){
 /* Department Split is available only while ALL is active. It compares the
    two actual invoice departments inside the current Area / Customer / Site /
    Category and period scope. */
-var DEPT_SPLIT_CHANNEL = {CPD:'ALL',FSD:'ALL'};
+var DEPT_SPLIT_CHANNEL = {CPD:'ALL',FSD:'HOR'};
+/* Department/CPD Channel Wise reporting groups ECT under Others without
+   changing the underlying fact department, site master, or any other views. */
+function departmentViewIsEct(s){
+  return !!SITES[s] && String(SITES[s][3]||'').trim().toUpperCase()==='ECT';
+}
+function departmentViewChannel(s,depIdx){
+  var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
+  if (depIdx===0 && c.toUpperCase()==='ECT') return 'Others';
+  if (c.toUpperCase()==='HOR') return 'HOR';
+  return c || 'Unspecified';
+}
 
 function departmentSplitRegularEligible(i,dep){
   if (!ITEMS[i] || ITEMS[i][3]!=='Regular') return false;
@@ -5475,7 +5486,7 @@ function departmentSplitData(metric){
   var startM=state.m1;
   var endM=(state.yrB===YEARS[NY-1]) ? Math.min(state.m2,LASTM) : state.m2;
   var out=[
-    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{}},
+    {key:'CPD',name:'CPD',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},ectProducts:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{}},
     {key:'FSD',name:'Food Service',cur:0,base:0,pieCur:0,regular:{},baseRegular:{},cust:{},baseCust:{},sites:{},baseSites:{},channels:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{}}
   ];
 
@@ -5488,9 +5499,8 @@ function departmentSplitData(metric){
   var lifeLatestYear=lifeLatestYi>=0 ? YEARS[lifeLatestYi] : null;
   var lifeBaseYear=lifeBaseYi>=0 ? YEARS[lifeBaseYi] : null;
 
-  function channelOfSite(s){
-    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
-    return c || 'Unspecified';
+  function channelOfSite(s,depIdx){
+    return departmentViewChannel(s,depIdx);
   }
 
   /* First pass: build the ACTIVE channel list for each department. A channel is
@@ -5506,14 +5516,23 @@ function departmentSplitData(metric){
     if (yi!==ib) continue;
     if (state.yrB===YEARS[NY-1] && m>LASTM) continue;
     if (!(fq[k]>0 || fv[k]>0)) continue;
-    out[d].channels[channelOfSite(s)]=1;
+    var activeChannel=channelOfSite(s,d);
+    if (d===1 && activeChannel!=='HOR') continue;
+    out[d].channels[activeChannel]=1;
   }
 
   /* If another dashboard filter makes a previously selected channel inactive,
      return that department to All Channels rather than showing an empty card. */
   out.forEach(function(r){
-    var selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
-    if (selected!=='ALL' && !r.channels[selected]) DEPT_SPLIT_CHANNEL[r.key]='ALL';
+    if (r.key==='FSD'){
+      /* Food Service has one channel: HOR. There is no All Channels choice. */
+      r.channels={HOR:1};
+      DEPT_SPLIT_CHANNEL.FSD='HOR';
+      return;
+    }
+    if (DEPT_SPLIT_CHANNEL.CPD==='ECT') DEPT_SPLIT_CHANNEL.CPD='Others';
+    var selected=DEPT_SPLIT_CHANNEL.CPD || 'ALL';
+    if (selected!=='ALL' && !r.channels[selected]) DEPT_SPLIT_CHANNEL.CPD='ALL';
   });
 
   /* Second pass: calculate each department independently using its own selected
@@ -5525,7 +5544,7 @@ function departmentSplitData(metric){
     if (!mask[s2]) continue;
     if (state.cat.size && !state.cat.has(catOf[i2])) continue;
 
-    var r=out[d2], channel=channelOfSite(s2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
+    var r=out[d2], channel=channelOfSite(s2,d2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
 
     var p2=fp[k2],yi2=(p2/12)|0,m2=p2%12;
     var val=(metric==='value') ? (fv[k2]||0) : (fq[k2]||0);
@@ -5535,6 +5554,13 @@ function departmentSplitData(metric){
     /* Pie/share always represents the full department across ALL active channels.
        The per-department Channel dropdown filters only the detail card metrics. */
     if (yi2===ib && m2>=startM && m2<=endM) r.pieCur+=val;
+
+    /* ECT can contribute to CPD/Others customers, sites and sales, but it
+       must not cause its product codes to appear as newly launched SKUs. */
+    var regularYearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
+    if (d2===0 && departmentViewIsEct(s2) && yi2===ib && billed && m2<=regularYearEnd){
+      r.ectProducts[i2]=1;
+    }
 
     if (selected!=='ALL' && channel!==selected) continue;
 
@@ -5557,7 +5583,6 @@ function departmentSplitData(metric){
     /* Active Regular Products is a year-level measure. New Products compares
        the current active Regular assortment with the same elapsed months of the
        base year, so a 2026 YTD product is not compared against unseen future months. */
-    var regularYearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
     if (billed && departmentSplitRegularEligible(i2,d2) && m2<=regularYearEnd){
       if (yi2===ib) r.regular[i2]=1;
       else if (yi2===ia) r.baseRegular[i2]=1;
@@ -5588,7 +5613,7 @@ function departmentSplitData(metric){
     r.selectedChannel=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
 
     var newProducts=0;
-    Object.keys(r.regular).forEach(function(i){ if (!r.baseRegular[i]) newProducts++; });
+    Object.keys(r.regular).forEach(function(i){ if (!r.baseRegular[i] && !r.ectProducts[i]) newProducts++; });
     r.newProducts=newProducts;
 
     var newCust=0, lostCust=0;
@@ -5629,8 +5654,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   var siteMap={}, custMap={}, priorSiteCodes=Object.create(null);
 
   function channelOfSite(s){
-    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
-    return c || 'Unspecified';
+    return departmentViewChannel(s,depIdx);
   }
   function siteRec(s){
     if (!siteMap[s]) siteMap[s]={s:s,a:0,b:0,before:0,valA:0,valB:0,firstB:-1,lastA:-1};
@@ -5765,21 +5789,21 @@ function departmentNewProductRows(depKey,channel){
   var depIdx=depKey==='FSD'?1:0;
   var yearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
-  var current={}, base={}, salesValue={}, salesCases={}, first={}, billedSites={}, siteMonths={};
+  var current={}, base={}, ectProducts={}, salesValue={}, salesCases={}, first={}, billedSites={}, siteMonths={};
   function channelOfSite(s){
-    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
-    return c || 'Unspecified';
+    return departmentViewChannel(s,depIdx);
   }
   for (var k=0;k<N;k++){
     var s=fs[k],i=fi[k];
     if (fd[k]!==depIdx || !mask[s]) continue;
     if (state.cat.size && !state.cat.has(catOf[i])) continue;
     var ch=channelOfSite(s);
-    if (channel && channel!=='ALL' && ch!==channel) continue;
-    if (!departmentSplitRegularEligible(i,depIdx)) continue;
     var p=fp[k], yi=(p/12)|0, m=p%12;
     if (m>yearEnd) continue;
     var billed=(fq[k]>0 || fv[k]>0);
+    if (depIdx===0 && departmentViewIsEct(s) && yi===ib && billed) ectProducts[i]=1;
+    if (channel && channel!=='ALL' && ch!==channel) continue;
+    if (!departmentSplitRegularEligible(i,depIdx)) continue;
     if (yi===ib){
       salesValue[i]=(salesValue[i]||0)+(fv[k]||0);
       salesCases[i]=(salesCases[i]||0)+(fq[k]||0);
@@ -5798,7 +5822,7 @@ function departmentNewProductRows(depKey,channel){
   }
   var rows=[];
   Object.keys(current).forEach(function(key){
-    if (base[key]) return;
+    if (base[key] || ectProducts[key]) return;
     var i=+key,it=ITEMS[i];
     var siteKeys=Object.keys(billedSites[i]||{}), reordered=0;
     siteKeys.forEach(function(s){
@@ -5885,10 +5909,15 @@ function visitDepartmentSplit(){
   }
   function growthClass(r){ return r.growth===null ? 'flat' : (r.growth>0?'up':(r.growth<0?'down':'flat')); }
   function card(r){
-    var options='<option value="ALL"'+(r.selectedChannel==='ALL'?' selected':'')+'>All Channels</option>';
-    (r.channelList||[]).forEach(function(ch){
-      options+='<option value="'+esc(ch)+'"'+(r.selectedChannel===ch?' selected':'')+'>'+esc(ch)+'</option>';
-    });
+    var options='';
+    if (r.key==='FSD'){
+      options='<option value="HOR" selected>HOR</option>';
+    } else {
+      options='<option value="ALL"'+(r.selectedChannel==='ALL'?' selected':'')+'>All Channels</option>';
+      (r.channelList||[]).forEach(function(ch){
+        options+='<option value="'+esc(ch)+'"'+(r.selectedChannel===ch?' selected':'')+'>'+esc(ch)+'</option>';
+      });
+    }
     return '<div class="deptcard">'+
       '<div class="deptcard-head">'+
         '<div class="deptcard-title"><b>'+esc(r.name)+'</b>'+
@@ -5949,8 +5978,7 @@ function channelWiseData(metric){
   var lifeBaseYear=lifeBaseYi>=0 ? YEARS[lifeBaseYi] : null;
 
   function channelOfSite(s){
-    var c=SITES[s] ? String(SITES[s][3]||'').trim() : '';
-    return c || 'Unspecified';
+    return departmentViewChannel(s,0);
   }
   function rowFor(ch){
     if (!rowsMap[ch]) rowsMap[ch]={key:ch,curr:{},prev:{},total:0,prevTotal:0,cust:{},baseCust:{},sites:{},baseSites:{},lifeCustB:{},lifeCustA:{},lifeCustBefore:{},lifeSitesB:{},lifeSitesA:{},lifeSitesBefore:{},avgTotal:0,avgSites:{}};
@@ -8240,7 +8268,7 @@ function renderVisitValueChart(){
     if (dc){
       var depKey=dc.dataset.deptChannel;
       if (depKey==='CPD' || depKey==='FSD'){
-        DEPT_SPLIT_CHANNEL[depKey]=dc.value || 'ALL';
+        DEPT_SPLIT_CHANNEL[depKey]=depKey==='FSD' ? 'HOR' : (dc.value || 'ALL');
         renderVisitValueChart();
       }
       return;
