@@ -1341,6 +1341,17 @@ body.immonthly #imWrap .imcard{max-width:1500px}
 #pItemSummaryTbl td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap}
 #pItemSummaryTbl tr:hover td{background:#FAFAF8}
 #pItemSummaryTbl .empty{padding:24px;text-align:center;color:var(--muted)}
+/* Reuse the Item Performance drill-down affordance in the promotion summary. */
+#pItemSummaryTbl .psummary-item-link{
+  display:block;width:100%;border:0;background:none;margin:0;padding:0;
+  color:var(--ink);font:inherit;text-align:left;line-height:1.3;
+  white-space:normal;overflow-wrap:anywhere;cursor:pointer;
+  text-decoration:underline;text-decoration-color:rgba(19,76,140,.30);text-underline-offset:2px
+}
+#pItemSummaryTbl .psummary-item-link:hover,
+#pItemSummaryTbl .psummary-item-link:focus-visible{
+  color:var(--accent-2);text-decoration-color:var(--accent-2)
+}
 #pItemSummaryTbl tfoot th{background:#F2F4F2;color:var(--ink);padding:8px 9px;font-size:11px;border-top:1px solid var(--line);position:static;text-transform:none;letter-spacing:0}
 #pItemSummaryTbl tfoot th.r{text-align:right;font-family:'IBM Plex Mono',monospace}
 #ptbl th.p-site,#ptbl td.p-site{width:22%}
@@ -5356,15 +5367,16 @@ function svgDots(vals, xAt, yAt, cls){
   }
   return out;
 }
-function itemCasesChart(i){
+function itemCasesChart(i, itemSeries){
+  var src=itemSeries || A;
   var latest = NY - 1, prev = Math.max(0, NY - 2), span = NY * 12;
   var valsPrev = [], valsCurr = [], valPrev = [], valCurr = [], maxV = 0, minV = 0;
 
   for (var m=0;m<12;m++){
-    var pv = A.mq[i*span + prev*12 + m] || 0;
-    var cv = (m <= LASTM) ? (A.mq[i*span + latest*12 + m] || 0) : null;
-    var pval = A.mv[i*span + prev*12 + m] || 0;
-    var cval = (m <= LASTM) ? (A.mv[i*span + latest*12 + m] || 0) : null;
+    var pv = src.mq[i*span + prev*12 + m] || 0;
+    var cv = (m <= LASTM) ? (src.mq[i*span + latest*12 + m] || 0) : null;
+    var pval = src.mv[i*span + prev*12 + m] || 0;
+    var cval = (m <= LASTM) ? (src.mv[i*span + latest*12 + m] || 0) : null;
 
     valsPrev.push(pv);
     valsCurr.push(cv);
@@ -8409,6 +8421,7 @@ function renderVisitValueChart(){
    Customer Site is the default for every new click. */
 var ITEM_DETAIL_BREAKDOWN = 'site'; /* site | group */
 var ITEM_MONTH_DETAIL_CTX = null;
+var ITEM_PROMO_SUMMARY_SCOPE = null; /* null outside Tab 4 summary item detail */
 function renderItemBreakdownToggle(){
   var box=document.getElementById('mdBreakdownToggle');
   if (!box) return;
@@ -8418,28 +8431,32 @@ function renderItemBreakdownToggle(){
   }
 }
 
-function openItem(i){
+function openItem(i, options){
   document.body.classList.remove('immonthly');
   aggregate();                                   /* make sure the grid matches the filters */
+  /* Tab 4 summary uses the same full Item Performance popup, restricted to
+     the site-item pairs represented by its current promotion filters. */
+  ITEM_PROMO_SUMMARY_SCOPE = options && options.promoSummary ? promoItemSummaryScope(i) : null;
+  var itemSeries=ITEM_PROMO_SUMMARY_SCOPE ? promoItemSummarySeries(i,ITEM_PROMO_SUMMARY_SCOPE) : A;
   var it = ITEMS[i];
   document.getElementById('imTitle').innerHTML =
     esc(it[1]) + ' <span class="code">' + it[0] + '</span>';
   document.getElementById('imSub').textContent =
-    it[2] + ' · ' + (it[3] === 'Promotion' ? 'Promo pack' : 'Regular') + ' · ' + scopeNames();
+    it[2] + ' · ' + (it[3] === 'Promotion' ? 'Promo pack' : 'Regular') + ' · ' + (ITEM_PROMO_SUMMARY_SCOPE ? 'Promotion Analysis · '+promoAnalysisYear()+' · selected promotion sites' : scopeNames());
   document.getElementById('imBody').innerHTML =
-    itemCasesChart(i) +
+    itemCasesChart(i, itemSeries) +
     '<div class="d-only">' +
-      yearTable(i, A.mq, 'Sales in Volume (cases)', false) +
-      yearTable(i, A.mv, 'Sales in Value', true) +
+      yearTable(i, itemSeries.mq, 'Sales in Volume (cases)', false) +
+      yearTable(i, itemSeries.mv, 'Sales in Value', true) +
     '</div>' +
     '<div class="m-only">' +
-      yearTableV(i, A.mq, 'Sales in Volume (cases)', false) +
-      yearTableV(i, A.mv, 'Sales in Value', true) +
+      yearTableV(i, itemSeries.mq, 'Sales in Volume (cases)', false) +
+      yearTableV(i, itemSeries.mv, 'Sales in Value', true) +
     '</div>' +
     '<div class="imnote">' + YEARS[NY-1] + ' runs to ' + MONTHS[LASTM] +
     ', so its total is year-to-date and the % row compares the same months of ' +
-    (NY > 1 ? YEARS[NY-2] : '') + '. Figures follow the customer and site selection above, ' +
-    'not the month range.</div>';
+    (NY > 1 ? YEARS[NY-2] : '') + '. ' +
+    (ITEM_PROMO_SUMMARY_SCOPE ? 'Figures include the promotion sites matching the Tab 4 Area and Customer filters when this item was opened. Monthly values are net of returns, historical years show the same sites, and the tables show full-year history (not just the Tab 4 month range). Click any Month or Total to see the customer-site breakdown.' : 'Figures follow the customer and site selection above, not the month range.') + '</div>';
   document.body.classList.add('imopen');
   document.getElementById('imWrap').scrollTop = 0;
 }
@@ -8459,7 +8476,9 @@ function monthSiteRows(i, yi, m, metric){
     } else if (p !== pWant){
       continue;
     }
-    if (!mask[fs[k]]) continue;
+    if (ITEM_PROMO_SUMMARY_SCOPE){
+      if (ITEM_PROMO_SUMMARY_SCOPE.itemId!==i || !ITEM_PROMO_SUMMARY_SCOPE.sites[fs[k]]) continue;
+    } else if (!mask[fs[k]]) continue;
     if (!factCounted(fd[k], fi[k])) continue;
     var s = fs[k], x = metric === 'value' ? fv[k] : fq[k];
     by[s] = (by[s] || 0) + x;
@@ -8577,6 +8596,7 @@ function closeItem(){
   document.body.classList.remove('imopen');
   document.body.classList.remove('immonthly');
   ITEM_MONTH_DETAIL_CTX=null;
+  ITEM_PROMO_SUMMARY_SCOPE=null;
 }
 document.getElementById('imClose').addEventListener('click', closeItem);
 document.getElementById('mdBreakdownToggle').addEventListener('click', function(e){
@@ -9246,43 +9266,30 @@ function promoPairActiveInSelectedPeriod(d){
 }
 
 function promoAreaOptions(){
+  /* Keep Area / Customer selections stable when Return % changes: the item
+     summary always represents all promotions, regardless of return threshold. */
   var S = promotionScan(), out = [], seen={};
-  if (promoReturnAllMode()){
-    Object.keys(S.pairs).forEach(function(pk){
-      var d=S.pairs[pk];
-      if (!promoPairActiveInSelectedPeriod(d)) return;
-      var a=areaOf[d.s];
-      if (seen[a]) return;
-      seen[a]=1;
-      out.push({id:+a,label:areaLabel(+a)});
-    });
-  } else {
-    Object.keys(S.areaAny).forEach(function(a){
-      out.push({id:+a, label:areaLabel(+a)});
-    });
-  }
+  Object.keys(S.pairs).forEach(function(pk){
+    var d=S.pairs[pk];
+    if (!promoPairActiveInSelectedPeriod(d)) return;
+    var a=areaOf[d.s];
+    if (seen[a]) return;
+    seen[a]=1;
+    out.push({id:+a,label:areaLabel(+a)});
+  });
   return out.sort(function(x,y){ return x.label < y.label ? -1 : 1; });
 }
 function promoCustomerOptions(){
   var S = promotionScan(), seen = {}, out = [];
-  if (promoReturnAllMode()){
-    Object.keys(S.pairs).forEach(function(pk){
-      var d=S.pairs[pk];
-      if (!promoPairActiveInSelectedPeriod(d)) return;
-      var a=areaOf[d.s], cid=SITES[d.s][4];
-      if (state.pArea.size && !state.pArea.has(a)) return;
-      if (seen[cid]) return;
-      seen[cid]=1;
-      out.push({id:cid,label:CUSTOMERS[cid]});
-    });
-  } else {
-    S.events.forEach(function(e){
-      if (state.pArea.size && !state.pArea.has(e.a)) return;
-      if (seen[e.cid]) return;
-      seen[e.cid] = 1;
-      out.push({id:e.cid, label:CUSTOMERS[e.cid]});
-    });
-  }
+  Object.keys(S.pairs).forEach(function(pk){
+    var d=S.pairs[pk];
+    if (!promoPairActiveInSelectedPeriod(d)) return;
+    var a=areaOf[d.s], cid=SITES[d.s][4];
+    if (state.pArea.size && !state.pArea.has(a)) return;
+    if (seen[cid]) return;
+    seen[cid]=1;
+    out.push({id:cid,label:CUSTOMERS[cid]});
+  });
   return out.sort(function(a,b){ return a.label < b.label ? -1 : 1; });
 }
 function promoItemOptions(){
@@ -9603,6 +9610,7 @@ function promoReturnItemTable(d,metric,title,isValue,mobile){
 }
 
 function openPromotionReturnItemDetail(siteId,itemId){
+  ITEM_PROMO_SUMMARY_SCOPE=null;
   var it=ITEMS[itemId],site=SITES[siteId];
   if (!it || !site) return;
 
@@ -9633,20 +9641,50 @@ function openPromotionReturnItemDetail(siteId,itemId){
 }
 
 
-function promoItemSummaryRows(){
-  var S=promotionScan(), allMode=promoReturnAllMode(), minPct=state.pRet, byItem={};
+/* The summary uses ALL promotion site-item pairs in the selected year/period,
+   independently of Item Desc, Category and Return %. Retain the matching
+   Area/Customer sites for Tab 1-style historical item drilldowns. */
+function promoItemSummaryScope(itemId){
+  /* This item detail MUST match the Promotion Item Summary, not the return
+     frequency table: only Area and Customer filter its promotion site set. */
+  var S=promotionScan();
+  var sites=Object.create(null);
   Object.keys(S.pairs).forEach(function(pk){
     var d=S.pairs[pk];
-    if (allMode){
-      if (!promoPairActiveInSelectedPeriod(d)) return;
-    } else {
-      if (!(d.ret>0 && d.supply>0 && d.rate+1e-9>=minPct)) return;
-    }
+    if (d.i!==itemId || !promoPairActiveInSelectedPeriod(d)) return;
     var cid=SITES[d.s][4], a=areaOf[d.s];
     if (state.pArea.size && !state.pArea.has(a)) return;
     if (state.pCust.size && !state.pCust.has(cid)) return;
-    if (state.pCat.size && !state.pCat.has(catOf[d.i])) return;
-    if (state.pItems.size && !state.pItems.has(d.i)) return;
+    sites[d.s]=1;
+  });
+  return {itemId:itemId,sites:sites};
+}
+function promoItemSummarySeries(itemId,scope){
+  var span=NY*12, src={mq:new Float64Array(NI*span),mv:new Float64Array(NI*span)};
+  if (!F) return src;
+  var fs=F.s,fi=F.i,fp=F.p,fq=F.q,fv=F.v,fd=F.d,N=fs.length;
+  var base=itemId*span;
+  for (var k=0;k<N;k++){
+    if (fi[k]!==itemId || !scope.sites[fs[k]] || !factCounted(fd[k],itemId)) continue;
+    var p=fp[k];
+    if (p<0 || p>=span || ((p/12)|0)===NY-1 && p%12>LASTM) continue;
+    src.mq[base+p]+=fq[k];
+    src.mv[base+p]+=fv[k];
+  }
+  return src;
+}
+
+function promoItemSummaryRows(){
+  /* All promotion items with positive aggregate supply in the selected period.
+     Item Desc, Category and Return % filter ONLY the other Tab 4 analysis;
+     Area and Customer are the summary's only local filters. */
+  var S=promotionScan(), byItem={};
+  Object.keys(S.pairs).forEach(function(pk){
+    var d=S.pairs[pk];
+    if (!promoPairActiveInSelectedPeriod(d)) return;
+    var cid=SITES[d.s][4], a=areaOf[d.s];
+    if (state.pArea.size && !state.pArea.has(a)) return;
+    if (state.pCust.size && !state.pCust.has(cid)) return;
     var r=byItem[d.i] || (byItem[d.i]={i:d.i,supply:0,ret:0});
     r.supply+=d.supply||0;
     r.ret+=d.ret||0;
@@ -9672,13 +9710,13 @@ function renderPromoItemSummary(){
   rows.forEach(function(r){ supply+=r.supply||0; ret+=r.ret||0; });
   var html='';
   rows.forEach(function(r){
-    html+='<tr><td>'+esc(ITEMS[r.i][1])+'</td><td>'+esc(ITEMS[r.i][2])+'</td>'+
+    html+='<tr><td><button type="button" class="psummary-item-link" data-psummary-item="'+r.i+'" title="Open item graph and monthly performance">'+esc(ITEMS[r.i][1])+'</button></td><td>'+esc(ITEMS[r.i][2])+'</td>'+
       '<td class="num">'+nf2.format(r.supply)+'</td>'+
       '<td class="num">'+nf2.format(r.ret)+'</td>'+
       '<td class="num">'+nf2.format(r.net)+'</td>'+
       '<td class="num">'+(r.supply?nf1.format(r.rate)+'%':'—')+'</td></tr>';
   });
-  if (!html) html='<tr><td colspan="6" class="empty">No promotion items with positive supplied cases match the current filters.</td></tr>';
+  if (!html) html='<tr><td colspan="6" class="empty">No promotion items with positive supplied cases match the selected Area and Customer.</td></tr>';
   var totalRate=supply>0 ? ret/supply*100 : 0;
   body.innerHTML=html;
   var foot=document.getElementById('pItemSummaryFoot');
@@ -9686,8 +9724,15 @@ function renderPromoItemSummary(){
   var count=document.getElementById('pItemSummaryCount');
   if (count) count.textContent=rows.length+' item'+(rows.length===1?'':'s');
   var scope=document.getElementById('pItemSummaryScope');
-  if (scope) scope.textContent=promoAnalysisYear()+' '+periodLabel()+' · '+(promoReturnAllMode()?'All promotions':(state.pRet+'% or more'));
+  if (scope) scope.textContent=promoAnalysisYear()+' '+periodLabel()+' · All promotions · Area / Customer only';
 }
+
+/* Delegate from the persistent summary body: rendering replaces its rows. */
+document.getElementById('pItemSummaryBody').addEventListener('click',function(e){
+  var btn=e.target.closest('[data-psummary-item]');
+  if (!btn) return;
+  openItem(+btn.dataset.psummaryItem,{promoSummary:true});
+});
 
 function renderPromo(){
   if (!F) return;
