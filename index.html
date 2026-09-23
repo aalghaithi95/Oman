@@ -5504,6 +5504,43 @@ function departmentViewChannel(s,depIdx,k){
   return c==='UNSPECIFIED' ? 'Unspecified' : c;
 }
 
+/* Shared presence test for the department and channel lifecycle cards / popups.
+   Match the main KPI's positive-billing rule and use the newest loaded year vs
+   the immediately preceding year, regardless of Compare year / From-To / Category.
+   For a department's figures, check its ENTIRE department history across channels:
+   moving from HOR/OTH/etc. to a different channel is NOT a first-ever customer,
+   and moving between channels is NOT a lost customer or site. */
+function departmentLifecycleMembership(depIdx){
+  var latestYi=NY-1, baseYi=NY-2;
+  var out={siteB:Object.create(null),siteA:Object.create(null),siteBefore:Object.create(null),
+           custB:Object.create(null),custA:Object.create(null),custBefore:Object.create(null),
+           latestYear:latestYi>=0?YEARS[latestYi]:null,
+           baseYear:baseYi>=0?YEARS[baseYi]:null};
+  if (!F || baseYi<0) return out;
+  var fs=F.s,fp=F.p,fd=F.d,fq=F.q,fv=F.v;
+  for (var k=0;k<fs.length;k++){
+    var site=fs[k];
+    if (!mask[site] || fd[k]!==depIdx) continue;
+    if (!(fq[k]>0 || fv[k]>0)) continue;
+    var p=fp[k],yi=(p/12)|0,m=p%12;
+    if (yi>latestYi || (yi===latestYi && m>LASTM)) continue;
+    var id=lifecycleSiteId(site);
+    var customer=SITES[site] ? String(SITES[site][0]||'').trim() : '';
+    if (yi===latestYi){
+      out.siteB[id]=1;
+      if (customer) out.custB[customer]=1;
+    } else {
+      out.siteBefore[id]=1;
+      if (customer) out.custBefore[customer]=1;
+      if (yi===baseYi){
+        out.siteA[id]=1;
+        if (customer) out.custA[customer]=1;
+      }
+    }
+  }
+  return out;
+}
+
 function departmentSplitRegularEligible(i,dep){
   if (!ITEMS[i] || ITEMS[i][3]!=='Regular') return false;
 
@@ -5578,7 +5615,7 @@ function departmentSplitData(metric){
     var s2=fs[k2],i2=fi[k2],d2=fd[k2];
     if (d2!==0 && d2!==1) continue;
     if (!mask[s2]) continue;
-    if (state.cat.size && !state.cat.has(catOf[i2])) continue;
+    var inSelectedCategory=!state.cat.size || state.cat.has(catOf[i2]);
 
     var r=out[d2], channel=channelOfSite(s2,d2,k2), selected=DEPT_SPLIT_CHANNEL[r.key] || 'ALL';
 
@@ -5589,12 +5626,12 @@ function departmentSplitData(metric){
 
     /* Pie/share always represents the full department across ALL active channels.
        The per-department Channel dropdown filters only the detail card metrics. */
-    if (yi2===ib && m2>=startM && m2<=endM) r.pieCur+=val;
+    if (inSelectedCategory && yi2===ib && m2>=startM && m2<=endM) r.pieCur+=val;
 
     /* ECT can contribute to CPD/Others customers, sites and sales, but it
        must not cause its product codes to appear as newly launched SKUs. */
     var regularYearEnd=(state.yrB===YEARS[NY-1]) ? LASTM : 11;
-    if (d2===0 && departmentViewIsEct(s2,k2) && yi2===ib && billed && m2<=regularYearEnd){
+    if (inSelectedCategory && d2===0 && departmentViewIsEct(s2,k2) && yi2===ib && billed && m2<=regularYearEnd){
       r.ectProducts[i2]=1;
     }
 
@@ -5615,6 +5652,9 @@ function departmentSplitData(metric){
         }
       }
     }
+
+    /* KPI lifecycle membership must not be narrowed by the Category filter. */
+    if (!inSelectedCategory) continue;
 
     /* Active Regular Products is a year-level measure. New Products compares
        the current active Regular assortment with the same elapsed months of the
@@ -5641,7 +5681,10 @@ function departmentSplitData(metric){
     }
   }
 
+  /* Match each department's KPI scope, independent of its channel picker. */
+  var lifecycleByDep=[departmentLifecycleMembership(0),departmentLifecycleMembership(1)];
   out.forEach(function(r){
+    var life=lifecycleByDep[r.key==='FSD'?1:0];
     r.activeRegular=Object.keys(r.regular).length;
     r.activeCustomers=Object.keys(r.cust).length;
     r.activeSites=Object.keys(r.sites).length;
@@ -5653,14 +5696,14 @@ function departmentSplitData(metric){
     r.newProducts=newProducts;
 
     var newCust=0, lostCust=0;
-    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustBefore[c]) newCust++; });
-    Object.keys(r.lifeCustA).forEach(function(c){ if (!r.lifeCustB[c]) lostCust++; });
+    Object.keys(r.lifeCustB).forEach(function(c){ if (!life.custBefore[c]) newCust++; });
+    Object.keys(r.lifeCustA).forEach(function(c){ if (!life.custB[c]) lostCust++; });
     r.newCustomers=newCust;
     r.lostCustomers=lostCust;
 
     var newSites=0, lostSites=0;
-    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesBefore[lifecycleSiteId(+s)]) newSites++; });
-    Object.keys(r.lifeSitesA).forEach(function(s){ if (!r.lifeSitesB[s]) lostSites++; });
+    Object.keys(r.lifeSitesB).forEach(function(s){ if (!life.siteBefore[lifecycleSiteId(+s)]) newSites++; });
+    Object.keys(r.lifeSitesA).forEach(function(s){ if (!life.siteB[lifecycleSiteId(+s)]) lostSites++; });
     r.newSites=newSites;
     r.lostSites=lostSites;
     r.lifeLatestYear=lifeLatestYear;
@@ -5687,7 +5730,8 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   var depIdx=depKey==='FSD' ? 1 : 0;
   var fs=F.s,fi=F.i,fp=F.p,fv=F.v,fq=F.q,fd=F.d,N=fs.length;
   var useValue=metric==='value';
-  var siteMap={}, custMap={}, priorSiteCodes=Object.create(null);
+  var siteMap={}, custMap={};
+  var life=departmentLifecycleMembership(depIdx);
 
   function channelOfSite(s,k){
     return departmentViewChannel(s,depIdx,k);
@@ -5704,7 +5748,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   for (var k=0;k<N;k++){
     var s=fs[k];
     if (fd[k]!==depIdx || !mask[s]) continue;
-    if (state.cat.size && !state.cat.has(catOf[fi[k]])) continue;
+
     var ch=channelOfSite(s,k);
     if (channel && channel!=='ALL' && ch!==channel) continue;
     var p=fp[k], yi=(p/12)|0, m=p%12;
@@ -5729,7 +5773,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
         }
       }
     } else if (yi<latestYi){
-      if (billed){ sr.before=1; priorSiteCodes[lifecycleSiteId(s)]=1; if (cr) cr.before=1; }
+      if (billed){ sr.before=1; if (cr) cr.before=1; }
       if (yi!==baseYi) continue;
       var measureA=useValue ? (fv[k]||0) : (fq[k]||0);
       sr.valA+=measureA;
@@ -5750,7 +5794,8 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   if (entity==='site'){
     Object.keys(siteMap).forEach(function(key){
       var r=siteMap[key];
-      var match=isNew ? (r.b && !priorSiteCodes[lifecycleSiteId(r.s)]) : (r.a && !r.b);
+      var siteId=lifecycleSiteId(r.s);
+      var match=isNew ? (r.b && !life.siteBefore[siteId]) : (r.a && !life.siteB[siteId]);
       if (!match) return;
       var s=r.s;
       rows.push({
@@ -5766,7 +5811,7 @@ function scopedLifecycleRows(depKey,channel,entity,kind,metric){
   } else {
     Object.keys(custMap).forEach(function(name){
       var r=custMap[name];
-      var match=isNew ? (r.b && !r.before) : (r.a && !r.b);
+      var match=isNew ? (r.b && !life.custBefore[name]) : (r.a && !life.custB[name]);
       if (!match) return;
       var sites=isNew?r.sitesB:r.sitesA;
       var channels=isNew?r.channelsB:r.channelsA;
@@ -5985,7 +6030,7 @@ function visitDepartmentSplit(){
         '</div>'+
         '<div class="deptcards">'+card(cpd)+card(fsd)+'</div>'+
       '</div>'+
-      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New/lost customers and sites use the same KPI-card definition: newest dataset year versus the immediately previous year, based on whole-year presence. New products compare active Regular items through the same elapsed months of both years. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
+      '<div class="deptcompare-note">Active Regular Products uses the approved core Regular assortment for CPD; items outside the core list are excluded. FSD counts only Food Service items sold through the FSD department; retail packs sold through FSD are excluded from this KPI. A product must have positive billing in '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+'. Customers and sites follow the selected period. New/lost customers and sites use the KPI-card definition within each department: newest dataset year versus the immediately previous year, based on whole-year presence across ALL its channels and products. A move between channels is not a new or lost customer. Active customers/sites reflect the selected period. New products compare active Regular items through the same elapsed months of both years. Each department channel dropdown filters only that department card. The pie chart, total and department share always remain based on All Channels.</div>'+
     '</div>';
 }
 
@@ -6025,7 +6070,7 @@ function channelWiseData(metric){
     var s=fs[k],i=fi[k],d=fd[k];
     if (d!==0) continue; /* CPD only */
     if (!mask[s]) continue;
-    if (state.cat.size && !state.cat.has(catOf[i])) continue;
+    var inSelectedCategory=!state.cat.size || state.cat.has(catOf[i]);
 
     var p=fp[k],yi=(p/12)|0,m=p%12;
     var ch=channelOfSite(s,k),r=rowFor(ch);
@@ -6049,6 +6094,8 @@ function channelWiseData(metric){
       }
     }
 
+    /* Sales and monthly averages still respect Category; KPI lifecycle does not. */
+    if (!inSelectedCategory) continue;
     if (yi!==ia && yi!==ib) continue;
     if (yi===ib && state.yrB===YEARS[NY-1] && m>LASTM) continue;
 
@@ -6078,20 +6125,23 @@ function channelWiseData(metric){
     }
   }
 
+  /* Shared CPD-wide history: a reclassified channel must not manufacture new
+     or lost customer/site counts. */
+  var life=departmentLifecycleMembership(0);
   var rows=Object.keys(rowsMap).map(function(key){
     var r=rowsMap[key];
     r.activeCustomers=Object.keys(r.cust).length;
     r.activeSites=Object.keys(r.sites).length;
 
     var newCust=0, lostCust=0;
-    Object.keys(r.lifeCustB).forEach(function(c){ if (!r.lifeCustBefore[c]) newCust++; });
-    Object.keys(r.lifeCustA).forEach(function(c){ if (!r.lifeCustB[c]) lostCust++; });
+    Object.keys(r.lifeCustB).forEach(function(c){ if (!life.custBefore[c]) newCust++; });
+    Object.keys(r.lifeCustA).forEach(function(c){ if (!life.custB[c]) lostCust++; });
     r.newCustomers=newCust;
     r.lostCustomers=lostCust;
 
     var newSites=0, lostSites=0;
-    Object.keys(r.lifeSitesB).forEach(function(s){ if (!r.lifeSitesBefore[lifecycleSiteId(+s)]) newSites++; });
-    Object.keys(r.lifeSitesA).forEach(function(s){ if (!r.lifeSitesB[s]) lostSites++; });
+    Object.keys(r.lifeSitesB).forEach(function(s){ if (!life.siteBefore[lifecycleSiteId(+s)]) newSites++; });
+    Object.keys(r.lifeSitesA).forEach(function(s){ if (!life.siteB[lifecycleSiteId(+s)]) lostSites++; });
     r.newSites=newSites;
     r.lostSites=lostSites;
     r.lifeLatestYear=lifeLatestYear;
@@ -6191,7 +6241,7 @@ function visitChannelWise(){
     '<div class="cht">Channel Wise</div>'+
     '<div class="chs">CPD · '+scopeNames()+' · '+state.yrB+(state.yrB===YEARS[NY-1]?' YTD':'')+' vs '+state.yrA+' same period</div>'+
     '<div class="chwise">'+body+
-      '<div class="chwisenote">Monthly uses the Customer Wise table format. Overall uses the Department Split card format for each CPD channel, without a pie chart. New/Lost uses the same newest-year vs previous-year whole-year definition as the KPI cards. Monthly Avg per Active Site uses YTD sales through the last fully closed month, divided by active sites and by the number of full months.</div>'+
+      '<div class="chwisenote">Monthly uses the Customer Wise table format. Overall uses the Department Split card format for each CPD channel, without a pie chart. Active customers/sites follow the selected period. New/Lost follows the KPI-card definition across all CPD channels and product categories: first-ever billing for New, and billed last year but not this year for Lost. Moving between channels is not New or Lost. Monthly Avg per Active Site uses YTD sales through the last fully closed month, divided by active sites and by the number of full months.</div>'+
     '</div>';
 }
 
